@@ -20,6 +20,7 @@ pragma solidity ^0.8.22;
 import {BaseContract} from "../common/BaseContract.sol";
 import {ISecuritizeOnRamp} from "./ISecuritizeOnRamp.sol";
 import {IUSDCBridge} from "./cttp/IUSDCBridge.sol";
+import {IFeeManager} from "../fee/IFeeManager.sol";
 import {IDSRegistryService} from "@securitize/digital_securities/contracts/registry/IDSRegistryService.sol";
 import {IDSTrustService} from "@securitize/digital_securities/contracts/trust/IDSTrustService.sol";
 import {ISecuritizeNavProvider} from "@securitize/digital_securities/contracts/nav/ISecuritizeNavProvider.sol";
@@ -47,6 +48,7 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
     IERC20Metadata public stableCoinToken;
     IAssetProvider public assetProvider;
     ISecuritizeNavProvider public navProvider;
+    IFeeManager public feeManager;
     address public custodianWallet;
     IUSDCBridge public USDCBridge;
     uint16 public bridgeChainId;
@@ -56,6 +58,7 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
         address _stableCoin,
         address _assetProvider,
         address _navProvider,
+        address _feeManager,
         address _custodianWallet,
         uint16 _bridgeChainId,
         address _USDCBridge
@@ -68,6 +71,7 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
         assetProvider = IAssetProvider(_assetProvider);
         custodianWallet = _custodianWallet;
         navProvider = ISecuritizeNavProvider(_navProvider);
+        feeManager = IFeeManager(_feeManager);
         bridgeChainId = _bridgeChainId;
         USDCBridge = IUSDCBridge(_USDCBridge);
     }
@@ -121,6 +125,10 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
         require(navProvider.rate() > 0, "NAV Rate must be greater than 0");
 
         uint256 stableCoinAmount = calculateStableCoinAmount(_dsTokenAmount);
+
+        // TODO use the fee
+        uint256 fee = feeManager.getFee(stableCoinAmount);
+
         require(stableCoinAmount <= _maxStableCoinAmount, "Stable coin amount is higher than acceptable slippage");
         require(stableCoinToken.balanceOf(_msgSender()) >= stableCoinAmount, "Not enough stable coin balance");
 

@@ -70,7 +70,8 @@ interface ISecuritizeOnRamp {
     * @param _dsToken securitize asset
     * @param _stableCoin stable coin to purchase assets
     * @param _assetProvider asset provider
-    * @param _navProvider securitize nav provider
+    * @param _navProvider securitize nav providerç
+    * @param _feeManager on ramp fee manager
     * @param _custodianWallet stable coin recipient wallet
     * @param _bridgeChainId wm chain id - zero for no bridging
     * @param _USDCBridge Securitize usdc bridge protocol - zero address for no bridging
@@ -80,6 +81,7 @@ interface ISecuritizeOnRamp {
         address _stableCoin,
         address _assetProvider,
         address _navProvider,
+        address _feeManager,
         address _custodianWallet,
         uint16 _bridgeChainId,
         address _USDCBridge
