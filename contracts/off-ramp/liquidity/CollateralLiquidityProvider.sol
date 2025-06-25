@@ -1,0 +1,131 @@
+/**
+ * Copyright 2024 Securitize Inc. All rights reserved.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+pragma solidity ^0.8.22;
+
+import {ICollateralLiquidityProvider} from "./ICollateralLiquidityProvider.sol";
+import {BaseContract} from "../../common/BaseContract.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ISecuritizeRedemption} from "../redemption/ISecuritizeRedemption.sol";
+
+contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContract {
+    /**
+     * @dev liquidity asset.
+     */
+    IERC20 public liquidityToken;
+
+    /**
+     * @dev securitize redemption contract.
+     */
+    ISecuritizeRedemption public securitizeRedemption;
+
+    /**
+     * @dev external collateral redemption contract.
+     */
+    ISecuritizeRedemption public externalCollateralRedemption;
+
+    /**
+     * @dev recipient wallet.
+     */
+    address public recipient;
+
+    /**
+     * @dev collateral provider wallet.
+     */
+    address public collateralProvider;
+
+    /**
+     * @dev The caller account is not authorized to perform an operation.
+     */
+    error RedemptionUnauthorizedAccount(address account);
+    error ZeroAddress(string parameter);
+    error LiquidityTokenMismatch();
+
+    /**
+     * @dev Throws if called by any account other than the redemption contract
+     */
+    modifier onlySecuritizeRedemption() {
+        if (address(securitizeRedemption) != _msgSender()) {
+            revert RedemptionUnauthorizedAccount(_msgSender());
+        }
+        _;
+    }
+
+    function initialize(
+        address _recipient,
+        address _liquidityToken,
+        address _securitizeRedemption
+    ) public onlyProxy initializer {
+        if (_recipient == address(0)) {
+            revert ZeroAddress("recipient");
+        }
+        if (_liquidityToken == address(0)) {
+            revert ZeroAddress("liquidityToken");
+        }
+        if (_securitizeRedemption == address(0)) {
+            revert ZeroAddress("securitizeRedemption");
+        }
+        __BaseDSContract_init();
+        recipient = _recipient;
+        liquidityToken = IERC20(_liquidityToken);
+        securitizeRedemption = ISecuritizeRedemption(_securitizeRedemption);
+    }
+
+    function setExternalCollateralRedemption(address _externalCollateralRedemption) external onlyOwner {
+        if (_externalCollateralRedemption == address(0)) {
+            revert ZeroAddress("externalCollateralRedemption");
+        }
+
+        if (ISecuritizeRedemption(_externalCollateralRedemption).assetAddress() != address(liquidityToken)) {
+            revert LiquidityTokenMismatch();
+        }
+        address oldExternalCollateral = address(externalCollateralRedemption);
+        externalCollateralRedemption = ISecuritizeRedemption(_externalCollateralRedemption);
+        emit ExternalCollateralRedemptionUpdated(oldExternalCollateral, address(externalCollateralRedemption));
+    }
+
+    function setCollateralProvider(address _collateralProvider) external onlyOwner {
+        if (_collateralProvider == address(0)) {
+            revert ZeroAddress("collateralProvider");
+        }
+        address oldAddress = address(collateralProvider);
+        collateralProvider = _collateralProvider;
+        emit CollateralProviderUpdated(oldAddress, address(collateralProvider));
+    }
+
+    function availableLiquidity() external view returns (uint256) {
+        return IERC20(externalCollateralRedemption.asset()).balanceOf(collateralProvider);
+    }
+
+    function supplyTo(
+        address _redeemer,
+        uint256 _amount,
+        uint256 _minOutputAmount
+    ) public whenNotPaused onlySecuritizeRedemption {
+        //take collateral funds from collateral provider
+        IERC20(externalCollateralRedemption.asset()).transferFrom(collateralProvider, address(this), _amount);
+
+        //approve external redemption
+        IERC20(externalCollateralRedemption.asset()).approve(address(externalCollateralRedemption), _amount);
+
+        //get liquidity
+        externalCollateralRedemption.redeem(_amount, _minOutputAmount);
+
+        //supply _redeemer
+        liquidityToken.transfer(_redeemer, _amount);
+    }
+}
