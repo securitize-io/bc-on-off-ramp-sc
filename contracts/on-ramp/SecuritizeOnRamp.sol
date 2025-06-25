@@ -19,70 +19,61 @@ pragma solidity ^0.8.22;
 
 import {BaseContract} from "../common/BaseContract.sol";
 import {ISecuritizeOnRamp} from "./ISecuritizeOnRamp.sol";
-import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import {Address} from "@openzeppelin/contracts/utils/Address.sol";
-import {IDSToken} from "@securitize/digital_securities/contracts/token/IDSToken.sol";
+import {IUSDCBridge} from "./cttp/IUSDCBridge.sol";
 import {IDSRegistryService} from "@securitize/digital_securities/contracts/registry/IDSRegistryService.sol";
 import {IDSTrustService} from "@securitize/digital_securities/contracts/trust/IDSTrustService.sol";
 import {ISecuritizeNavProvider} from "@securitize/digital_securities/contracts/nav/ISecuritizeNavProvider.sol";
 import {IDSServiceConsumer} from "@securitize/digital_securities/contracts/service/IDSServiceConsumer.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
+import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {IAssetProvider} from "./provider/IAssetProvider.sol";
 
-contract SecuritizeOnRamp is ISecuritizeOnRamp, BaseContract {
+contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract {
 
     using Address for address;
-    // EIP712 Precomputed hashes:
-    // keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract,bytes32 salt)")
-    bytes32 constant public EIP712_DOMAIN_TYPE_HASH = 0xd87cd6ef79d4e2b95e15ce8abf732db51ec771f1ca2edccf22a46c729ac56472;
+    using ECDSA for bytes32;
 
-    // keccak256("SecuritizeSwap")
-    bytes32 constant public NAME_HASH = 0x5183e5178b4530d2fd10dfc0fff5d171f113e3becc98b45ca5513d6472888e3c;
+    string public constant NAME = "SecuritizeOnRamp";
+    string public constant VERSION = "1";
 
-    // keccak256("ExecutePreApprovedTransaction(string memory _senderInvestor, address _destination, address _executor, bytes _data, uint256[] memory _params)")
-    bytes32 constant public TXTYPE_HASH = 0xee963d66f92bd81c2e9b743fdab1cc81cd81a67f7626663992ce230ad0c71b51;
-
-    //keccak256("2")
-    bytes32 constant public VERSION_HASH = 0xad7c5bef027816a800da1736444fb58a807ef4c9603b7848673f7e3a68eb14a5;
-
-    bytes32 constant public SALT = 0xc7c09cf61ec4558aac49f42b32ffbafd87af4676341e61db3c383153955f6f39;
+    // keccak256("ExecutePreApprovedTransaction(string memory _senderInvestor, address _destination,address _executor,bytes _data, uint256[] memory _params)")
+    bytes32 constant TXTYPE_HASH = 0xee963d66f92bd81c2e9b743fdab1cc81cd81a67f7626663992ce230ad0c71b51;
 
     mapping(string => uint256) internal noncePerInvestor;
-    bytes32 public domainSeparator;
 
-    IDSToken public dsToken;
     IDSServiceConsumer public dsServiceConsumer;
     IERC20Metadata public stableCoinToken;
+    IAssetProvider public assetProvider;
     ISecuritizeNavProvider public navProvider;
     address public custodianWallet;
+    IUSDCBridge public USDCBridge;
+    uint16 public bridgeChainId;
 
     function initialize(
         address _dsToken,
         address _stableCoin,
+        address _assetProvider,
         address _navProvider,
-        address _custodianWallet
+        address _custodianWallet,
+        uint16 _bridgeChainId,
+        address _USDCBridge
     ) public override initializer onlyProxy {
+        __EIP712_init(NAME, VERSION);
         __BaseContract_init();
 
-        dsToken = IDSToken(_dsToken);
         dsServiceConsumer = IDSServiceConsumer(_dsToken);
         stableCoinToken = IERC20Metadata(_stableCoin);
+        assetProvider = IAssetProvider(_assetProvider);
         custodianWallet = _custodianWallet;
         navProvider = ISecuritizeNavProvider(_navProvider);
-
-        domainSeparator = keccak256(
-            abi.encode(
-                EIP712_DOMAIN_TYPE_HASH,
-                NAME_HASH,
-                VERSION_HASH,
-                block.chainid,
-                this,
-                SALT
-            )
-        );
+        bridgeChainId = _bridgeChainId;
+        USDCBridge = IUSDCBridge(_USDCBridge);
     }
 
-    modifier onlyIssuerOrAbove() {
-        IDSTrustService trustService = IDSTrustService(dsServiceConsumer.getDSService(dsServiceConsumer.TRUST_SERVICE()));
-        require(trustService.getRole(_msgSender()) == trustService.ISSUER() || trustService.getRole(_msgSender()) == trustService.MASTER(), "Insufficient trust level");
+    modifier onlySecuritizeOnRamp() {
+        require(_msgSender() == address(this), "Only Securitize on ramp");
         _;
     }
 
@@ -97,26 +88,30 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, BaseContract {
         uint8[] memory _investorAttributeIds,
         uint256[] memory _investorAttributeValues,
         uint256[] memory _investorAttributeExpirations,
-        uint256 _valueDsToken,
-        uint256 _valueStableCoin,
+        uint256 _minOutAmount,
+        uint256 _stableCoinAmount,
         uint256 _blockLimit,
-        uint256 _issuanceTime,
         bytes32 _agreementHash
-    ) public override whenNotPaused onlyIssuerOrAbove {
+    ) public override whenNotPaused onlySecuritizeOnRamp {
         require(_blockLimit >= block.number, "Transaction too old");
-        require(stableCoinToken.balanceOf(_newInvestorWallet) >= _valueStableCoin, "Not enough stable tokens balance");
-        IDSRegistryService registryService = IDSRegistryService(dsServiceConsumer.getDSService(dsServiceConsumer.REGISTRY_SERVICE()));
+        require(stableCoinToken.balanceOf(_newInvestorWallet) >= _stableCoinAmount, "Not enough stable tokens balance");
+        uint256 dsTokenAmount = calculateDsTokenAmount(_stableCoinAmount);
+        require(dsTokenAmount >= _minOutAmount, "DSToken mount is lower than acceptable slippage");
 
-        address[] memory investorWallets = new address[](1);
-        investorWallets[0] = _newInvestorWallet;
-        registryService.updateInvestor(_senderInvestorId, "", _investorCountry, investorWallets, _investorAttributeIds, _investorAttributeValues, _investorAttributeExpirations);
+        _registerInvestor(
+            _senderInvestorId,
+            _newInvestorWallet,
+            _investorCountry,
+            _investorAttributeIds,
+            _investorAttributeValues,
+            _investorAttributeExpirations
+        );
 
-        stableCoinToken.transferFrom(_newInvestorWallet, custodianWallet, _valueStableCoin);
-
-        dsToken.issueTokensCustom(_newInvestorWallet, _valueDsToken, _issuanceTime, 0, "", 0);
+        _executeStableCoinTransfer(_newInvestorWallet, _stableCoinAmount);
+        assetProvider.supplyTo(_msgSender(), dsTokenAmount);
 
         emit DocumentSigned (_newInvestorWallet, _agreementHash);
-        emit Swap(_msgSender(), _valueDsToken, _valueStableCoin, _newInvestorWallet);
+        emit Swap(_msgSender(), dsTokenAmount, _stableCoinAmount, _newInvestorWallet);
     }
 
     function swapFor(uint256 _dsTokenAmount, uint256 _maxStableCoinAmount) public override whenNotPaused {
@@ -126,19 +121,33 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, BaseContract {
         require(navProvider.rate() > 0, "NAV Rate must be greater than 0");
 
         uint256 stableCoinAmount = calculateStableCoinAmount(_dsTokenAmount);
-        require(stableCoinAmount <= _maxStableCoinAmount, "The amount of stable coins is bigger than max expected");
+        require(stableCoinAmount <= _maxStableCoinAmount, "Stable coin amount is higher than acceptable slippage");
         require(stableCoinToken.balanceOf(_msgSender()) >= stableCoinAmount, "Not enough stable coin balance");
-        stableCoinToken.transferFrom(_msgSender(), custodianWallet, stableCoinAmount);
 
-        dsToken.issueTokensCustom(_msgSender(), _dsTokenAmount, block.timestamp, 0, "", 0);
+        _executeStableCoinTransfer(_msgSender(), stableCoinAmount);
+        assetProvider.supplyTo(_msgSender(), _dsTokenAmount);
 
         emit Buy(_msgSender(), _dsTokenAmount, stableCoinAmount, navProvider.rate());
     }
 
+    function swap(uint256 _stableCoinAmount, uint256 _minOutAmount) public override whenNotPaused {
+        IDSRegistryService registryService = IDSRegistryService(dsServiceConsumer.getDSService(dsServiceConsumer.REGISTRY_SERVICE()));
+        require(registryService.isWallet(_msgSender()), "Investor not registered");
+        require(navProvider.rate() > 0, "NAV Rate must be greater than 0");
+
+        uint256 dsTokenAmount = calculateDsTokenAmount(_stableCoinAmount);
+        require(dsTokenAmount >= _minOutAmount, "DSToken mount is lower than acceptable slippage");
+
+        require(stableCoinToken.balanceOf(_msgSender()) >= _stableCoinAmount, "Not enough stable coin balance");
+
+        _executeStableCoinTransfer(_msgSender(), _stableCoinAmount);
+        assetProvider.supplyTo(_msgSender(), dsTokenAmount);
+
+        emit Buy(_msgSender(), dsTokenAmount, _stableCoinAmount, navProvider.rate());
+    }
+
     function executePreApprovedTransaction(
-        uint8 sigV,
-        bytes32 sigR,
-        bytes32 sigS,
+        bytes memory signature,
         string memory senderInvestor,
         address destination,
         address executor,
@@ -146,7 +155,7 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, BaseContract {
         uint256[] memory params
     ) public override whenNotPaused {
         require(params.length == 2, "Incorrect params length");
-        doExecuteByInvestor(sigV, sigR, sigS, senderInvestor, destination, data, executor, params);
+        doExecuteByInvestor(signature, senderInvestor, destination, data, executor, params);
     }
 
     /**
@@ -160,48 +169,74 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, BaseContract {
 
 
     function doExecuteByInvestor(
-        uint8 _securitizeHsmSigV,
-        bytes32 _securitizeHsmSigR,
-        bytes32 _securitizeHsmSigS,
+        bytes memory signature,
         string memory _senderInvestorId,
         address _destination,
         bytes memory _data,
         address _executor,
         uint256[] memory _params
     ) internal {
-        bytes32 txInputHash = keccak256(
+        bytes32 structHash = keccak256(
             abi.encode(
                 TXTYPE_HASH,
+                keccak256(bytes(_senderInvestorId)),
                 _destination,
-                _params[0], //value
-                keccak256(_data),
-                noncePerInvestor[_senderInvestorId],
                 _executor,
-                _params[1], //gasLimit
-                keccak256(abi.encodePacked(_senderInvestorId))
+                noncePerInvestor[_senderInvestorId],
+                keccak256(_data),
+                keccak256(abi.encodePacked(_params)) // flatten array
             )
         );
-        bytes32 totalHash = keccak256(
-            abi.encodePacked("\x19\x01", domainSeparator, txInputHash)
-        );
 
-        address recovered = ecrecover(totalHash, _securitizeHsmSigV, _securitizeHsmSigR, _securitizeHsmSigS);
-        require(recovered != address(0), "Invalid signature");
+        bytes32 digest = _hashTypedDataV4(structHash);
+        address signer = ECDSA.recover(digest, signature);
+        require(signer != address(0), "Invalid signature");
+
         // Check that the recovered address is an issuer
         IDSTrustService trustService = IDSTrustService(dsServiceConsumer.getDSService(dsServiceConsumer.TRUST_SERVICE()));
-        uint256 approverRole = trustService.getRole(recovered);
-        require(approverRole == trustService.ISSUER() || approverRole == trustService.MASTER(), "Insufficient trust level");
+        uint256 signerRole = trustService.getRole(signer);
+        require(signerRole == trustService.ISSUER() || signerRole == trustService.MASTER(), "Insufficient trust level");
         noncePerInvestor[_senderInvestorId] = noncePerInvestor[_senderInvestorId] + 1;
         Address.functionCall(_destination, _data);
     }
 
-    function calculateDsTokenAmount(uint256 _stableCoinAmount) public override view returns (uint256, uint256) {
+    function calculateDsTokenAmount(uint256 _stableCoinAmount) public override view returns (uint256) {
         uint256 currentNavRate = navProvider.rate();
-        uint256 dsTokenAmount = _stableCoinAmount * 10 ** IERC20Metadata(address(dsToken)).decimals() / currentNavRate;
-        return (dsTokenAmount, currentNavRate);
+        return _stableCoinAmount * 10 ** IERC20Metadata(address(assetProvider.asset())).decimals() / currentNavRate;
     }
 
     function calculateStableCoinAmount(uint256 _dsTokenAmount) public override view returns (uint256) {
-        return _dsTokenAmount * navProvider.rate() / (10 ** IERC20Metadata(address(dsToken)).decimals());
+        return _dsTokenAmount * navProvider.rate() / (10 ** IERC20Metadata(address(assetProvider.asset())).decimals());
+    }
+
+    function updateAssetProvider(address _assetProvider) external onlyOwner {
+        address oldProvider = address(assetProvider);
+        assetProvider = IAssetProvider(_assetProvider);
+        emit AssetProviderUpdated(oldProvider, _assetProvider);
+    }
+
+    function _executeStableCoinTransfer(address from, uint256 value) private {
+        if (bridgeChainId != 0 && address(USDCBridge) != address(0)) {
+            stableCoinToken.transferFrom(from, address(this), value);
+            stableCoinToken.approve(address(USDCBridge), value);
+            USDCBridge.sendUSDCCrossChainDeposit(bridgeChainId, custodianWallet, value);
+        } else {
+            stableCoinToken.transferFrom(from, custodianWallet, value);
+        }
+    }
+
+    function _registerInvestor(
+        string memory _senderInvestorId,
+        address _newInvestorWallet,
+        string memory _investorCountry,
+        uint8[] memory _investorAttributeIds,
+        uint256[] memory _investorAttributeValues,
+        uint256[] memory _investorAttributeExpirations
+    ) private {
+        IDSRegistryService registryService = IDSRegistryService(dsServiceConsumer.getDSService(dsServiceConsumer.REGISTRY_SERVICE()));
+
+        address[] memory investorWallets = new address[](1);
+        investorWallets[0] = _newInvestorWallet;
+        registryService.updateInvestor(_senderInvestorId, "", _investorCountry, investorWallets, _investorAttributeIds, _investorAttributeValues, _investorAttributeExpirations);
     }
 }
