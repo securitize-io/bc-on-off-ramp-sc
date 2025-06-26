@@ -79,7 +79,7 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
         if (_securitizeRedemption == address(0)) {
             revert ZeroAddress("securitizeRedemption");
         }
-        __BaseDSContract_init();
+        __BaseContract_init();
         recipient = _recipient;
         liquidityToken = IERC20(_liquidityToken);
         securitizeRedemption = ISecuritizeRedemption(_securitizeRedemption);

@@ -118,7 +118,6 @@ contract SecuritizeRedemption is ISecuritizeRedemption, BaseContract {
     error EmptyCountryCode();
     error InvalidCountryCodeLength(uint256 length);
     error NonUppercaseCountryCode(uint8 index, bytes1 character);
-    error ExcessiveFee(uint256 fee, uint256 maxFee);
     error ExcessiveDecimals(uint256 decimals, uint256 maxDecimals);
     error InsufficientOutputAmount(uint256 outputAmount, uint256 minOutputAmount);
 
@@ -141,7 +140,7 @@ contract SecuritizeRedemption is ISecuritizeRedemption, BaseContract {
         address _feeManager,
         bool _assetBurn
     ) public onlyProxy initializer addressNonZero(_asset, "asset") addressNonZero(_navProvider, "navProvider") {
-        __BaseDSContract_init();
+        __BaseContract_init();
         asset = IDSToken(_asset);
         navProvider = ISecuritizeNavProvider(_navProvider);
         dsServiceConsumer = IDSServiceConsumer(_asset); // We assume that the asset token implements IDSServiceConsumer
@@ -219,7 +218,7 @@ contract SecuritizeRedemption is ISecuritizeRedemption, BaseContract {
             asset.transferFrom(msg.sender, cachedProvider.recipient(), _amount);
         }
 
-        uint256 redemptionFee = IFeeManager(feeManager).getFee(IFeeManager.FeeApplicableOperation.Redemption, _amount);
+        uint256 redemptionFee = IFeeManager(feeManager).getFee(_amount);
 
         // Apply fee if it exists
         uint256 liquidityAfterFee = liquidity;

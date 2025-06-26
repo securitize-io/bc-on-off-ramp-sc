@@ -22,12 +22,10 @@ pragma solidity ^0.8.22;
  * @dev Interface for managing fees in the SecuritizeRedemption protocol
  */
 interface IFeeManager {
-    enum FeeApplicableOperation {
-        Redemption
-    }
+    error ExcessiveFee(uint256 fee, uint256 maxFee);
 
     /**
      * @dev Returns the current redemption fee expressed in mbps (1 mbps = 0.001%)
      */
-    function getFee(FeeApplicableOperation feeKey, uint256 amount) external view returns (uint256);
+    function getFee(uint256 amount) external view returns (uint256);
 }

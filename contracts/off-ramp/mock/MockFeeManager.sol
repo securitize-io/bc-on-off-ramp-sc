@@ -28,15 +28,15 @@ contract MockFeeManager is IFeeManager {
         redemptionFee = _initialFee;
     }
 
-    function getFee(FeeApplicableOperation feeKey, uint256 /*amount*/) external view returns (uint256) {
-        if (feeKey == FeeApplicableOperation.Redemption) {
-            return redemptionFee;
-        }
-        return 0;
+    function getFee(uint256 /*amount*/) external view returns (uint256) {
+        return redemptionFee;
     }
 
     function updateRedemptionFee(uint256 _redemptionFee) external {
-        require(_redemptionFee <= 100_000, "Fee cannot exceed 100%");
+        if (_redemptionFee > 100_000) {
+            revert ExcessiveFee(_redemptionFee, 100_000);
+        }
+
         uint256 oldFee = redemptionFee;
         redemptionFee = _redemptionFee;
         emit RedemptionFeeUpdated(oldFee, _redemptionFee);

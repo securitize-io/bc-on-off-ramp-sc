@@ -31,7 +31,6 @@ contract ExternalRedemptionMock is ISecuritizeRedemption {
     address public feeManager;
     bool public assetBurn;
     IERC20 private liquidityToken;
-    uint256 private _redemptionFee;
 
     // Custom errors to match the main contract
     error InsufficientOutputAmount(uint256 actual, uint256 minimum);
@@ -83,17 +82,6 @@ contract ExternalRedemptionMock is ISecuritizeRedemption {
         // For mock purposes, we'll use a simple 1:1 conversion
         // The real implementation would adjust for decimals
         return _amount;
-    }
-
-    function updateRedemptionFee(uint256 _fee) external {
-        require(_fee <= 100_000, "Fee cannot exceed 100%");
-        uint256 oldFee = _redemptionFee;
-        _redemptionFee = _fee;
-        emit RedemptionFeeUpdated(oldFee, _fee);
-    }
-
-    function redemptionFee() external view returns (uint256) {
-        return _redemptionFee;
     }
 
     // Events needed for interface compatibility
