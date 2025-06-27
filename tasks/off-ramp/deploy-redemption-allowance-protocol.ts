@@ -1,6 +1,15 @@
 import { task, types } from 'hardhat/config';
 
-// npx hardhat deploy-redemption-allowance-protocol --network sepolia --recipient 0xe76B92272667363FD487a71c13b7799ED924C9b8 --liquidity 0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238 --asset 0x779877a7b0d9e8603169ddbd7836e478b4624789 --provider 0x123 --nav 0x123 --feeManager 0x123 --assetBurn false --verify
+/*
+    npx hardhat deploy-redemption-allowance-protocol
+    --network sepolia
+    --asset 0x1234567890123456789012345678901234567890
+    --navProvider 0x0987654321098765432109876543210987654321
+    --feeManager 0x1122334455667788990011223344556677889900
+    --recipient 0x2233445566778899001122334455667788990011
+    --liquidity 0x3344556677889900112233445566778899001122
+    --provider 0x4455667788990011223344556677889900112233
+*/
 task('deploy-redemption-allowance-protocol', 'Deploy Redemption Protocol (Allowance implementation)')
     // SecuritizeOffRamp arguments
     .addParam('asset', 'DS Token to be redeemed', undefined, types.string, false)
