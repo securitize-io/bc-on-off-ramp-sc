@@ -41,8 +41,8 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, ISecuritizeOffRampErrors, EIP7
     /**
      * @dev Cached token decimals for gas optimization
      */
-    uint256 private cachedLiquidityDecimals;
-    uint256 private cachedAssetDecimals;
+    uint256 private liquidityDecimals;
+    uint256 private assetDecimals;
 
     /**
      * @dev liquidity provider implementation.
@@ -132,16 +132,15 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, ISecuritizeOffRampErrors, EIP7
         navProvider = ISecuritizeNavProvider(_navProvider);
         dsServiceConsumer = IDSServiceConsumer(_asset); // We assume that the asset token implements IDSServiceConsumer
 
-        // Cache asset decimals to save gas
-        uint256 assetDecimals = ERC20(_asset).decimals();
-        if (assetDecimals > 18) {
-            revert ExcessiveDecimals(assetDecimals, 18);
+        uint256 _assetDecimals = ERC20(_asset).decimals();
+        if (_assetDecimals > 18) {
+            revert ExcessiveDecimals(_assetDecimals, 18);
         }
 
-        cachedAssetDecimals = assetDecimals;
         feeManager = _feeManager;
-        assetAddress = _asset;
         assetBurn = _assetBurn;
+        assetDecimals = _assetDecimals;
+        assetAddress = _asset;
     }
 
     function updateLiquidityProvider(
@@ -151,11 +150,11 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, ISecuritizeOffRampErrors, EIP7
         liquidityProvider = ILiquidityProvider(_liquidityProvider);
 
         // Cache liquidity decimals to save gas in calculateLiquidityTokenAmount
-        uint256 liquidityDecimals = ERC20(address(liquidityProvider.liquidityToken())).decimals();
-        if (liquidityDecimals > 18) {
-            revert ExcessiveDecimals(liquidityDecimals, 18);
+        uint256 _liquidityDecimals = ERC20(address(liquidityProvider.liquidityToken())).decimals();
+        if (_liquidityDecimals > 18) {
+            revert ExcessiveDecimals(_liquidityDecimals, 18);
         }
-        cachedLiquidityDecimals = liquidityDecimals;
+        liquidityDecimals = _liquidityDecimals;
 
         emit LiquidityProviderUpdated(oldProvider, address(liquidityProvider));
     }
@@ -181,9 +180,8 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, ISecuritizeOffRampErrors, EIP7
             revert InsufficientRedeemerBalance(msg.sender, _amount, asset.balanceOf(msg.sender));
         }
 
-        // Cache liquidityProvider reference to save gas on multiple accesses
-        ILiquidityProvider cachedProvider = liquidityProvider;
-        if (address(cachedProvider) == address(0)) {
+        // This can occur if redeem is called before updateLiquidityProvider has been executed
+        if (address(liquidityProvider) == address(0)) {
             revert ZeroAddress("liquidityProvider");
         }
 
@@ -194,26 +192,26 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, ISecuritizeOffRampErrors, EIP7
         }
 
         uint256 liquidity = _calculateLiquidityTokenAmount(_amount, rate);
-        if (cachedProvider.availableLiquidity() < liquidity) {
-            revert InsufficientLiquidity(liquidity, cachedProvider.availableLiquidity());
-        }
-
-        // Transfer asset to liquidity provider
-        if (assetBurn) {
-            asset.burn(msg.sender, _amount, "Redemption burn");
-        } else {
-            asset.transferFrom(msg.sender, cachedProvider.recipient(), _amount);
+        if (liquidityProvider.availableLiquidity() < liquidity) {
+            revert InsufficientLiquidity(liquidity, liquidityProvider.availableLiquidity());
         }
 
         // Apply fee if it exists
-        uint256 liquidityAfterFee = liquidity - IFeeManager(feeManager).getFee(liquidity);
+        uint256 fee = IFeeManager(feeManager).getFee(liquidity);
+        uint256 liquidityAfterFee = liquidity - fee;
 
         // Check slippage protection - ensure minimum output amount is met
         if (liquidityAfterFee < _minOutputAmount) {
             revert InsufficientOutputAmount(liquidityAfterFee, _minOutputAmount);
         }
 
-        cachedProvider.supplyTo(msg.sender, liquidityAfterFee, _minOutputAmount);
+        // Transfer asset to liquidity provider
+        if (assetBurn) {
+            asset.burn(msg.sender, _amount, "Redemption burn");
+        } else {
+            asset.transferFrom(msg.sender, liquidityProvider.recipient(), _amount);
+        }
+        liquidityProvider.supplyTo(msg.sender, liquidityAfterFee, _minOutputAmount);
 
         emit RedemptionCompleted(msg.sender, _amount, liquidityAfterFee, rate);
     }
@@ -252,18 +250,13 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, ISecuritizeOffRampErrors, EIP7
      * @return The amount of liquidity tokens to provide
      */
     function _calculateLiquidityTokenAmount(uint256 _amount, uint256 rate) private view returns (uint256) {
-        if (cachedLiquidityDecimals > cachedAssetDecimals) {
-            return
-                ((_amount * rate) * (10 ** (cachedLiquidityDecimals - cachedAssetDecimals))) /
-                (10 ** cachedLiquidityDecimals);
+        if (liquidityDecimals > assetDecimals) {
+            return ((_amount * rate) * (10 ** (liquidityDecimals - assetDecimals))) / (10 ** liquidityDecimals);
         }
-        if (cachedLiquidityDecimals < cachedAssetDecimals) {
-            return
-                (_amount * rate) /
-                (10 ** (cachedAssetDecimals - cachedLiquidityDecimals)) /
-                (10 ** cachedLiquidityDecimals);
+        if (liquidityDecimals < assetDecimals) {
+            return (_amount * rate) / (10 ** (assetDecimals - liquidityDecimals)) / (10 ** liquidityDecimals);
         }
-        return (_amount * rate) / (10 ** cachedAssetDecimals);
+        return (_amount * rate) / (10 ** assetDecimals);
     }
 
     function _updateCountryRestriction(string memory country, bool isRestricted) private {
