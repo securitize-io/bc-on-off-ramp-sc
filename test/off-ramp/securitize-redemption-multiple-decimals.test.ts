@@ -68,8 +68,8 @@ describe('Securitize Redemption Multiple Decimals', function () {
         const liquidityProvider = await hre.upgrades.deployProxy(
             CollateralLiquidityProvider,
             [
-                await contractsWith18DecimalsDsTokenMock.redemption.getAddress(),
                 await excessiveDecimalsToken.getAddress(),
+                await contractsWith18DecimalsDsTokenMock.redemption.getAddress(),
                 await contractsWith18DecimalsDsTokenMock.redemption.getAddress(),
             ],
             { kind: 'uups' },

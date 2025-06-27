@@ -66,8 +66,8 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
     }
 
     function initialize(
-        address _recipient,
         address _liquidityToken,
+        address _recipient,
         address _securitizeRedemption
     ) public onlyProxy initializer {
         if (_recipient == address(0)) {

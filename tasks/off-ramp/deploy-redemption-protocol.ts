@@ -30,7 +30,7 @@ task('deploy-redemption-protocol', 'Deploy Redemption Protocol')
         const LiquidityProvider = await hre.ethers.getContractFactory('CollateralLiquidityProvider');
         const liquidityProvider = await hre.upgrades.deployProxy(
             LiquidityProvider,
-            [args.recipient, args.liquidity, redemptionAddress],
+            [args.liquidity, args.recipient, redemptionAddress],
             {
                 kind: 'uups',
             },

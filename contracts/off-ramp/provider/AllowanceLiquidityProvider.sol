@@ -62,8 +62,8 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
     }
 
     function initialize(
-        address _recipient,
         address _liquidityToken,
+        address _recipient,
         address _securitizeRedemption
     ) public onlyProxy initializer {
         if (_recipient == address(0)) {

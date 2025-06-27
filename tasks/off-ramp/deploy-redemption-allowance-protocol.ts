@@ -29,7 +29,7 @@ task('deploy-redemption-allowance-protocol', 'Deploy Redemption Protocol (Allowa
         const LiquidityProvider = await hre.ethers.getContractFactory('AllowanceLiquidityProvider');
         const liquidityProvider = await hre.upgrades.deployProxy(
             LiquidityProvider,
-            [args.recipient, args.liquidity, redemptionAddress],
+            [args.liquidity, args.recipient, redemptionAddress],
             {
                 kind: 'uups',
             },

@@ -89,8 +89,8 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 const { liquidityProvider, usdcMock, redemption } = await loadFixture(deployRedemptionProtocol);
                 await expect(
                     liquidityProvider.initialize(
-                        securitizeWallet,
                         await usdcMock.getAddress(),
+                        securitizeWallet,
                         await redemption.getAddress(),
                     ),
                 ).revertedWithCustomError(liquidityProvider, 'InvalidInitialization');
