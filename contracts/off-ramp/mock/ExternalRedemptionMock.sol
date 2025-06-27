@@ -59,7 +59,7 @@ contract ExternalRedemptionMock is ISecuritizeOffRamp {
             revert InsufficientOutputAmount(outputAmount, _minOutputAmount);
         }
 
-        // Transfer tokens - this needs to match what SecuritizeRedemption does
+        // Transfer tokens - this needs to match what SecuritizeOffRamp does
         IERC20(liquidityToken).transfer(msg.sender, outputAmount);
         IDSToken(asset).transferFrom(msg.sender, address(this), amount);
 
