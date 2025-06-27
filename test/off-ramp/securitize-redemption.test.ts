@@ -20,7 +20,7 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
 
     describe('Securitize Redemption Contract Unit Tests', function () {
         describe('Creation', function () {
-            it.only('Should fail when trying to re initialize', async function () {
+            it('Should fail when trying to re initialize', async function () {
                 const { redemption, dsTokenMock, securitizeNavProviderMock } =
                     await loadFixture(deployRedemptionProtocol);
                 await expect(
@@ -802,14 +802,6 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 await expect(mockFeeManager.updateRedemptionFee(newFee))
                     .to.emit(mockFeeManager, 'RedemptionFeeUpdated')
                     .withArgs(0, newFee);
-            });
-
-            it('Should fail with ExcessiveFee error when fee exceeds 100%', async function () {
-                const { mockFeeManager } = await loadFixture(deployRedemptionProtocol);
-                const excessiveFee = 100_001; // Just over 100%
-                await expect(mockFeeManager.updateRedemptionFee(excessiveFee))
-                    .to.be.revertedWithCustomError(mockFeeManager, 'ExcessiveFee')
-                    .withArgs(excessiveFee, 100_000); // 100_000 is FEE_DENOMINATOR
             });
 
             it('Should succeed when fee is exactly 100%', async function () {

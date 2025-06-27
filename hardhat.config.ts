@@ -2,6 +2,9 @@ import { HardhatUserConfig } from 'hardhat/config';
 import '@nomicfoundation/hardhat-toolbox';
 import '@openzeppelin/hardhat-upgrades';
 import 'dotenv/config';
+import './tasks/off-ramp/deploy-redemption-protocol';
+import './tasks/off-ramp/deploy-redemption-allowance-protocol';
+import './tasks/off-ramp/update-countries-restriction';
 
 const config: HardhatUserConfig = {
     mocha: {
@@ -34,7 +37,7 @@ const config: HardhatUserConfig = {
             url: process.env.OPTIMISM_RPC_URL ?? '',
             accounts: [process.env.DEPLOYER_PRIV_KEY!].filter((x) => x),
         },
-    }
+    },
 };
 
 export default config;
