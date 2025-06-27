@@ -25,6 +25,8 @@ import {ISecuritizeNavProvider} from "./nav/ISecuritizeNavProvider.sol";
  * @title ISecuritizeOffRamp
  */
 interface ISecuritizeOffRamp {
+    function initialize(address _asset, address _navProvider, address _feeManager, bool _assetBurn) external;
+
     /**
      * @dev Update the liquidity provider
      * @param _liquidityProvider The new liquidity provider address

@@ -29,6 +29,9 @@ import {IDSToken} from "@securitize/digital_securities/contracts/token/IDSToken.
 import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
 
 contract SecuritizeOffRamp is ISecuritizeOffRamp, EIP712Upgradeable, BaseContract {
+    string public constant NAME = "SecuritizeOffRamp";
+    string public constant VERSION = "1";
+
     /**
      * @dev asset to be redeemed.
      */
@@ -141,6 +144,7 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, EIP712Upgradeable, BaseContrac
         address _feeManager,
         bool _assetBurn
     ) public onlyProxy initializer addressNonZero(_asset, "asset") addressNonZero(_navProvider, "navProvider") {
+        __EIP712_init(NAME, VERSION);
         __BaseContract_init();
         asset = IDSToken(_asset);
         navProvider = ISecuritizeNavProvider(_navProvider);

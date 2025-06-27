@@ -47,6 +47,10 @@ contract ExternalRedemptionMock is ISecuritizeOffRamp {
         assetBurn = false;
     }
 
+    function initialize(address _asset, address _navProvider, address _feeManager, bool _assetBurn) external override {
+        // Not needed for mock, but required by interface
+    }
+
     /*
      *  1:1 redeem mock with slippage protection
      */
