@@ -1,5 +1,5 @@
 /**
- * Copyright 2024 Securitize Inc. All rights reserved.
+ * Copyright 2025 Securitize Inc. All rights reserved.
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -15,27 +15,41 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-pragma solidity ^0.8.22;
 
-import "../../fee/IFeeManager.sol";
+pragma solidity 0.8.22;
 
-contract MockFeeManager is IFeeManager {
+import {IFeeManager} from "./IFeeManager.sol";
+
+/**
+ * @title IFeeManager
+ * @dev Interface for managing fees in the on/off ramp protocol
+ */
+contract FeeManager is IFeeManager {
     uint256 public constant FEE_DENOMINATOR = 100_000;
     uint256 public redemptionFee;
     address public feeCollector;
 
     event RedemptionFeeUpdated(uint256 oldFee, uint256 newFee);
+    event FeeCollectorUpdated(address oldCollector, address newCollector);
     error InvalidRedemptionFee(uint256 redemptionFee);
+    error InvalidFeeCollectorAddress();
 
     constructor(uint256 _initialFee, address _feeCollector) {
         redemptionFee = _initialFee;
         feeCollector = _feeCollector;
     }
 
+    /**
+     * @dev Returns the computed fee
+     */
     function getFee(uint256 amount) external view returns (uint256) {
         return (amount * redemptionFee + FEE_DENOMINATOR - 1) / FEE_DENOMINATOR; // Round up to avoid zero fees
     }
 
+    /**
+     * @dev Sets the redemption fee
+     * @param _redemptionFee Fee percentage in basis points (1/100th of a percent)
+     */
     function setRedemptionFee(uint256 _redemptionFee) external {
         if (_redemptionFee > FEE_DENOMINATOR) {
             revert InvalidRedemptionFee(_redemptionFee);
@@ -44,5 +58,18 @@ contract MockFeeManager is IFeeManager {
         uint256 oldFee = redemptionFee;
         redemptionFee = _redemptionFee;
         emit RedemptionFeeUpdated(oldFee, _redemptionFee);
+    }
+
+    /**
+     * @dev Sets the fee collector address
+     * @param _feeCollector Address to collect fees
+     */
+    function setFeeCollector(address _feeCollector) external {
+        if (_feeCollector == address(0)) {
+            revert InvalidFeeCollectorAddress();
+        }
+        address oldCollector = feeCollector;
+        feeCollector = _feeCollector;
+        emit FeeCollectorUpdated(oldCollector, _feeCollector);
     }
 }

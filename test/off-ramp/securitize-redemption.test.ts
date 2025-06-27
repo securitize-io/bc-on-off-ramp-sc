@@ -524,7 +524,7 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 // Set a fee of 1% (1000 basis points) on the mock fee manager
                 const { mockFeeManager } = await loadFixture(deployRedemptionProtocol);
                 const fee = 1000;
-                await mockFeeManager.updateRedemptionFee(fee);
+                await mockFeeManager.setRedemptionFee(fee);
 
                 // mint assets to investor
                 await dsTokenMock.mint(investor, ASSET_AMOUNT);
@@ -580,7 +580,7 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 // Set a very small fee - 0.001% (1 mbps) on the mock fee manager
                 const { mockFeeManager } = await loadFixture(deployRedemptionProtocol);
                 const fee = 1;
-                await mockFeeManager.updateRedemptionFee(fee);
+                await mockFeeManager.setRedemptionFee(fee);
 
                 // Use a small amount for redemption to test rounding
                 const smallAmount = 100n; // This would result in a very small fee
@@ -792,14 +792,14 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
             it('Should update redemption fee correctly', async function () {
                 const { mockFeeManager } = await loadFixture(deployRedemptionProtocol);
                 const newFee = 500; // 0.5%
-                await mockFeeManager.updateRedemptionFee(newFee);
+                await mockFeeManager.setRedemptionFee(newFee);
                 expect(await mockFeeManager.redemptionFee()).to.equal(newFee);
             });
 
             it('Should emit RedemptionFeeUpdated event when updating the fee', async function () {
                 const { mockFeeManager } = await loadFixture(deployRedemptionProtocol);
                 const newFee = 500; // 0.5%
-                await expect(mockFeeManager.updateRedemptionFee(newFee))
+                await expect(mockFeeManager.setRedemptionFee(newFee))
                     .to.emit(mockFeeManager, 'RedemptionFeeUpdated')
                     .withArgs(0, newFee);
             });
@@ -807,7 +807,7 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
             it('Should succeed when fee is exactly 100%', async function () {
                 const { mockFeeManager } = await loadFixture(deployRedemptionProtocol);
                 const maxFee = 100_000; // Exactly 100%
-                await mockFeeManager.updateRedemptionFee(maxFee);
+                await mockFeeManager.setRedemptionFee(maxFee);
                 expect(await mockFeeManager.redemptionFee()).to.equal(maxFee);
             });
 
@@ -816,7 +816,7 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 const { mockFeeManager } = await loadFixture(deployRedemptionProtocol);
                 const mockFeeManagerFromUnauthorized = await mockFeeManager.connect(unauthorized);
                 // Since we don't have access control on the mock, just verify the function exists
-                expect(typeof mockFeeManagerFromUnauthorized.updateRedemptionFee).to.equal('function');
+                expect(typeof mockFeeManagerFromUnauthorized.setRedemptionFee).to.equal('function');
             });
         });
     });

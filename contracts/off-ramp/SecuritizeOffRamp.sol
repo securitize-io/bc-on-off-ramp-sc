@@ -60,11 +60,6 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, ISecuritizeOffRampErrors, EIP7
     IDSServiceConsumer public dsServiceConsumer;
 
     /**
-     * @dev Denominator for fee calculation (100% = 100,000)
-     */
-    uint256 public constant FEE_DENOMINATOR = 100_000;
-
-    /**
      * @dev Restricted countries mapping
      */
     mapping(string => bool) public restrictedCountries;
@@ -210,16 +205,8 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, ISecuritizeOffRampErrors, EIP7
             asset.transferFrom(msg.sender, cachedProvider.recipient(), _amount);
         }
 
-        uint256 redemptionFee = IFeeManager(feeManager).getFee(_amount);
-
         // Apply fee if it exists
-        uint256 liquidityAfterFee = liquidity;
-        if (redemptionFee > 0) {
-            // Use unchecked math for fee calculation since it cannot overflow
-            unchecked {
-                liquidityAfterFee = liquidity - (liquidity * redemptionFee + FEE_DENOMINATOR - 1) / FEE_DENOMINATOR; // Round up to avoid zero fees
-            }
-        }
+        uint256 liquidityAfterFee = liquidity - IFeeManager(feeManager).getFee(liquidity);
 
         // Check slippage protection - ensure minimum output amount is met
         if (liquidityAfterFee < _minOutputAmount) {
