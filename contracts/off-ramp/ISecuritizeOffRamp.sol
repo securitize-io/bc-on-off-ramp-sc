@@ -18,7 +18,7 @@
 pragma solidity ^0.8.22;
 
 import {IDSToken} from "@securitize/digital_securities/contracts/token/IDSToken.sol";
-import {ILiquidityProvider} from "./liquidity/ILiquidityProvider.sol";
+import {ILiquidityProvider} from "./provider/ILiquidityProvider.sol";
 import {ISecuritizeNavProvider} from "./nav/ISecuritizeNavProvider.sol";
 
 /**
