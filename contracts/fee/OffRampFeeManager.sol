@@ -46,6 +46,7 @@ contract FeeManager is IFeeManager {
         return (amount * redemptionFee + FEE_DENOMINATOR - 1) / FEE_DENOMINATOR; // Round up to avoid zero fees
     }
 
+    // TODO: Add access control to restrict who can set the fee
     /**
      * @dev Sets the redemption fee
      * @param _redemptionFee Fee percentage in basis points (1/100th of a percent)
@@ -60,6 +61,7 @@ contract FeeManager is IFeeManager {
         emit RedemptionFeeUpdated(oldFee, _redemptionFee);
     }
 
+    // TODO: Add modifiers to restrict access to only the fee collector or owner
     /**
      * @dev Sets the fee collector address
      * @param _feeCollector Address to collect fees
