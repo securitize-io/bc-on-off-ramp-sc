@@ -1,14 +1,99 @@
+/**
+ * Sets the allowance provider wallet for the liquidity provider contract and updates the liquidity provider
+ * address in the SecuritizeOffRamp contract. This step links the deployed AllowanceLiquidityProvider with
+ * the SecuritizeOffRamp, enabling the redemption protocol to interact with the correct liquidity provider.
+ *
+ * @param args.provider - The wallet address that will provide liquidity.
+ * @param liquidityProvider - The deployed AllowanceLiquidityProvider contract instance.
+ * @param redemption - The deployed SecuritizeOffRamp contract instance.
+ */
 import { task, types } from 'hardhat/config';
+
+// Deploy SecuritizeOffRamp proxy
+// npx hardhat deploy-offramp --asset 0x123 --navProvider 0x123 --feeManager 0x123 --assetBurn false
+task('deploy-offramp', 'Deploy SecuritizeOffRamp proxy')
+    .addParam('asset', 'DS Token to be redeemed', undefined, types.string, false)
+    .addParam('navProvider', 'NAV rate provider address', undefined, types.string, false)
+    .addParam('feeManager', 'Fee manager address', undefined, types.string, false)
+    .addParam('assetBurn', 'Whether assets should be burned on redemption', false, types.boolean, true)
+    .addFlag('verify', 'Verify contracts on Etherscan')
+    .setAction(async (taskArgs, hre) => {
+        const result = await hre.run('deploy-proxy', {
+            contractName: 'SecuritizeOffRamp',
+            args: [taskArgs.asset, taskArgs.navProvider, taskArgs.feeManager, taskArgs.assetBurn],
+            kind: 'uups',
+        });
+
+        const redemptionAddress = result.proxyAddress;
+        const redemptionImpl = result.implAddress;
+
+        console.log(`Securitize Redemption Proxy address: ${redemptionAddress}`);
+        console.log(`Securitize Redemption Implementation address: ${redemptionImpl}`);
+
+        if (taskArgs.verify) {
+            try {
+                console.log('Verifying contracts on Etherscan...');
+                await hre.run('verify-implementation', {
+                    address: redemptionImpl,
+                    contractName: 'SecuritizeOffRamp',
+                    args: [],
+                });
+                console.log('Contracts verified successfully.');
+            } catch (error) {
+                console.error(`Verification failed: ${error}`);
+            }
+        }
+
+        return { redemptionAddress, redemptionImpl };
+    });
+
+// Deploy AllowanceLiquidityProvider proxy
+// npx hardhat deploy-allowance-provider --liquidityToken 0x123 --recipient 0x123 --redemptionAddress 0x123
+task('deploy-allowance-provider', 'Deploy AllowanceLiquidityProvider proxy')
+    .addParam('liquidityToken', 'Stable coin to provide liquidity', undefined, types.string, false)
+    .addParam('recipient', 'Wallet that receives DS Token', undefined, types.string, false)
+    .addParam('redemptionAddress', 'SecuritizeOffRamp proxy address', undefined, types.string, false)
+    .addFlag('verify', 'Verify contracts on Etherscan')
+    .setAction(async (taskArgs, hre) => {
+        const result = await hre.run('deploy-proxy', {
+            contractName: 'AllowanceLiquidityProvider',
+            args: [taskArgs.liquidityToken, taskArgs.recipient, taskArgs.redemptionAddress],
+            kind: 'uups',
+        });
+
+        const liquidityProviderAddress = result.proxyAddress;
+        const liquidityProviderImpl = result.implAddress;
+
+        console.log(`Liquidity Provider Proxy address: ${liquidityProviderAddress}`);
+        console.log(`Liquidity Provider Implementation address: ${liquidityProviderImpl}`);
+
+        if (taskArgs.verify) {
+            try {
+                console.log('Verifying contracts on Etherscan...');
+                await hre.run('verify-implementation', {
+                    address: liquidityProviderImpl,
+                    contractName: 'AllowanceLiquidityProvider',
+                    args: [],
+                });
+                console.log('Contracts verified successfully.');
+            } catch (error) {
+                console.error(`Verification failed: ${error}`);
+            }
+        }
+
+        return { liquidityProviderAddress, liquidityProviderImpl };
+    });
 
 /*
     npx hardhat deploy-redemption-allowance-protocol
     --network sepolia
-    --asset 0x1234567890123456789012345678901234567890
-    --navProvider 0x0987654321098765432109876543210987654321
-    --feeManager 0x1122334455667788990011223344556677889900
-    --recipient 0x2233445566778899001122334455667788990011
-    --liquidity 0x3344556677889900112233445566778899001122
-    --provider 0x4455667788990011223344556677889900112233
+    --asset 0x123
+    --navProvider 0x123
+    --feeManager 0x123
+    --recipient 0x123
+    --liquidityToken 0x123
+    --provider 0x123
+    --verify
 */
 task('deploy-redemption-allowance-protocol', 'Deploy Redemption Protocol (Allowance implementation)')
     // SecuritizeOffRamp arguments
@@ -16,47 +101,39 @@ task('deploy-redemption-allowance-protocol', 'Deploy Redemption Protocol (Allowa
     .addParam('navProvider', 'NAV rate provider address', undefined, types.string, false)
     .addParam('feeManager', 'Fee manager address', undefined, types.string, false)
     .addParam('assetBurn', 'Whether assets should be burned on redemption', false, types.boolean, true)
-
     // AllowanceLiquidityProvider arguments
     .addParam('recipient', 'Wallet that receives DS Token', undefined, types.string, false)
-    .addParam('liquidity', 'Stable coin to provide liquidity', undefined, types.string, false)
+    .addParam('liquidityToken', 'Stable coin to provide liquidity', undefined, types.string, false)
     .addParam('provider', 'Wallet that provides liquidity', undefined, types.string, false)
-
     // Verification flag
     .addFlag('verify', 'Verify contracts on Etherscan')
     .setAction(async (args, hre) => {
-        const Redemption = await hre.ethers.getContractFactory('SecuritizeOffRamp');
-        const redemption = await hre.upgrades.deployProxy(Redemption, [
-            args.asset,
-            args.navProvider,
-            args.feeManager,
-            args.assetBurn,
-        ]);
-        await redemption.waitForDeployment();
+        const { redemptionAddress } = await hre.run('deploy-offramp', {
+            asset: args.asset,
+            navProvider: args.navProvider,
+            feeManager: args.feeManager,
+            assetBurn: args.assetBurn,
+            verify: args.verify,
+        });
 
-        const redemptionAddress = await redemption.getAddress();
-        console.log(`Securitize Redemption Proxy address: ${redemptionAddress}`);
-
-        const redemptionImpl = await hre.upgrades.erc1967.getImplementationAddress(redemptionAddress);
-        console.log(`Securitize Redemption Implementation address: ${redemptionImpl}`);
-
-        ///////////////
-
-        const LiquidityProvider = await hre.ethers.getContractFactory('AllowanceLiquidityProvider');
-        const liquidityProvider = await hre.upgrades.deployProxy(
-            LiquidityProvider,
-            [args.liquidity, args.recipient, redemptionAddress],
-            {
-                kind: 'uups',
-            },
+        const { liquidityProviderAddress } = await hre.run('deploy-allowance-provider', {
+            liquidityToken: args.liquidityToken,
+            recipient: args.recipient,
+            redemptionAddress,
+            verify: args.verify,
+        });
+        // Get contract instances
+        const redemption = await hre.ethers.getContractAt('SecuritizeOffRamp', redemptionAddress);
+        const liquidityProvider = await hre.ethers.getContractAt(
+            'AllowanceLiquidityProvider',
+            liquidityProviderAddress,
         );
-        await liquidityProvider.waitForDeployment();
 
-        const liquidityProviderAddress = await liquidityProvider.getAddress();
-        console.log(`Liquidity Provider Proxy address: ${liquidityProviderAddress}`);
+        console.log('Securitize Redemption Protocol has been deployed successfully');
 
-        const liquidityProviderImpl = await hre.upgrades.erc1967.getImplementationAddress(liquidityProviderAddress);
-        console.log(`Liquidity Provider Implementation address: ${liquidityProviderImpl}`);
+        console.log(
+            'Proceeding to configure the protocol: setting allowance provider wallet and linking liquidity provider to the redemption contract...',
+        );
 
         // Set liquidity provider wallet
         await liquidityProvider.setAllowanceProviderWallet(args.provider);
@@ -64,19 +141,7 @@ task('deploy-redemption-allowance-protocol', 'Deploy Redemption Protocol (Allowa
         // Set liquidity provider on securitize redemption contract
         await redemption.updateLiquidityProvider(liquidityProviderAddress);
 
-        if (args.verify) {
-            console.log('Verifying contracts on Etherscan...');
-            await hre.run('verify:verify', {
-                address: redemptionAddress,
-                constructorArguments: [args.token, args.nav, args.feeManager, args.assetBurn],
-            });
-
-            await hre.run('verify:verify', {
-                address: liquidityProviderAddress,
-                constructorArguments: [args.liquidity, args.recipient, redemptionAddress],
-            });
-            console.log('Contracts verified successfully.');
-        }
+        console.log('Securitize Redemption Protocol has been configured successfully');
 
         return { redemption, liquidityProvider };
     });

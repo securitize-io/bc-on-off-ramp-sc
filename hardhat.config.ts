@@ -2,6 +2,7 @@ import { HardhatUserConfig } from 'hardhat/config';
 import '@nomicfoundation/hardhat-toolbox';
 import '@openzeppelin/hardhat-upgrades';
 import 'dotenv/config';
+import './tasks/commons';
 import './tasks/off-ramp/deploy-redemption-collateral-protocol';
 import './tasks/off-ramp/deploy-redemption-allowance-protocol';
 import './tasks/off-ramp/update-countries-restriction';
