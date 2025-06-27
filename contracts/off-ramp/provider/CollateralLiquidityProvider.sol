@@ -116,16 +116,16 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
         uint256 _amount,
         uint256 _minOutputAmount
     ) public whenNotPaused onlySecuritizeRedemption {
-        //take collateral funds from collateral provider
+        // take collateral funds from collateral provider
         IERC20(externalCollateralRedemption.asset()).transferFrom(collateralProvider, address(this), _amount);
 
-        //approve external redemption
+        // approve external redemption
         IERC20(externalCollateralRedemption.asset()).approve(address(externalCollateralRedemption), _amount);
 
-        //get liquidity
+        // get liquidity
         externalCollateralRedemption.redeem(_amount, _minOutputAmount);
 
-        //supply _redeemer
+        // supply _redeemer
         liquidityToken.transfer(_redeemer, _amount);
     }
 }
