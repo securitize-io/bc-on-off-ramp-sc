@@ -49,6 +49,7 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
      */
     error RedemptionUnauthorizedAccount(address account);
     error ZeroAddress(string parameter);
+    error MinOutputAmountExceeded(uint256 minOutputAmount, uint256 amount);
 
     /**
      * @dev Throws if called by any account other than the redemption contract.
@@ -103,9 +104,11 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
         uint256 _amount,
         uint256 _minOutputAmount
     ) public whenNotPaused onlySecuritizeRedemption {
-        require(_minOutputAmount < _amount, "minOutputAmount must be less than amount");
+        if (_minOutputAmount > _amount) {
+            revert MinOutputAmountExceeded(_minOutputAmount, _amount);
+        }
 
-        //transfer liquidity token from liquidity provider wallet to redeemer
+        // transfer liquidity token from liquidity provider wallet to redeemer
         liquidityToken.transferFrom(liquidityProviderWallet, _redeemer, _amount);
     }
 }

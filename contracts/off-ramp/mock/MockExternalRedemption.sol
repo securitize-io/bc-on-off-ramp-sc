@@ -23,7 +23,7 @@ import {ILiquidityProvider} from "../provider/ILiquidityProvider.sol";
 import {ISecuritizeNavProvider} from "../nav/ISecuritizeNavProvider.sol";
 import {ISecuritizeOffRamp} from "../ISecuritizeOffRamp.sol";
 
-contract ExternalRedemptionMock is ISecuritizeOffRamp {
+contract MockExternalRedemption is ISecuritizeOffRamp {
     IDSToken public asset;
     address public assetAddress;
     ILiquidityProvider public liquidityProvider;
@@ -39,7 +39,7 @@ contract ExternalRedemptionMock is ISecuritizeOffRamp {
     event RedemptionCompleted(address indexed redeemer, uint256 assetAmount, uint256 liquidityAmount, uint256 rate);
 
     constructor(address _mockAsset, address _liquidityToken, address _navProvider) {
-        assetAddress = _liquidityToken; // This is the key change - in ExternalRedemptionMock, we need to make assetAddress match liquidityToken for test compatibility
+        assetAddress = _liquidityToken; // This is the key change - in MockExternalRedemption, we need to make assetAddress match liquidityToken for test compatibility
         asset = IDSToken(_mockAsset);
         liquidityToken = IERC20(_liquidityToken);
         navProvider = ISecuritizeNavProvider(_navProvider);

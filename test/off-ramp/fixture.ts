@@ -36,17 +36,17 @@ export const deployRedemptionProtocol = async () => {
     ]);
     const zeroRateNavProviderMock = await hre.ethers.deployContract('MockSecuritizeInternalNavProvider', ['0']);
 
-    const externalRedemptionContractMock = await hre.ethers.deployContract('ExternalRedemptionMock', [
+    const externalRedemptionContractMock = await hre.ethers.deployContract('MockExternalRedemption', [
         await dsTokenCollateralMock.getAddress(),
         await usdcMock.getAddress(),
         await securitizeNavProviderMock.getAddress(),
     ]);
-    const newExternalRedemptionContractMock = await hre.ethers.deployContract('ExternalRedemptionMock', [
+    const newExternalRedemptionContractMock = await hre.ethers.deployContract('MockExternalRedemption', [
         await dsTokenOtherCollateralMock.getAddress(),
         await usdcMock.getAddress(),
         await securitizeNavProviderMock.getAddress(),
     ]);
-    const newExternalRedemptionContractDaiMock = await hre.ethers.deployContract('ExternalRedemptionMock', [
+    const newExternalRedemptionContractDaiMock = await hre.ethers.deployContract('MockExternalRedemption', [
         await dsTokenOtherCollateralMock.getAddress(),
         await daiMock.getAddress(),
         await securitizeNavProviderMock.getAddress(),
@@ -150,7 +150,7 @@ export const deployRedemptionProtocolWithMultipleTokens = async () => {
     const securitizeNavProviderMock = await hre.ethers.deployContract('MockSecuritizeInternalNavProvider', [
         FIXED_RATE,
     ]);
-    const externalRedemptionContractMock = await hre.ethers.deployContract('ExternalRedemptionMock', [
+    const externalRedemptionContractMock = await hre.ethers.deployContract('MockExternalRedemption', [
         await dsTokenCollateralMock.getAddress(), // The asset
         await usdcMock.getAddress(), // The liquidity token
         await securitizeNavProviderMock.getAddress(), // The NAV provider
