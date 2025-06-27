@@ -21,9 +21,9 @@ import {IDSToken} from "@securitize/digital_securities/contracts/token/IDSToken.
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ILiquidityProvider} from "../liquidity/ILiquidityProvider.sol";
 import {ISecuritizeNavProvider} from "../nav/ISecuritizeNavProvider.sol";
-import {ISecuritizeRedemption} from "../redemption/ISecuritizeRedemption.sol";
+import {ISecuritizeOffRamp} from "../ISecuritizeOffRamp.sol";
 
-contract ExternalRedemptionMock is ISecuritizeRedemption {
+contract ExternalRedemptionMock is ISecuritizeOffRamp {
     IDSToken public asset;
     address public assetAddress;
     ILiquidityProvider public liquidityProvider;

@@ -18,16 +18,17 @@
 pragma solidity ^0.8.22;
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {ISecuritizeRedemption} from "./ISecuritizeRedemption.sol";
-import {BaseContract} from "../../common/BaseContract.sol";
+import {ISecuritizeOffRamp} from "./ISecuritizeOffRamp.sol";
+import {BaseContract} from "../common/BaseContract.sol";
 import {IDSRegistryService} from "@securitize/digital_securities/contracts/registry/IDSRegistryService.sol";
 import {IDSServiceConsumer} from "@securitize/digital_securities/contracts/service/IDSServiceConsumer.sol";
-import {ILiquidityProvider} from "../liquidity/ILiquidityProvider.sol";
-import {ISecuritizeNavProvider} from "../nav/ISecuritizeNavProvider.sol";
-import {IFeeManager} from "./IFeeManager.sol";
+import {ILiquidityProvider} from "./liquidity/ILiquidityProvider.sol";
+import {ISecuritizeNavProvider} from "./nav/ISecuritizeNavProvider.sol";
+import {IFeeManager} from "../fee/IFeeManager.sol";
 import {IDSToken} from "@securitize/digital_securities/contracts/token/IDSToken.sol";
+import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
 
-contract SecuritizeRedemption is ISecuritizeRedemption, BaseContract {
+contract SecuritizeOffRamp is ISecuritizeOffRamp, EIP712Upgradeable, BaseContract {
     /**
      * @dev asset to be redeemed.
      */

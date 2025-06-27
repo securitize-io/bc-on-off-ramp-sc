@@ -21,7 +21,7 @@ import {BaseContract} from "../../common/BaseContract.sol";
 import {IAllowanceLiquidityProvider} from "./IAllowanceLiquidityProvider.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-import {ISecuritizeRedemption} from "../redemption/ISecuritizeRedemption.sol";
+import {ISecuritizeOffRamp} from "../ISecuritizeOffRamp.sol";
 
 contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract {
     /**
@@ -32,7 +32,7 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
     /**
      * @dev securitize redemption contract.
      */
-    ISecuritizeRedemption public securitizeRedemption;
+    ISecuritizeOffRamp public securitizeRedemption;
 
     /**
      * @dev recipient wallet.
@@ -77,7 +77,7 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
         __BaseContract_init();
         recipient = _recipient;
         liquidityToken = IERC20(_liquidityToken);
-        securitizeRedemption = ISecuritizeRedemption(_securitizeRedemption);
+        securitizeRedemption = ISecuritizeOffRamp(_securitizeRedemption);
     }
 
     function setAllowanceProviderWallet(address _liquidityProviderWallet) external onlyOwner {

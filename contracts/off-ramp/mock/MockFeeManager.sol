@@ -17,15 +17,17 @@
  */
 pragma solidity ^0.8.22;
 
-import "../redemption/IFeeManager.sol";
+import "../../fee/IFeeManager.sol";
 
 contract MockFeeManager is IFeeManager {
     uint256 public redemptionFee;
+    address public feeCollector;
 
     event RedemptionFeeUpdated(uint256 oldFee, uint256 newFee);
 
-    constructor(uint256 _initialFee) {
+    constructor(uint256 _initialFee, address _feeCollector) {
         redemptionFee = _initialFee;
+        feeCollector = _feeCollector;
     }
 
     function getFee(uint256 /*amount*/) external view returns (uint256) {
@@ -33,10 +35,6 @@ contract MockFeeManager is IFeeManager {
     }
 
     function updateRedemptionFee(uint256 _redemptionFee) external {
-        if (_redemptionFee > 100_000) {
-            revert ExcessiveFee(_redemptionFee, 100_000);
-        }
-
         uint256 oldFee = redemptionFee;
         redemptionFee = _redemptionFee;
         emit RedemptionFeeUpdated(oldFee, _redemptionFee);

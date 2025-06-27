@@ -20,7 +20,7 @@ pragma solidity ^0.8.22;
 import {ICollateralLiquidityProvider} from "./ICollateralLiquidityProvider.sol";
 import {BaseContract} from "../../common/BaseContract.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {ISecuritizeRedemption} from "../redemption/ISecuritizeRedemption.sol";
+import {ISecuritizeOffRamp} from "../ISecuritizeOffRamp.sol";
 
 contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContract {
     /**
@@ -31,12 +31,12 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
     /**
      * @dev securitize redemption contract.
      */
-    ISecuritizeRedemption public securitizeRedemption;
+    ISecuritizeOffRamp public securitizeRedemption;
 
     /**
      * @dev external collateral redemption contract.
      */
-    ISecuritizeRedemption public externalCollateralRedemption;
+    ISecuritizeOffRamp public externalCollateralRedemption;
 
     /**
      * @dev recipient wallet.
@@ -82,7 +82,7 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
         __BaseContract_init();
         recipient = _recipient;
         liquidityToken = IERC20(_liquidityToken);
-        securitizeRedemption = ISecuritizeRedemption(_securitizeRedemption);
+        securitizeRedemption = ISecuritizeOffRamp(_securitizeRedemption);
     }
 
     function setExternalCollateralRedemption(address _externalCollateralRedemption) external onlyOwner {
@@ -90,11 +90,11 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
             revert ZeroAddress("externalCollateralRedemption");
         }
 
-        if (ISecuritizeRedemption(_externalCollateralRedemption).assetAddress() != address(liquidityToken)) {
+        if (ISecuritizeOffRamp(_externalCollateralRedemption).assetAddress() != address(liquidityToken)) {
             revert LiquidityTokenMismatch();
         }
         address oldExternalCollateral = address(externalCollateralRedemption);
-        externalCollateralRedemption = ISecuritizeRedemption(_externalCollateralRedemption);
+        externalCollateralRedemption = ISecuritizeOffRamp(_externalCollateralRedemption);
         emit ExternalCollateralRedemptionUpdated(oldExternalCollateral, address(externalCollateralRedemption));
     }
 

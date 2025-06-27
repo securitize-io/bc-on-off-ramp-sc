@@ -18,7 +18,7 @@
 pragma solidity ^0.8.22;
 
 import {ILiquidityProvider} from "./ILiquidityProvider.sol";
-import {ISecuritizeRedemption} from "../redemption/ISecuritizeRedemption.sol";
+import {ISecuritizeOffRamp} from "../ISecuritizeOffRamp.sol";
 
 /**
  * @title ICollateralLiquidityProvider
@@ -57,5 +57,5 @@ interface ICollateralLiquidityProvider is ILiquidityProvider {
      * @dev The external collateral implementation to get liquidity.
      * @return The address of the external collateral redemption implementation.
      */
-    function externalCollateralRedemption() external view returns (ISecuritizeRedemption);
+    function externalCollateralRedemption() external view returns (ISecuritizeOffRamp);
 }

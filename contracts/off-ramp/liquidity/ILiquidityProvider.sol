@@ -18,7 +18,7 @@
 pragma solidity ^0.8.22;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {ISecuritizeRedemption} from "../redemption/ISecuritizeRedemption.sol";
+import {ISecuritizeOffRamp} from "../ISecuritizeOffRamp.sol";
 
 /**
  * @title ILiquidityProvider
@@ -49,7 +49,7 @@ interface ILiquidityProvider {
      * @dev The securitize redemption contract.
      * @return The address of the securitize redemption contract.
      */
-    function securitizeRedemption() external view returns (ISecuritizeRedemption);
+    function securitizeRedemption() external view returns (ISecuritizeOffRamp);
 
     /**
      * @dev Wallet address that receives digital assets.

@@ -18,13 +18,13 @@
 pragma solidity ^0.8.22;
 
 import {IDSToken} from "@securitize/digital_securities/contracts/token/IDSToken.sol";
-import {ILiquidityProvider} from "../liquidity/ILiquidityProvider.sol";
-import {ISecuritizeNavProvider} from "../nav/ISecuritizeNavProvider.sol";
+import {ILiquidityProvider} from "./liquidity/ILiquidityProvider.sol";
+import {ISecuritizeNavProvider} from "./nav/ISecuritizeNavProvider.sol";
 
 /**
- * @title ISecuritizeRedemption
+ * @title ISecuritizeOffRamp
  */
-interface ISecuritizeRedemption {
+interface ISecuritizeOffRamp {
     /**
      * @dev Update the liquidity provider
      * @param _liquidityProvider The new liquidity provider address
