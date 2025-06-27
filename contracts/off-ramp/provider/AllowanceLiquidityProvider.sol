@@ -32,7 +32,7 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
     /**
      * @dev securitize redemption contract.
      */
-    ISecuritizeOffRamp public securitizeRedemption;
+    ISecuritizeOffRamp public securitizeOffRamp;
 
     /**
      * @dev recipient wallet.
@@ -54,7 +54,7 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
      * @dev Throws if called by any account other than the redemption contract.
      */
     modifier onlySecuritizeRedemption() {
-        if (address(securitizeRedemption) != _msgSender()) {
+        if (address(securitizeOffRamp) != _msgSender()) {
             revert RedemptionUnauthorizedAccount(_msgSender());
         }
         _;
@@ -72,12 +72,12 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
             revert ZeroAddress("liquidityToken");
         }
         if (_securitizeRedemption == address(0)) {
-            revert ZeroAddress("securitizeRedemption");
+            revert ZeroAddress("securitizeOffRamp");
         }
         __BaseContract_init();
         recipient = _recipient;
         liquidityToken = IERC20(_liquidityToken);
-        securitizeRedemption = ISecuritizeOffRamp(_securitizeRedemption);
+        securitizeOffRamp = ISecuritizeOffRamp(_securitizeRedemption);
     }
 
     function setAllowanceProviderWallet(address _liquidityProviderWallet) external onlyOwner {

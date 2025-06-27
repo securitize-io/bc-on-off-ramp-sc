@@ -39,6 +39,7 @@ interface ILiquidityProvider {
      */
     function supplyTo(address _redeemer, uint256 _amount, uint256 _minOutputAmount) external;
 
+    // GG: en IAssetProvider este se llama "asset: IDSToken"
     /**
      * @dev Returns the liquidity asset.
      * @return liquidity address.
@@ -46,10 +47,10 @@ interface ILiquidityProvider {
     function liquidityToken() external view returns (IERC20);
 
     /**
-     * @dev The securitize redemption contract.
-     * @return The address of the securitize redemption contract.
+     * @dev The securitize off ramp contract.
+     * @return The address of the securitize off ramp contract.
      */
-    function securitizeRedemption() external view returns (ISecuritizeOffRamp);
+    function securitizeOffRamp() external view returns (ISecuritizeOffRamp);
 
     /**
      * @dev Wallet address that receives digital assets.
