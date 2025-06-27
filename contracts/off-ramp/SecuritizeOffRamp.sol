@@ -19,6 +19,7 @@ pragma solidity ^0.8.22;
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {ISecuritizeOffRamp} from "./ISecuritizeOffRamp.sol";
+import {ISecuritizeOffRampErrors} from "./ISecuritizeOffRampErrors.sol";
 import {BaseContract} from "../common/BaseContract.sol";
 import {IDSRegistryService} from "@securitize/digital_securities/contracts/registry/IDSRegistryService.sol";
 import {IDSServiceConsumer} from "@securitize/digital_securities/contracts/service/IDSServiceConsumer.sol";
@@ -28,7 +29,7 @@ import {IFeeManager} from "../fee/IFeeManager.sol";
 import {IDSToken} from "@securitize/digital_securities/contracts/token/IDSToken.sol";
 import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
 
-contract SecuritizeOffRamp is ISecuritizeOffRamp, EIP712Upgradeable, BaseContract {
+contract SecuritizeOffRamp is ISecuritizeOffRamp, ISecuritizeOffRampErrors, EIP712Upgradeable, BaseContract {
     string public constant NAME = "SecuritizeOffRamp";
     string public constant VERSION = "1";
 
@@ -110,20 +111,6 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, EIP712Upgradeable, BaseContrac
      * @param newFee New fee value in mbps
      */
     event RedemptionFeeUpdated(uint256 oldFee, uint256 newFee);
-
-    /**
-     * @dev Custom errors
-     */
-    error ZeroAddress(string parameter);
-    error RateNotDefined();
-    error InsufficientRedeemerBalance(address redeemer, uint256 requested, uint256 available);
-    error RestrictedCountry(string country);
-    error InsufficientLiquidity(uint256 requested, uint256 available);
-    error EmptyCountryCode();
-    error InvalidCountryCodeLength(uint256 length);
-    error NonUppercaseCountryCode(uint8 index, bytes1 character);
-    error ExcessiveDecimals(uint256 decimals, uint256 maxDecimals);
-    error InsufficientOutputAmount(uint256 outputAmount, uint256 minOutputAmount);
 
     /**
      * @dev Throws if the given address is the zero address
@@ -211,7 +198,7 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, EIP712Upgradeable, BaseContrac
             revert RestrictedCountry(redeemerCountry);
         }
 
-        uint256 liquidity = _calculateLiquidityTokenAmount(_amount);
+        uint256 liquidity = _calculateLiquidityTokenAmount(_amount, rate);
         if (cachedProvider.availableLiquidity() < liquidity) {
             revert InsufficientLiquidity(liquidity, cachedProvider.availableLiquidity());
         }
@@ -265,7 +252,11 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, EIP712Upgradeable, BaseContrac
      * @return The amount of liquidity tokens to provide
      */
     function calculateLiquidityTokenAmount(uint256 _amount) public view returns (uint256) {
-        return _calculateLiquidityTokenAmount(_amount);
+        uint256 rate = navProvider.rate();
+        if (rate == 0) {
+            revert RateNotDefined();
+        }
+        return _calculateLiquidityTokenAmount(_amount, rate);
     }
 
     /**
@@ -273,9 +264,7 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, EIP712Upgradeable, BaseContrac
      * @param _amount The amount of asset tokens to redeem
      * @return The amount of liquidity tokens to provide
      */
-    function _calculateLiquidityTokenAmount(uint256 _amount) private view returns (uint256) {
-        uint256 rate = navProvider.rate();
-
+    function _calculateLiquidityTokenAmount(uint256 _amount, uint256 rate) private view returns (uint256) {
         if (cachedLiquidityDecimals > cachedAssetDecimals) {
             return
                 ((_amount * rate) * (10 ** (cachedLiquidityDecimals - cachedAssetDecimals))) /

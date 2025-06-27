@@ -31,10 +31,10 @@ export const deployRedemptionProtocol = async () => {
     ]);
     const usdcMock = await hre.ethers.deployContract('MockERC20', ['USDC', 'USDC', 6, registryServiceAddress]);
     const daiMock = await hre.ethers.deployContract('MockERC20', ['DAI', 'DAI', 6, registryServiceAddress]);
-    const securitizeNavProviderMock = await hre.ethers.deployContract('SecuritizeInternalNavProviderMock', [
+    const securitizeNavProviderMock = await hre.ethers.deployContract('MockSecuritizeInternalNavProvider', [
         FIXED_RATE,
     ]);
-    const zeroRateNavProviderMock = await hre.ethers.deployContract('SecuritizeInternalNavProviderMock', ['0']);
+    const zeroRateNavProviderMock = await hre.ethers.deployContract('MockSecuritizeInternalNavProvider', ['0']);
 
     const externalRedemptionContractMock = await hre.ethers.deployContract('ExternalRedemptionMock', [
         await dsTokenCollateralMock.getAddress(),
@@ -92,7 +92,7 @@ export const deployRedemptionAllowanceProtocol = async () => {
 
     const dsTokenMock = await hre.ethers.deployContract('MockERC20', ['Token1', 'TK1', 18, registryServiceAddress]);
     const usdcMock = await hre.ethers.deployContract('MockERC20', ['USDC', 'USDC', 6, registryServiceAddress]);
-    const securitizeNavProviderMock = await hre.ethers.deployContract('SecuritizeInternalNavProviderMock', [
+    const securitizeNavProviderMock = await hre.ethers.deployContract('MockSecuritizeInternalNavProvider', [
         FIXED_RATE,
     ]);
     // TODO: Add a mock fee manager that can be used to test fee collection
@@ -147,7 +147,7 @@ export const deployRedemptionProtocolWithMultipleTokens = async () => {
         registryServiceAddress,
     ]);
     const usdcMock = await hre.ethers.deployContract('MockERC20', ['USDC', 'USDC', 6, registryServiceAddress]);
-    const securitizeNavProviderMock = await hre.ethers.deployContract('SecuritizeInternalNavProviderMock', [
+    const securitizeNavProviderMock = await hre.ethers.deployContract('MockSecuritizeInternalNavProvider', [
         FIXED_RATE,
     ]);
     const externalRedemptionContractMock = await hre.ethers.deployContract('ExternalRedemptionMock', [

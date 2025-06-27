@@ -19,7 +19,7 @@ pragma solidity ^0.8.22;
 
 import {ISecuritizeNavProvider} from "../nav/ISecuritizeNavProvider.sol";
 
-contract SecuritizeInternalNavProviderMock is ISecuritizeNavProvider {
+contract MockSecuritizeInternalNavProvider is ISecuritizeNavProvider {
     /**
      * @dev rate: NAV rate expressed with 6 decimals
      */

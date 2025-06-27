@@ -27,7 +27,7 @@ describe('Securitize Redemption Multiple Decimals', function () {
         ]);
 
         // Deploy NAV provider
-        const securitizeNavProviderMock = await hre.ethers.deployContract('SecuritizeInternalNavProviderMock', [
+        const securitizeNavProviderMock = await hre.ethers.deployContract('MockSecuritizeInternalNavProvider', [
             FIXED_RATE,
         ]);
 
