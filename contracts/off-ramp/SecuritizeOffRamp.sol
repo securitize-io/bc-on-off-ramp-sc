@@ -125,18 +125,26 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, ISecuritizeOffRampErrors, EIP7
         address _navProvider,
         address _feeManager,
         bool _assetBurn
-    ) public onlyProxy initializer addressNonZero(_asset, "asset") addressNonZero(_navProvider, "navProvider") {
+    )
+        public
+        onlyProxy
+        initializer
+        addressNonZero(_asset, "asset")
+        addressNonZero(_navProvider, "navProvider")
+        addressNonZero(_feeManager, "feeManager")
+    {
         __EIP712_init(NAME, VERSION);
         __BaseContract_init();
-        asset = IDSToken(_asset);
-        navProvider = ISecuritizeNavProvider(_navProvider);
-        dsServiceConsumer = IDSServiceConsumer(_asset); // We assume that the asset token implements IDSServiceConsumer
 
         uint256 _assetDecimals = ERC20(_asset).decimals();
         if (_assetDecimals > 18) {
             revert ExcessiveDecimals(_assetDecimals, 18);
         }
 
+        asset = IDSToken(_asset);
+        // We assume that the asset token implements IDSServiceConsumer because it's a DS token
+        dsServiceConsumer = IDSServiceConsumer(_asset);
+        navProvider = ISecuritizeNavProvider(_navProvider);
         feeManager = _feeManager;
         assetBurn = _assetBurn;
         assetDecimals = _assetDecimals;
