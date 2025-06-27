@@ -38,6 +38,16 @@ const config: HardhatUserConfig = {
             accounts: [process.env.DEPLOYER_PRIV_KEY!].filter((x) => x),
         },
     },
+    etherscan: {
+        apiKey: {
+            mainnet: process.env.ETHERSCAN || '',
+            sepolia: process.env.ETHERSCAN || '',
+            arbitrumOne: process.env.ARBISCAN || '',
+            arbitrumSepolia: process.env.ARBISCAN || '',
+            optimisticEthereum: process.env.OPTIMISTIC || '',
+            optimisticSepolia: process.env.OPTIMISTIC || '',
+        },
+    },
 };
 
 export default config;

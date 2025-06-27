@@ -1,19 +1,25 @@
 import { task, types } from 'hardhat/config';
 
-task('deploy-redemption-protocol', 'Deploy Redemption Protocol')
+task('deploy-redemption-collateral-protocol', 'Deploy Redemption Protocol')
+    // SecuritizeOffRamp arguments
+    .addParam('asset', 'DS Token to be redeemed', undefined, types.string, false)
+    .addParam('navProvider', 'NAV rate provider address', undefined, types.string, false)
+    .addParam('feeManager', 'Fee manager address', undefined, types.string, false)
+    .addParam('assetBurn', 'Whether assets should be burned on redemption', false, types.boolean, true)
+
+    // CollateralLiquidityProvider arguments
     .addParam('recipient', 'Wallet that receives DS Token (SCOPE)', undefined, types.string, false)
     .addParam('liquidity', 'Stable coin to provide liquidity', undefined, types.string, false)
     .addParam('redemption', 'External Collateral Redemption SC', undefined, types.string, false)
     .addParam('provider', 'Wallet that provides collateral (BUIDL)', undefined, types.string, false)
-    .addParam('token', 'DS Token to be redeemed', undefined, types.string, false)
-    .addParam('nav', 'NAV rate provider address', undefined, types.string, false)
-    .addParam('feeManager', 'Fee manager address', undefined, types.string, false)
-    .addParam('assetBurn', 'Whether assets should be burned on redemption', false, types.boolean, true)
+
+    // Verification flag
+    .addFlag('verify', 'Verify contracts on Etherscan')
     .setAction(async (args, hre) => {
         const Redemption = await hre.ethers.getContractFactory('SecuritizeOffRamp');
         const redemption = await hre.upgrades.deployProxy(Redemption, [
-            args.token,
-            args.nav,
+            args.asset,
+            args.navProvider,
             args.feeManager,
             args.assetBurn,
         ]);
@@ -48,6 +54,20 @@ task('deploy-redemption-protocol', 'Deploy Redemption Protocol')
 
         // Set liquidity provider on securitize redemption contract
         await redemption.updateLiquidityProvider(liquidityProviderAddress);
+
+        if (args.verify) {
+            console.log('Verifying contracts on Etherscan...');
+            await hre.run('verify:verify', {
+                address: redemptionAddress,
+                constructorArguments: [args.token, args.nav, args.feeManager, args.assetBurn],
+            });
+
+            await hre.run('verify:verify', {
+                address: liquidityProviderAddress,
+                constructorArguments: [args.liquidity, args.recipient, redemptionAddress],
+            });
+            console.log('Contracts verified successfully.');
+        }
 
         return { redemption, liquidityProvider };
     });
