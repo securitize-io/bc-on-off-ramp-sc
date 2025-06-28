@@ -9,6 +9,7 @@ export const investorCountry = 'AR';
 export const restrictedCountry = 'BR';
 export const invalidCountryCode = 'A';
 export const invalidCountryCode2 = 'AAAA';
+export const FEE_COLLECTOR = hre.ethers.Wallet.createRandom().address;
 
 export const deployRedemptionProtocol = async () => {
     // Set up a mock Registry Service
@@ -52,9 +53,7 @@ export const deployRedemptionProtocol = async () => {
         await securitizeNavProviderMock.getAddress(),
     ]);
 
-    // TODO: Add a mock fee manager that can be used to test fee collection
-    const feeCollector = hre.ethers.ZeroAddress;
-    const mockFeeManager = await hre.ethers.deployContract('MockFeeManager', [0, feeCollector]); // Initialize with 0 fee and zero address for feeCollector
+    const mockFeeManager = await hre.ethers.deployContract('MockFeeManager', [0, FEE_COLLECTOR]); // Initialize with 0 fee and zero address for feeCollector
     const [securitizeWallet] = await hre.ethers.getSigners();
 
     const contracts = await hre.run('deploy-redemption-collateral-protocol', {
@@ -95,9 +94,7 @@ export const deployRedemptionAllowanceProtocol = async () => {
     const securitizeNavProviderMock = await hre.ethers.deployContract('MockSecuritizeInternalNavProvider', [
         FIXED_RATE,
     ]);
-    // TODO: Add a mock fee manager that can be used to test fee collection
-    const feeCollector = hre.ethers.ZeroAddress;
-    const mockFeeManager = await hre.ethers.deployContract('MockFeeManager', [0, feeCollector]); // Initialize with 0 fee and zero address for feeCollector
+    const mockFeeManager = await hre.ethers.deployContract('MockFeeManager', [0, FEE_COLLECTOR]); // Initialize with 0 fee and zero address for feeCollector
 
     const [securitizeWallet] = await hre.ethers.getSigners();
 
@@ -105,10 +102,10 @@ export const deployRedemptionAllowanceProtocol = async () => {
         asset: await dsTokenMock.getAddress(),
         navProvider: await securitizeNavProviderMock.getAddress(),
         feeManager: await mockFeeManager.getAddress(), // Use mock fee manager for testing
-        assetBurn: false, // Default to not burning assets
+        assetBurn: 'false', // Default to not burning assets
         recipient: securitizeWallet.address,
-        liquidity: await usdcMock.getAddress(),
-        provider: securitizeWallet.address,
+        liquidityToken: await usdcMock.getAddress(),
+        providerWallet: securitizeWallet.address,
     });
 
     return {
@@ -156,9 +153,7 @@ export const deployRedemptionProtocolWithMultipleTokens = async () => {
         await securitizeNavProviderMock.getAddress(), // The NAV provider
     ]);
 
-    // TODO: Add a mock fee manager that can be used to test fee collection
-    const feeCollector = hre.ethers.ZeroAddress;
-    const mockFeeManager = await hre.ethers.deployContract('MockFeeManager', [0, feeCollector]); // Initialize with 0 fee and zero address for feeCollector
+    const mockFeeManager = await hre.ethers.deployContract('MockFeeManager', [0, FEE_COLLECTOR]); // Initialize with 0 fee and zero address for feeCollector
 
     const [securitizeWallet] = await hre.ethers.getSigners();
 

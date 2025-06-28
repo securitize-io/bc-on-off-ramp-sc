@@ -751,7 +751,10 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                     .withArgs(calculatedAmount, tooHighMinOutputAmount);
 
                 // Now redeem with an acceptable minimum output amount
-                await redemptionFromInvestor.redeem(ASSET_AMOUNT, calculatedAmount);
+                await expect(redemptionFromInvestor.redeem(ASSET_AMOUNT, calculatedAmount)).to.emit(
+                    redemption,
+                    'RedemptionCompleted',
+                );
             });
         });
     });
