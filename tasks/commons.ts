@@ -61,7 +61,7 @@ task('deploy-contract', 'General purpose contract deployer')
             await hre.run('verify-contract', {
                 address: contractAddress,
                 contractName: taskArgs.contractName,
-                args: [],
+                args: [...taskArgs.args],
             });
         }
         return contract;
