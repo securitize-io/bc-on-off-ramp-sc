@@ -26,6 +26,7 @@ contract MockFeeManager is IFeeManager {
 
     event RedemptionFeeUpdated(uint256 oldFee, uint256 newFee);
     error InvalidRedemptionFee(uint256 redemptionFee);
+    error ZeroAddress(string parameter);
 
     constructor(uint256 _initialFee, address _feeCollector) {
         redemptionFee = _initialFee;
@@ -44,5 +45,12 @@ contract MockFeeManager is IFeeManager {
         uint256 oldFee = redemptionFee;
         redemptionFee = _redemptionFee;
         emit RedemptionFeeUpdated(oldFee, _redemptionFee);
+    }
+
+    function setFeeCollector(address _feeCollector) external {
+        if (_feeCollector == address(0)) {
+            revert ZeroAddress("feeCollector");
+        }
+        feeCollector = _feeCollector;
     }
 }
