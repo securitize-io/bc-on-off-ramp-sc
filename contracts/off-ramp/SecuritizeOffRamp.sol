@@ -176,17 +176,17 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, ISecuritizeOffRampErrors, EIP7
 
     /**
      * @dev Redeems asset tokens for liquidity tokens
-     * @param _amount The amount of asset tokens to redeem
-     * @param _minOutputAmount The minimum amount of liquidity tokens that must be received (slippage protection)
+     * @param assetAmount The amount of asset tokens to redeem
+     * @param minOutputAmount The minimum amount of liquidity tokens that must be received (slippage protection)
      */
-    function redeem(uint256 _amount, uint256 _minOutputAmount) external whenNotPaused {
+    function redeem(uint256 assetAmount, uint256 minOutputAmount) external whenNotPaused {
         uint256 rate = navProvider.rate();
         if (rate == 0) {
             revert RateNotDefined();
         }
 
-        if (asset.balanceOf(msg.sender) < _amount) {
-            revert InsufficientRedeemerBalance(msg.sender, _amount, asset.balanceOf(msg.sender));
+        if (asset.balanceOf(msg.sender) < assetAmount) {
+            revert InsufficientRedeemerBalance(msg.sender, assetAmount, asset.balanceOf(msg.sender));
         }
 
         // This can occur if redeem is called before updateLiquidityProvider has been executed
@@ -200,29 +200,37 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, ISecuritizeOffRampErrors, EIP7
             revert RestrictedCountry(redeemerCountry);
         }
 
-        uint256 liquidity = _calculateLiquidityTokenAmount(_amount, rate);
-        if (liquidityProvider.availableLiquidity() < liquidity) {
-            revert InsufficientLiquidity(liquidity, liquidityProvider.availableLiquidity());
-        }
+        // Apply fee if it exists, transfer it to the fee collector
+        IFeeManager feeManagerInstance = IFeeManager(feeManager);
+        uint256 fee = feeManagerInstance.getFee(assetAmount);
+        // TODO: should burn the fee instead of transferring it if assetBurn is true?
+        asset.transferFrom(msg.sender, feeManagerInstance.feeCollector(), fee);
 
-        // Apply fee if it exists
-        uint256 fee = IFeeManager(feeManager).getFee(liquidity);
-        uint256 liquidityAfterFee = liquidity - fee;
-
-        // Check slippage protection - ensure minimum output amount is met
-        if (liquidityAfterFee < _minOutputAmount) {
-            revert InsufficientOutputAmount(liquidityAfterFee, _minOutputAmount);
-        }
+        uint256 assetAmountAfterFee = assetAmount - fee;
 
         // Transfer asset to liquidity provider
         if (assetBurn) {
-            asset.burn(msg.sender, _amount, "Redemption burn");
+            asset.burn(msg.sender, assetAmountAfterFee, "Redemption burn");
         } else {
-            asset.transferFrom(msg.sender, liquidityProvider.recipient(), _amount);
+            asset.transferFrom(msg.sender, liquidityProvider.recipient(), assetAmountAfterFee);
         }
-        liquidityProvider.supplyTo(msg.sender, liquidityAfterFee, _minOutputAmount);
 
-        emit RedemptionCompleted(msg.sender, _amount, liquidityAfterFee, rate);
+        uint256 liquidityTokenAmount = _calculateLiquidityTokenAmount(assetAmountAfterFee, rate);
+
+        // TODO: can we move this check to the liquidity provider?
+        // It could be better to avoid call public functions on the liquidity provider and save gas
+        if (liquidityProvider.availableLiquidity() < liquidityTokenAmount) {
+            revert InsufficientLiquidity(liquidityTokenAmount, liquidityProvider.availableLiquidity());
+        }
+
+        // Check slippage protection - ensure minimum output amount is met
+        if (liquidityTokenAmount < minOutputAmount) {
+            revert InsufficientOutputAmount(liquidityTokenAmount, minOutputAmount);
+        }
+
+        liquidityProvider.supplyTo(msg.sender, liquidityTokenAmount, minOutputAmount);
+
+        emit RedemptionCompleted(msg.sender, assetAmount, liquidityTokenAmount, rate);
     }
 
     /**
@@ -242,30 +250,30 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, ISecuritizeOffRampErrors, EIP7
 
     /**
      * @dev Calculates the amount of liquidity tokens to provide for a given asset amount
-     * @param _amount The amount of asset tokens to redeem
+     * @param assetAmount The amount of asset tokens to redeem
      * @return The amount of liquidity tokens to provide
      */
-    function calculateLiquidityTokenAmount(uint256 _amount) public view returns (uint256) {
+    function calculateLiquidityTokenAmount(uint256 assetAmount) public view returns (uint256) {
         uint256 rate = navProvider.rate();
         if (rate == 0) {
             revert RateNotDefined();
         }
-        return _calculateLiquidityTokenAmount(_amount, rate);
+        return _calculateLiquidityTokenAmount(assetAmount, rate);
     }
 
     /**
      * @dev Calculates the amount of liquidity tokens to provide for a given asset amount
-     * @param _amount The amount of asset tokens to redeem
+     * @param assetAmount The amount of asset tokens to redeem
      * @return The amount of liquidity tokens to provide
      */
-    function _calculateLiquidityTokenAmount(uint256 _amount, uint256 rate) private view returns (uint256) {
+    function _calculateLiquidityTokenAmount(uint256 assetAmount, uint256 rate) private view returns (uint256) {
         if (liquidityDecimals > assetDecimals) {
-            return ((_amount * rate) * (10 ** (liquidityDecimals - assetDecimals))) / (10 ** liquidityDecimals);
+            return ((assetAmount * rate) * (10 ** (liquidityDecimals - assetDecimals))) / (10 ** liquidityDecimals);
         }
         if (liquidityDecimals < assetDecimals) {
-            return (_amount * rate) / (10 ** (assetDecimals - liquidityDecimals)) / (10 ** liquidityDecimals);
+            return (assetAmount * rate) / (10 ** (assetDecimals - liquidityDecimals)) / (10 ** liquidityDecimals);
         }
-        return (_amount * rate) / (10 ** assetDecimals);
+        return (assetAmount * rate) / (10 ** assetDecimals);
     }
 
     function _updateCountryRestriction(string memory country, bool isRestricted) private {

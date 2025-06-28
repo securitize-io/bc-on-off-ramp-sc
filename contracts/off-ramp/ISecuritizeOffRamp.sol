@@ -35,10 +35,10 @@ interface ISecuritizeOffRamp {
 
     /**
      * @dev Redeems an amount of asset for liquidity
-     * @param _amount The amount of the asset token to redeem
-     * @param _minOutputAmount The minimum amount of liquidity tokens that must be received (slippage protection)
+     * @param amount The amount of the asset token to redeem
+     * @param minOutputAmount The minimum amount of liquidity tokens that must be received (slippage protection)
      */
-    function redeem(uint256 _amount, uint256 _minOutputAmount) external;
+    function redeem(uint256 amount, uint256 minOutputAmount) external;
 
     /**
      * @dev Update the NAV rate provider

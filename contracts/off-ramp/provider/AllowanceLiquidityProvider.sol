@@ -100,15 +100,15 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
     }
 
     function supplyTo(
-        address _redeemer,
-        uint256 _amount,
-        uint256 _minOutputAmount
+        address redeemer,
+        uint256 amount,
+        uint256 minOutputAmount
     ) public whenNotPaused onlySecuritizeRedemption {
-        if (_minOutputAmount > _amount) {
-            revert MinOutputAmountExceeded(_minOutputAmount, _amount);
+        if (amount < minOutputAmount) {
+            revert MinOutputAmountExceeded(amount, minOutputAmount);
         }
 
         // transfer liquidity token from liquidity provider wallet to redeemer
-        liquidityToken.transferFrom(liquidityProviderWallet, _redeemer, _amount);
+        liquidityToken.transferFrom(liquidityProviderWallet, redeemer, amount);
     }
 }
