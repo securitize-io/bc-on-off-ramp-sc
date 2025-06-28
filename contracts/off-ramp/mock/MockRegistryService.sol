@@ -23,8 +23,8 @@ uint256 constant REGISTRY_SERVICE = 4;
 
 contract MockRegistryService {
     string internal investorCountry;
-    bool internal returnInvalidCountry;
     string internal invalidCountryCode;
+    bool internal returnInvalidCountry;
 
     constructor(string memory _investorCountry) {
         investorCountry = _investorCountry;
