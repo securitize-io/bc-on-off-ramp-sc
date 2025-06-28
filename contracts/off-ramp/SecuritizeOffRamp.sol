@@ -27,6 +27,7 @@ import {ILiquidityProvider} from "./provider/ILiquidityProvider.sol";
 import {ISecuritizeNavProvider} from "./nav/ISecuritizeNavProvider.sol";
 import {IFeeManager} from "../fee/IFeeManager.sol";
 import {IDSToken} from "@securitize/digital_securities/contracts/token/IDSToken.sol";
+import {TokenDataStore} from "@securitize/digital_securities/contracts/data-stores/TokenDataStore.sol";
 import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
 
 contract SecuritizeOffRamp is ISecuritizeOffRamp, ISecuritizeOffRampErrors, EIP712Upgradeable, BaseContract {
@@ -136,7 +137,7 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, ISecuritizeOffRampErrors, EIP7
         __EIP712_init(NAME, VERSION);
         __BaseContract_init();
 
-        uint256 _assetDecimals = ERC20(_asset).decimals();
+        uint256 _assetDecimals = TokenDataStore(_asset).decimals();
         if (_assetDecimals > 18) {
             revert ExcessiveDecimals(_assetDecimals, 18);
         }
