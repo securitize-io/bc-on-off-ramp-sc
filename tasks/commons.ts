@@ -25,7 +25,15 @@ task('deploy-proxy', 'Deploy a UUPS proxy contract')
     .setAction(async (taskArgs, hre) => {
         await hre.run('compile');
         const Contract = await hre.ethers.getContractFactory(taskArgs.contractName);
-        const proxy = await hre.upgrades.deployProxy(Contract, taskArgs.args, { kind: taskArgs.kind });
+        const argsTypes = taskArgs.args.map((arg: string) => {
+            if (arg === 'true' || arg === 'false') {
+                return arg === 'true';
+            } else {
+                return arg;
+            }
+        });
+
+        const proxy = await hre.upgrades.deployProxy(Contract, argsTypes, { kind: taskArgs.kind });
         await proxy.waitForDeployment();
         const proxyAddress = await proxy.getAddress();
         const implAddress = await hre.upgrades.erc1967.getImplementationAddress(proxyAddress);

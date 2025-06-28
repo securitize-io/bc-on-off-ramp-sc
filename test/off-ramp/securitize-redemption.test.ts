@@ -628,6 +628,9 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                     deployRedemptionAllowanceProtocol,
                 );
 
+                // Provide collateral asset to securitize wallet
+                await dsTokenMock.mint(investor, COLLATERAL_TREASURY);
+
                 // mint assets to investor
                 await dsTokenMock.mint(investor, ASSET_AMOUNT);
                 const dsTokenDecimals = await dsTokenMock.decimals();
