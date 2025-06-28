@@ -39,7 +39,6 @@ interface ILiquidityProvider {
      */
     function supplyTo(address _redeemer, uint256 _amount, uint256 _minOutputAmount) external;
 
-    // GG: en IAssetProvider este se llama "asset: IDSToken"
     /**
      * @dev Returns the liquidity asset.
      * @return liquidity address.
