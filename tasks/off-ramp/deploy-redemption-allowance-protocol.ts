@@ -120,12 +120,14 @@ task('deploy-redemption-allowance-protocol', 'Deploy Redemption Protocol (Allowa
             liquidityProviderAddress,
         );
 
+        console.log('');
         consoleGreen('Securitize Redemption Protocol has been deployed successfully');
 
         consoleYellow(
             'Proceeding to configure the protocol: setting allowance provider wallet and linking liquidity provider to the redemption contract...',
         );
 
+        // FIXME: ProviderError: replacement transaction underpriced
         // Set liquidity provider wallet
         await liquidityProvider.setAllowanceProviderWallet(args.providerWallet);
 
