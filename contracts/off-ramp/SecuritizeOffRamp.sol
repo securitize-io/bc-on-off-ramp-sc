@@ -219,7 +219,7 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, ISecuritizeOffRampErrors, EIP7
 
         // TODO: can we move this check to the liquidity provider?
         // It could be better to avoid call public functions on the liquidity provider and save gas
-        if (liquidityProvider.availableLiquidity() < liquidityTokenAmount) {
+        if (liquidityTokenAmount > liquidityProvider.availableLiquidity()) {
             revert InsufficientLiquidity(liquidityTokenAmount, liquidityProvider.availableLiquidity());
         }
 
