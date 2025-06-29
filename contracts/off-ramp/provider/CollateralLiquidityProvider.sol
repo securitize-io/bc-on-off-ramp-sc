@@ -68,7 +68,7 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
     function initialize(
         address _liquidityToken,
         address _recipient,
-        address _securitizeRedemption
+        address _securitizeOffRamp
     ) public onlyProxy initializer {
         if (_recipient == address(0)) {
             revert ZeroAddress("recipient");
@@ -76,34 +76,34 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
         if (_liquidityToken == address(0)) {
             revert ZeroAddress("liquidityToken");
         }
-        if (_securitizeRedemption == address(0)) {
+        if (_securitizeOffRamp == address(0)) {
             revert ZeroAddress("securitizeOffRamp");
         }
         __BaseContract_init();
         recipient = _recipient;
         liquidityToken = IERC20(_liquidityToken);
-        securitizeOffRamp = ISecuritizeOffRamp(_securitizeRedemption);
+        securitizeOffRamp = ISecuritizeOffRamp(_securitizeOffRamp);
     }
 
-    function setExternalCollateralRedemption(address _externalCollateralRedemption) external onlyOwner {
-        if (_externalCollateralRedemption == address(0)) {
+    function setExternalCollateralRedemption(address externalCollateralRedemption_) external onlyOwner {
+        if (externalCollateralRedemption_ == address(0)) {
             revert ZeroAddress("externalCollateralRedemption");
         }
 
-        if (ISecuritizeOffRamp(_externalCollateralRedemption).assetAddress() != address(liquidityToken)) {
+        if (ISecuritizeOffRamp(externalCollateralRedemption_).assetAddress() != address(liquidityToken)) {
             revert LiquidityTokenMismatch();
         }
         address oldExternalCollateral = address(externalCollateralRedemption);
-        externalCollateralRedemption = ISecuritizeOffRamp(_externalCollateralRedemption);
+        externalCollateralRedemption = ISecuritizeOffRamp(externalCollateralRedemption_);
         emit ExternalCollateralRedemptionUpdated(oldExternalCollateral, address(externalCollateralRedemption));
     }
 
-    function setCollateralProvider(address _collateralProvider) external onlyOwner {
-        if (_collateralProvider == address(0)) {
+    function setCollateralProvider(address collateralProvider_) external onlyOwner {
+        if (collateralProvider_ == address(0)) {
             revert ZeroAddress("collateralProvider");
         }
-        address oldAddress = address(collateralProvider);
-        collateralProvider = _collateralProvider;
+        address oldAddress = collateralProvider;
+        collateralProvider = collateralProvider_;
         emit CollateralProviderUpdated(oldAddress, address(collateralProvider));
     }
 

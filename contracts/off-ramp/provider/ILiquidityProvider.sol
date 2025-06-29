@@ -28,9 +28,9 @@ interface ILiquidityProvider {
      * @dev Proxy Initializer.
      * @param _liquidityToken liquidity token that the asset is being redeemed for.
      * @param _recipient wallet address that receives digital assets..
-     * @param _securitizeRedemption The address of the securitize redemption contract.
+     * @param _securitizeOffRamp The address of the securitize redemption contract.
      **/
-    function initialize(address _liquidityToken, address _recipient, address _securitizeRedemption) external;
+    function initialize(address _liquidityToken, address _recipient, address _securitizeOffRamp) external;
 
     /**
      * @dev Supplies liquidity to a recipient

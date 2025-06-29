@@ -65,7 +65,7 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
     function initialize(
         address _liquidityToken,
         address _recipient,
-        address _securitizeRedemption
+        address _securitizeOffRamp
     ) public onlyProxy initializer {
         if (_recipient == address(0)) {
             revert ZeroAddress("recipient");
@@ -73,13 +73,13 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
         if (_liquidityToken == address(0)) {
             revert ZeroAddress("liquidityToken");
         }
-        if (_securitizeRedemption == address(0)) {
+        if (_securitizeOffRamp == address(0)) {
             revert ZeroAddress("securitizeOffRamp");
         }
         __BaseContract_init();
         recipient = _recipient;
         liquidityToken = IERC20(_liquidityToken);
-        securitizeOffRamp = ISecuritizeOffRamp(_securitizeRedemption);
+        securitizeOffRamp = ISecuritizeOffRamp(_securitizeOffRamp);
     }
 
     function setAllowanceProviderWallet(address _liquidityProviderWallet) external onlyOwner {
