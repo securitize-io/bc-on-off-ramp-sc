@@ -1,8 +1,5 @@
 import { task } from 'hardhat/config';
-
-export function delay(ms: number) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-}
+import { consoleGreen, consoleYellow, delay } from '../utils';
 
 // npx hardhat contract-call --network sepolia --contract-name SecuritizeOffRamp --method assetAddress --contract-address 0x123...
 task('contract-call')
@@ -24,6 +21,9 @@ task('deploy-proxy', 'Deploy a UUPS proxy contract')
     .addVariadicPositionalParam('args', 'The initializer arguments', [])
     .setAction(async (taskArgs, hre) => {
         await hre.run('compile');
+        console.log('');
+        consoleGreen(`Deploying ${taskArgs.contractName} proxy...`);
+
         const Contract = await hre.ethers.getContractFactory(taskArgs.contractName);
         const argsTypes = taskArgs.args.map((arg: string) => {
             if (arg === 'true' || arg === 'false') {
@@ -38,8 +38,10 @@ task('deploy-proxy', 'Deploy a UUPS proxy contract')
         const proxyAddress = await proxy.getAddress();
         const implAddress = await hre.upgrades.erc1967.getImplementationAddress(proxyAddress);
 
-        console.log(`${taskArgs.contractName} proxy deployed at: ${proxyAddress}`);
-        console.log(`${taskArgs.contractName} implementation at: ${implAddress}`);
+        console.log(`${taskArgs.contractName} proxy deployed at:`);
+        consoleYellow(`${proxyAddress}`);
+        console.log(`${taskArgs.contractName} implementation at:`);
+        consoleYellow(`${implAddress}`);
 
         if (taskArgs.verify) {
             await hre.run('verify-contract', {
@@ -81,7 +83,7 @@ task('verify-contract', 'Verify a proxy implementation contract on Etherscan')
     .addVariadicPositionalParam('args', 'Constructor arguments', [])
     .setAction(async (taskArgs, hre) => {
         console.log('');
-        console.log(`Waiting for 40 seconds before verifying...`);
+        consoleGreen(`Waiting for 40 seconds before verifying...`);
 
         // Wait for 40 seconds before verification, to ensure the contract is fully deployed
         await delay(40000);
@@ -94,7 +96,7 @@ task('verify-contract', 'Verify a proxy implementation contract on Etherscan')
                 address: taskArgs.address,
                 constructorArguments: taskArgs.args,
             });
-            console.log('Contract verified successfully:');
+            consoleGreen('Contract verified successfully:');
         } catch (error) {
             console.error(`Verification failed for ${taskArgs.contractName} at ${taskArgs.address}:`, error);
         }

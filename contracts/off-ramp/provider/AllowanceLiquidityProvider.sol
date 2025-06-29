@@ -50,6 +50,7 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
     error RedemptionUnauthorizedAccount(address account);
     error ZeroAddress(string parameter);
     error MinOutputAmountExceeded(uint256 minOutputAmount, uint256 amount);
+    error AvailableLiquidityExceeded(uint256 availableLiquidity, uint256 amount);
 
     /**
      * @dev Throws if called by any account other than the redemption contract.
@@ -91,6 +92,10 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
     }
 
     function availableLiquidity() external view returns (uint256) {
+        return _availableLiquidity();
+    }
+
+    function _availableLiquidity() private view returns (uint256) {
         // Minimum between balance and allowance
         return
             Math.min(
@@ -106,6 +111,9 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
     ) public whenNotPaused onlySecuritizeRedemption {
         if (amount < minOutputAmount) {
             revert MinOutputAmountExceeded(amount, minOutputAmount);
+        }
+        if (amount < _availableLiquidity()) {
+            revert AvailableLiquidityExceeded(_availableLiquidity(), amount);
         }
 
         // transfer liquidity token from liquidity provider wallet to redeemer
