@@ -22,7 +22,7 @@ task('deploy-proxy', 'Deploy a UUPS proxy contract')
     .setAction(async (taskArgs, hre) => {
         await hre.run('compile');
         console.log('');
-        consoleCyan('deploy-proxy task');
+        consoleCyan('task: deploy-proxy');
         consoleGreen(`Deploying ${taskArgs.contractName} proxy...`);
 
         const Contract = await hre.ethers.getContractFactory(taskArgs.contractName);
@@ -62,7 +62,7 @@ task('deploy-contract', 'General purpose contract deployer')
     .setAction(async (taskArgs, hre) => {
         await hre.run('compile');
         console.log('');
-        consoleCyan('deploy-contract task');
+        consoleCyan('task: deploy-contract');
         const contractFactory = await hre.ethers.getContractFactory(taskArgs.contractName);
         const contract = await contractFactory.deploy(...taskArgs.args);
         await contract.waitForDeployment();
@@ -86,7 +86,7 @@ task('verify-contract', 'Verify a proxy implementation contract on Etherscan')
     .addVariadicPositionalParam('args', 'Constructor arguments', [])
     .setAction(async (taskArgs, hre) => {
         console.log('');
-        consoleCyan('verify-contract task');
+        consoleCyan('task: verify-contract');
         consoleGreen(`Waiting for 40 seconds before verifying...`);
 
         // Wait for 40 seconds before verification, to ensure the contract is fully deployed

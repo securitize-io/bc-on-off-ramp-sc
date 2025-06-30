@@ -31,7 +31,7 @@ task('deploy-redemption-collateral-protocol', 'Deploy Redemption Protocol (Colla
     .addFlag('verify', 'Verify contracts on Etherscan')
     .setAction(async (args, hre) => {
         console.log('');
-        consoleCyan('deploy-redemption-collateral-protocol task');
+        consoleCyan('task: deploy-redemption-collateral-protocol');
 
         const { proxyAddress: redemptionAddress } = await hre.run('deploy-proxy', {
             contractName: 'SecuritizeOffRamp',
@@ -87,7 +87,7 @@ task('deploy-collateral-provider', 'Deploy CollateralLiquidityProvider proxy')
     .addFlag('verify', 'Verify contracts on Etherscan')
     .setAction(async (taskArgs, hre) => {
         console.log('');
-        consoleCyan('deploy-collateral-provider task');
+        consoleCyan('task: deploy-collateral-provider');
         consoleYellow('Arguments:');
         console.log(`- Liquidity Token: ${taskArgs.liquidity}`);
         console.log(`- Recipient: ${taskArgs.recipient}`);
