@@ -18,16 +18,31 @@
 
 pragma solidity 0.8.22;
 
+import {Errors} from "../common/Errors.sol";
+
 /**
  * @title IFeeManager
  * @dev Interface for managing fees in the on/off ramp protocol
  */
-interface IFeeManager {
+interface IFeeManager is Errors {
 
+    event FeeUpdated(uint256 oldFee, uint256 newFee);
+    event FeeCollectorUpdated(address oldCollector, address newCollector);
+
+    /**
+    * @notice the fee collector address
+    */
     function feeCollector() external view returns (address);
 
     /**
      * @dev Returns the computed fee
+     * @param amount Amount to calculate fees
      */
     function getFee(uint256 amount) external view returns (uint256);
+
+    /**
+     * @dev Sets the fee collector address
+     * @param _feeCollector Address to collect fees
+     */
+    function setFeeCollector(address _feeCollector) external;
 }
