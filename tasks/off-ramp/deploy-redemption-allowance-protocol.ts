@@ -1,5 +1,5 @@
 import { task } from 'hardhat/config';
-import { consoleGreen, consoleRed, consoleYellow } from '../../utils';
+import { consoleCyan, consoleGreen, consoleRed, consoleYellow } from '../../utils';
 
 // Deploy SecuritizeOffRamp proxy
 // npx hardhat deploy-offramp --network sepolia --asset 0x123 --nav-provider 0xe76B92272667363FD487a71c13b7799ED924C9b8 --fee-manager 0xe76B92272667363FD487a71c13b7799ED924C9b8 --asset-burn false --verify
@@ -11,7 +11,7 @@ task('deploy-offramp', 'Deploy SecuritizeOffRamp proxy')
     .addFlag('verify', 'Verify contracts on Etherscan')
     .setAction(async (taskArgs, hre) => {
         console.log('');
-        consoleGreen('Deploying SecuritizeOffRamp proxy...');
+        consoleCyan('deploy-offramp task');
         consoleYellow('Arguments:');
         console.log(`- Asset: ${taskArgs.asset}`);
         console.log(`- NAV Provider: ${taskArgs.navProvider}`);
@@ -39,6 +39,7 @@ task('deploy-allowance-provider', 'Deploy AllowanceLiquidityProvider proxy')
     .addOptionalParam('providerWallet', 'Wallet that provides liquidity')
     .setAction(async (taskArgs, hre) => {
         console.log('');
+        consoleCyan('deploy-allowance-provider task');
         consoleGreen('Deploying AllowanceLiquidityProvider proxy...');
         consoleYellow('Arguments:');
         console.log(`- Liquidity Token: ${taskArgs.liquidityToken}`);
@@ -94,7 +95,7 @@ task('deploy-redemption-allowance-protocol', 'Deploy Redemption Protocol (Allowa
     .addFlag('allowanceProviderWallet', 'Set allowance for the liquidity provider wallet')
     .setAction(async (args, hre) => {
         console.log('');
-        consoleGreen('Deploying Securitize Redemption Protocol (Allowance implementation)...');
+        consoleCyan('deploy-redemption-allowance-protocol task');
 
         const { redemptionAddress } = await hre.run('deploy-offramp', {
             asset: args.asset,

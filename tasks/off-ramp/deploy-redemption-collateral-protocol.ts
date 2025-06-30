@@ -1,5 +1,5 @@
 import { task } from 'hardhat/config';
-import { consoleGreen, consoleYellow } from '../../utils';
+import { consoleCyan, consoleGreen, consoleYellow } from '../../utils';
 
 /*
 npx hardhat deploy-redemption-collateral-protocol \
@@ -11,6 +11,7 @@ npx hardhat deploy-redemption-collateral-protocol \
     --recipient 0xe76B92272667363FD487a71c13b7799ED924C9b8 \
     --liquidity-token 0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238 \
     --provider-wallet 0xe76B92272667363FD487a71c13b7799ED924C9b8 \
+    --external-collateral-redemption 0x3F9fFC639063661120ca0b8A1c19D96162Ff7999 \
     --verify
 */
 task('deploy-redemption-collateral-protocol', 'Deploy Redemption Protocol (Collateral implementation)')
@@ -24,19 +25,18 @@ task('deploy-redemption-collateral-protocol', 'Deploy Redemption Protocol (Colla
     .addParam('liquidityToken', 'Stable coin to provide liquidity')
     .addParam('recipient', 'Wallet that receives DS Token (SCOPE)')
     .addParam('providerWallet', 'Wallet that provides collateral (BUIDL)')
-    .addParam('redemption', 'External Collateral Redemption SC', undefined, types.string, false)
+    .addParam('externalCollateralRedemption', 'External Collateral Redemption SC')
 
     // Verification flag
     .addFlag('verify', 'Verify contracts on Etherscan')
     .setAction(async (args, hre) => {
         console.log('');
-        consoleGreen('Deploying Securitize Redemption Protocol (Collateral implementation)...');
+        consoleCyan('deploy-redemption-collateral-protocol task');
 
-        const { redemptionAddress } = await hre.run('deploy-offramp', {
-            asset: args.asset,
-            navProvider: args.navProvider,
-            feeManager: args.feeManager,
-            assetBurn: args.assetBurn,
+        const { proxyAddress: redemptionAddress } = await hre.run('deploy-proxy', {
+            contractName: 'SecuritizeOffRamp',
+            kind: 'uups',
+            args: [args.asset, args.navProvider, args.feeManager, args.assetBurn],
             verify: args.verify,
         });
 
@@ -61,14 +61,17 @@ task('deploy-redemption-collateral-protocol', 'Deploy Redemption Protocol (Colla
             'Proceeding to configure the protocol: setting external collateral redemption, collateral provider, and linking liquidity provider to the redemption contract...',
         );
 
-        // Set external collateral redemption
-        await liquidityProvider.setExternalCollateralRedemption(args.redemption);
+        console.log('Updating liquidity provider on securitize redemption contract');
+        // Set liquidity provider on securitize redemption contract
+        await redemption.updateLiquidityProvider(liquidityProviderAddress);
 
+        console.log('Setting collateral provider wallet');
         // Set collateral provider
         await liquidityProvider.setCollateralProvider(args.providerWallet);
 
-        // Set liquidity provider on securitize redemption contract
-        await redemption.updateLiquidityProvider(liquidityProviderAddress);
+        console.log('Setting external collateral redemption');
+        // Set external collateral redemption
+        await liquidityProvider.setExternalCollateralRedemption(args.externalCollateralRedemption);
 
         consoleGreen('Securitize Redemption Protocol has been configured successfully');
 
@@ -84,7 +87,7 @@ task('deploy-collateral-provider', 'Deploy CollateralLiquidityProvider proxy')
     .addFlag('verify', 'Verify contracts on Etherscan')
     .setAction(async (taskArgs, hre) => {
         console.log('');
-        consoleGreen('Deploying CollateralLiquidityProvider proxy...');
+        consoleCyan('deploy-collateral-provider task');
         consoleYellow('Arguments:');
         console.log(`- Liquidity Token: ${taskArgs.liquidity}`);
         console.log(`- Recipient: ${taskArgs.recipient}`);

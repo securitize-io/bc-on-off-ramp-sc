@@ -1,5 +1,6 @@
 import { task, types } from 'hardhat/config';
 import { SecuritizeOffRamp } from '../../typechain-types';
+import { consoleCyan } from '../../utils';
 
 task('update-countries-restriction', 'Update restriction status for multiple countries at once')
     .addParam('redemption', 'Address of the SecuritizeOffRamp contract', undefined, types.string)
@@ -11,6 +12,9 @@ task('update-countries-restriction', 'Update restriction status for multiple cou
     )
     .addParam('restricted', 'Whether the countries should be restricted (true/false)', undefined, types.boolean)
     .setAction(async (args, hre) => {
+        console.log('');
+        consoleCyan('update-countries-restriction task');
+
         // Parse and validate country codes
         const countries = args.countries.split(',').map((country: string) => country.trim());
 

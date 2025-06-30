@@ -21,6 +21,7 @@ import {ICollateralLiquidityProvider} from "./ICollateralLiquidityProvider.sol";
 import {BaseContract} from "../../common/BaseContract.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ISecuritizeOffRamp} from "../ISecuritizeOffRamp.sol";
+import {ILiquidityProvider} from "./ILiquidityProvider.sol";
 
 contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContract {
     /**
@@ -90,7 +91,12 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
             revert ZeroAddress("externalCollateralRedemption");
         }
 
-        if (ISecuritizeOffRamp(externalCollateralRedemption_).assetAddress() != address(liquidityToken)) {
+        if (
+            address(
+                ILiquidityProvider(address(ISecuritizeOffRamp(externalCollateralRedemption_).liquidityProvider()))
+                    .liquidityToken()
+            ) != address(liquidityToken)
+        ) {
             revert LiquidityTokenMismatch();
         }
         address oldExternalCollateral = address(externalCollateralRedemption);
@@ -112,20 +118,25 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
     }
 
     function supplyTo(
-        address _redeemer,
-        uint256 _amount,
-        uint256 _minOutputAmount
+        address redeemer,
+        uint256 amount,
+        uint256 minOutputAmount
     ) public whenNotPaused onlySecuritizeRedemption {
-        // take collateral funds from collateral provider
-        IERC20(externalCollateralRedemption.asset()).transferFrom(collateralProvider, address(this), _amount);
+        // Take collateral funds from collateral provider
+        IERC20(externalCollateralRedemption.asset()).transferFrom(collateralProvider, address(this), amount);
 
-        // approve external redemption
-        IERC20(externalCollateralRedemption.asset()).approve(address(externalCollateralRedemption), _amount);
+        // Approve external redemption
+        IERC20(externalCollateralRedemption.asset()).approve(address(externalCollateralRedemption), amount);
 
-        // get liquidity
-        externalCollateralRedemption.redeem(_amount, _minOutputAmount);
+        // Get liquidity
+        externalCollateralRedemption.redeem(amount, minOutputAmount);
 
-        // supply _redeemer
-        liquidityToken.transfer(_redeemer, _amount);
+        // Discount the fee charged by the external collateral redemption
+        uint256 assetsAfterExternalCollateralRedemptionFee = externalCollateralRedemption.calculateLiquidityTokenAmount(
+            amount
+        );
+
+        // Supply redeemer
+        liquidityToken.transfer(redeemer, assetsAfterExternalCollateralRedemptionFee);
     }
 }

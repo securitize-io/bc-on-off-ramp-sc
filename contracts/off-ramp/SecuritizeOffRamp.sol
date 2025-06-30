@@ -203,7 +203,6 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, ISecuritizeOffRampErrors, EIP7
         // Apply fee if it exists, transfer it to the fee collector
         IFeeManager feeManagerInstance = IFeeManager(feeManager);
         uint256 fee = feeManagerInstance.getFee(assetAmount);
-        // TODO: should burn the fee instead of transferring it if assetBurn is true?
         asset.transferFrom(msg.sender, feeManagerInstance.feeCollector(), fee);
 
         uint256 assetAmountAfterFee = assetAmount - fee;
@@ -215,7 +214,7 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, ISecuritizeOffRampErrors, EIP7
             asset.transferFrom(msg.sender, liquidityProvider.recipient(), assetAmountAfterFee);
         }
 
-        uint256 liquidityTokenAmount = _calculateLiquidityTokenAmount(assetAmountAfterFee, rate);
+        uint256 liquidityTokenAmount = _calculateLiquidityTokenAmountAfterFee(assetAmountAfterFee, rate);
 
         // TODO: can we move this check to the liquidity provider?
         // It could be better to avoid call public functions on the liquidity provider and save gas
@@ -261,12 +260,20 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, ISecuritizeOffRampErrors, EIP7
         return _calculateLiquidityTokenAmount(assetAmount, rate);
     }
 
+    function _calculateLiquidityTokenAmount(uint256 assetAmount, uint256 rate) private view returns (uint256) {
+        IFeeManager feeManagerInstance = IFeeManager(feeManager);
+        uint256 fee = feeManagerInstance.getFee(assetAmount);
+        uint256 assetAmountAfterFee = assetAmount - fee;
+
+        return _calculateLiquidityTokenAmountAfterFee(assetAmountAfterFee, rate);
+    }
+
     /**
      * @dev Calculates the amount of liquidity tokens to provide for a given asset amount
      * @param assetAmount The amount of asset tokens to redeem
      * @return The amount of liquidity tokens to provide
      */
-    function _calculateLiquidityTokenAmount(uint256 assetAmount, uint256 rate) private view returns (uint256) {
+    function _calculateLiquidityTokenAmountAfterFee(uint256 assetAmount, uint256 rate) private view returns (uint256) {
         if (liquidityDecimals > assetDecimals) {
             return ((assetAmount * rate) * (10 ** (liquidityDecimals - assetDecimals))) / (10 ** liquidityDecimals);
         }

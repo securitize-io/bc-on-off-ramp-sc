@@ -1,5 +1,5 @@
 import { task } from 'hardhat/config';
-import { consoleGreen, consoleYellow, delay } from '../utils';
+import { consoleCyan, consoleGreen, consoleYellow, delay } from '../utils';
 
 // npx hardhat contract-call --network sepolia --contract-name SecuritizeOffRamp --method assetAddress --contract-address 0x123...
 task('contract-call')
@@ -22,6 +22,7 @@ task('deploy-proxy', 'Deploy a UUPS proxy contract')
     .setAction(async (taskArgs, hre) => {
         await hre.run('compile');
         console.log('');
+        consoleCyan('deploy-proxy task');
         consoleGreen(`Deploying ${taskArgs.contractName} proxy...`);
 
         const Contract = await hre.ethers.getContractFactory(taskArgs.contractName);
@@ -60,6 +61,8 @@ task('deploy-contract', 'General purpose contract deployer')
     .addVariadicPositionalParam('args', 'The constructor arguments', [])
     .setAction(async (taskArgs, hre) => {
         await hre.run('compile');
+        console.log('');
+        consoleCyan('deploy-contract task');
         const contractFactory = await hre.ethers.getContractFactory(taskArgs.contractName);
         const contract = await contractFactory.deploy(...taskArgs.args);
         await contract.waitForDeployment();
@@ -83,6 +86,7 @@ task('verify-contract', 'Verify a proxy implementation contract on Etherscan')
     .addVariadicPositionalParam('args', 'Constructor arguments', [])
     .setAction(async (taskArgs, hre) => {
         console.log('');
+        consoleCyan('verify-contract task');
         consoleGreen(`Waiting for 40 seconds before verifying...`);
 
         // Wait for 40 seconds before verification, to ensure the contract is fully deployed
