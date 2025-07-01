@@ -389,7 +389,7 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
 
             it('Should fail if liquidity provider has no balance', async function () {
                 const [_, investor] = await hre.ethers.getSigners();
-                const { redemption, dsTokenMock } = await loadFixture(deployRedemptionProtocol);
+                const { liquidityProvider, redemption, dsTokenMock } = await loadFixture(deployRedemptionProtocol);
                 await dsTokenMock.mint(investor, ASSET_AMOUNT);
                 const dsTokenFromInvestor = await dsTokenMock.connect(investor);
                 await dsTokenFromInvestor.approve(await redemption.getAddress(), ASSET_AMOUNT);
@@ -398,7 +398,7 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
 
                 const redemptionFromInvestor = await redemption.connect(investor);
                 await expect(redemptionFromInvestor.redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT)).revertedWithCustomError(
-                    redemption,
+                    liquidityProvider,
                     'InsufficientLiquidity',
                 );
             });

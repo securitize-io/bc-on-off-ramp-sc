@@ -135,6 +135,13 @@ export const deployRedemptionProtocolWithMultipleTokens = async () => {
         await securitizeNavProviderMock.getAddress(), // The NAV provider
     ]);
 
+    const mockAllowanceLiquidityProvider = await hre.ethers.deployContract('MockAllowanceLiquidityProvider', [
+        await usdcMock.getAddress(),
+        await dsTokenMock.getAddress(),
+        await externalRedemptionContractMock.getAddress(),
+    ]);
+    await externalRedemptionContractMock.updateLiquidityProvider(mockAllowanceLiquidityProvider.getAddress());
+
     const mockFeeManager = await hre.ethers.deployContract('MockFeeManager', [0, FEE_COLLECTOR]); // Initialize with 0 fee and zero address for feeCollector
 
     const [securitizeWallet] = await hre.ethers.getSigners();
