@@ -62,7 +62,13 @@ export const deployRedemptionProtocol = async () => {
         await daiMock.getAddress(),
         await securitizeNavProviderMock.getAddress(),
     ]);
-    await newExternalRedemptionContractDaiMock.updateLiquidityProvider(mockAllowanceLiquidityProvider.getAddress());
+
+    const mockDaiAllowanceLiquidityProvider = await hre.ethers.deployContract('MockAllowanceLiquidityProvider', [
+        await daiMock.getAddress(),
+        await dsTokenMock.getAddress(),
+        await externalRedemptionContractMock.getAddress(),
+    ]);
+    await newExternalRedemptionContractDaiMock.updateLiquidityProvider(mockDaiAllowanceLiquidityProvider.getAddress());
 
     const mockFeeManager = await hre.ethers.deployContract('MockFeeManager', [0, FEE_COLLECTOR]); // Initialize with 0 fee and zero address for feeCollector
     const [securitizeWallet] = await hre.ethers.getSigners();
