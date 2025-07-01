@@ -35,14 +35,12 @@ interface ISecuritizeOnRamp is Errors {
      * @param _dsTokenValue asset amount
      * @param _liquidityValue stable coin amount
      * @param _newWalletTo wallet recipient
-     * @param _fee fee collected
      */
     event Swap(
         address indexed _from,
         uint256 _dsTokenValue,
         uint256 _liquidityValue,
-        address indexed _newWalletTo,
-        uint256 indexed _fee
+        address indexed _newWalletTo
     );
 
     /**

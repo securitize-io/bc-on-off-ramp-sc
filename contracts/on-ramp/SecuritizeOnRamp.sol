@@ -131,8 +131,7 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
             revert TransactionTooOldError();
         }
 
-        uint256 fee = feeManager.getFee(_liquidityAmount);
-        uint256 dsTokenAmount = calculateDsTokenAmount(_liquidityAmount - fee); // calculate dsToken using liquidityAmount - fee
+        uint256 dsTokenAmount = calculateDsTokenAmount(_liquidityAmount);
         if (dsTokenAmount < _minOutAmount) {
             revert SlippageControlError();
         }
@@ -146,27 +145,27 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
             _investorAttributeExpirations
         );
 
-        _executeLiquidityTransfer(_msgSender(), _liquidityAmount, fee);
+        _executeLiquidityTransfer(_msgSender(), _liquidityAmount);
         _executeAssetTransfer(dsTokenAmount);
 
         emit DocumentSigned (_msgSender(), _agreementHash);
-        emit Swap(_msgSender(), dsTokenAmount, _liquidityAmount, _msgSender(), fee);
+        emit Swap(_msgSender(), dsTokenAmount, _liquidityAmount, _msgSender());
     }
 
     function swap(
         uint256 _liquidityAmount,
         uint256 _minOutAmount
     ) public override whenNotPaused investorExists nonZeroNavRate validateInvestorSubscription validateMinSubscriptionAmount(_liquidityAmount) {
-        uint256 fee = feeManager.getFee(_liquidityAmount);
-        uint256 dsTokenAmount = calculateDsTokenAmount(_liquidityAmount - fee); // calculate dsToken using liquidityAmount - fee
+
+        uint256 dsTokenAmount = calculateDsTokenAmount(_liquidityAmount); // calculate dsToken using liquidityAmount - fee
         if (dsTokenAmount < _minOutAmount) {
             revert SlippageControlError();
         }
 
-        _executeLiquidityTransfer(_msgSender(), _liquidityAmount, fee);
+        _executeLiquidityTransfer(_msgSender(), _liquidityAmount);
         _executeAssetTransfer(dsTokenAmount);
 
-        emit Swap(_msgSender(), dsTokenAmount, _liquidityAmount, _msgSender(), fee);
+        emit Swap(_msgSender(), dsTokenAmount, _liquidityAmount, _msgSender());
     }
 
     function executePreApprovedTransaction(
@@ -217,8 +216,10 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
     }
 
     function calculateDsTokenAmount(uint256 _liquidityAmount) public override view returns (uint256) {
+        uint256 fee = feeManager.getFee(_liquidityAmount);
+        uint256 liquidityAmountExcludingFee = _liquidityAmount - fee;
         uint256 currentNavRate = navProvider.rate();
-        return _liquidityAmount * 10 ** IERC20Metadata(address(assetProvider.asset())).decimals() / currentNavRate;
+        return liquidityAmountExcludingFee * 10 ** IERC20Metadata(address(assetProvider.asset())).decimals() / currentNavRate;
     }
 
     function updateAssetProvider(address _assetProvider) external override onlyOwner {
@@ -267,11 +268,12 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
         emit TwoStepTransferUpdated(twoStepTransfer);
     }
 
-    function _executeLiquidityTransfer(address from, uint256 amount, uint256 fee) private {
+    function _executeLiquidityTransfer(address from, uint256 amount) private {
         if (liquidityToken.balanceOf(_msgSender()) < amount) {
             revert InsufficientERC20BalanceError();
         }
 
+        uint256 fee = feeManager.getFee(amount);
         uint256 amountExcludingFee = amount - fee;
         liquidityToken.transferFrom(from, address(this), amount);
         liquidityToken.transfer(feeManager.feeCollector(), fee);
