@@ -1,5 +1,5 @@
 import { task } from 'hardhat/config';
-import { consoleCyan, consoleGreen, consoleYellow, delay } from '../utils';
+import { consoleCyan, consoleGreen, consoleRed, consoleYellow, delay } from '../utils';
 
 // npx hardhat contract-call --network sepolia --contract-name SecuritizeOffRamp --method assetAddress --contract-address 0x123...
 task('contract-call')
@@ -103,5 +103,38 @@ task('verify-contract', 'Verify a proxy implementation contract on Etherscan')
             consoleGreen('Contract verified successfully:');
         } catch (error) {
             console.error(`Verification failed for ${taskArgs.contractName} at ${taskArgs.address}:`, error);
+        }
+    });
+
+/*
+npx hardhat set-allowance --network sepolia --token 0x123 --owner 0x123 --spender 0x123
+*/
+task('set-allowance', 'Set allowance for the liquidity provider')
+    .addParam('token', 'Stable coin to provide liquidity')
+    .addParam('owner', 'Wallet that provides liquidity')
+    .addParam('spender', 'Address of the liquidity provider')
+    .setAction(async (args, hre) => {
+        console.log('');
+        consoleCyan('task: set-allowance');
+        consoleYellow('Arguments:');
+        console.log(`- Token: ${args.token}`);
+        console.log(`- Owner: ${args.owner}`);
+        console.log(`- Spender: ${args.spender}`);
+
+        const MAX_UINT256 = hre.ethers.MaxUint256;
+
+        const token = await hre.ethers.getContractAt('IERC20', args.token);
+        const ownerWallet = await hre.ethers.getSigner(args.owner);
+
+        const allowance = await token.allowance(ownerWallet.address, args.spender);
+        const allowanceBN = BigInt(allowance);
+
+        if (allowanceBN.toString() === '0') {
+            // @ts-expect-error approve method is not defined in BaseContract
+            const tx = await token.connect(ownerWallet).approve(args.spender, MAX_UINT256);
+            await tx.wait();
+            consoleYellow(`Allowance set for ${args.spender}`);
+        } else {
+            consoleRed(`Allowance already set for ${args.spender}: ${allowance.toString()}`);
         }
     });

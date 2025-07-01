@@ -1,5 +1,5 @@
 import { task } from 'hardhat/config';
-import { consoleCyan, consoleGreen, consoleRed, consoleYellow } from '../../utils';
+import { consoleCyan, consoleGreen, consoleYellow } from '../../utils';
 
 /*
 npx hardhat deploy-redemption-allowance-protocol \
@@ -94,6 +94,7 @@ task('deploy-offramp', 'Deploy SecuritizeOffRamp proxy')
         console.log(`- NAV Provider: ${taskArgs.navProvider}`);
         console.log(`- Fee Manager: ${taskArgs.feeManager}`);
         console.log(`- Asset Burn: ${taskArgs.assetBurn}`);
+        console.log(`- Verify: ${taskArgs.verify}`);
 
         const { proxyAddress, implAddress } = await hre.run('deploy-proxy', {
             contractName: 'SecuritizeOffRamp',
@@ -121,6 +122,9 @@ task('deploy-allowance-provider', 'Deploy AllowanceLiquidityProvider proxy')
         console.log(`- Liquidity Token: ${taskArgs.liquidityToken}`);
         console.log(`- Recipient: ${taskArgs.recipient}`);
         console.log(`- Redemption Address: ${taskArgs.redemptionAddress}`);
+        console.log(`- Allowance Provider Wallet: ${taskArgs.allowanceProviderWallet}`);
+        console.log(`- Provider Wallet: ${taskArgs.providerWallet}`);
+        console.log(`- Verify: ${taskArgs.verify}`);
 
         const { proxyAddress, implAddress } = await hre.run('deploy-proxy', {
             contractName: 'AllowanceLiquidityProvider',
@@ -131,45 +135,12 @@ task('deploy-allowance-provider', 'Deploy AllowanceLiquidityProvider proxy')
 
         if (taskArgs.allowanceProviderWallet) {
             // Set allowance for the liquidity provider
-            await hre.run('set-liquidity-provider-allowance', {
-                liquidityToken: taskArgs.liquidityToken,
-                providerWallet: taskArgs.providerWallet,
-                liquidityProviderAddress: proxyAddress,
+            await hre.run('set-allowance', {
+                token: taskArgs.liquidityToken,
+                owner: taskArgs.providerWallet,
+                spender: proxyAddress,
             });
         }
 
         return { liquidityProviderAddress: proxyAddress, liquidityProviderImpl: implAddress };
-    });
-
-/*
-npx hardhat set-liquidity-provider-allowance --network sepolia --liquidity-token 0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238 --provider-wallet 0xe76B92272667363FD487a71c13b7799ED924C9b8 --liquidity-provider-address 0x66754A2080dA6bf936fEbE90d2eB5FdBea81f1E8
-*/
-task('set-liquidity-provider-allowance', 'Set allowance for the liquidity provider')
-    .addParam('liquidityToken', 'Stable coin to provide liquidity')
-    .addParam('providerWallet', 'Wallet that provides liquidity')
-    .addParam('liquidityProviderAddress', 'Address of the liquidity provider')
-    .setAction(async (args, hre) => {
-        console.log('');
-        consoleCyan('task: set-liquidity-provider-allowance');
-        consoleYellow('Arguments:');
-        console.log(`- Liquidity Token: ${args.liquidityToken}`);
-        console.log(`- Provider Wallet: ${args.providerWallet}`);
-        console.log(`- Liquidity Provider Address: ${args.liquidityProviderAddress}`);
-
-        const MAX_UINT256 = hre.ethers.MaxUint256;
-
-        const liquidityToken = await hre.ethers.getContractAt('IERC20', args.liquidityToken);
-        const providerWallet = await hre.ethers.getSigner(args.providerWallet);
-
-        const allowance = await liquidityToken.allowance(providerWallet.address, args.liquidityProviderAddress);
-        const allowanceBN = BigInt(allowance);
-
-        if (allowanceBN.toString() === '0') {
-            // @ts-expect-error approve method is not defined in BaseContract
-            const tx = await liquidityToken.connect(providerWallet).approve(args.liquidityProviderAddress, MAX_UINT256);
-            await tx.wait();
-            consoleYellow(`Allowance set for ${args.liquidityProviderAddress}`);
-        } else {
-            consoleRed(`Allowance already set for ${args.liquidityProviderAddress}: ${allowance.toString()}`);
-        }
     });
