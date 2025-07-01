@@ -20,6 +20,10 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
 
     describe('Securitize Redemption Contract Unit Tests', function () {
         describe('Creation', function () {
+            it('Should get implementation address correctly', async function () {
+                const { redemption } = await loadFixture(deployRedemptionProtocol);
+                expect(await redemption.getImplementationAddress()).to.be.exist.and.not.equal(hre.ethers.ZeroAddress);
+            });
             it('Should fail when trying to re initialize', async function () {
                 const { redemption, dsTokenMock, securitizeNavProviderMock } =
                     await loadFixture(deployRedemptionProtocol);
@@ -51,11 +55,6 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
             it('Should get version correctly', async function () {
                 const { redemption } = await loadFixture(deployRedemptionProtocol);
                 expect(await redemption.getInitializedVersion()).to.equal(1);
-            });
-
-            it('Should get implementation address correctly', async function () {
-                const { redemption } = await loadFixture(deployRedemptionProtocol);
-                expect(await redemption.getImplementationAddress()).to.be.exist.and.not.equal(hre.ethers.ZeroAddress);
             });
         });
 
