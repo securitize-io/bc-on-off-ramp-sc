@@ -34,10 +34,7 @@ interface ISecuritizeOffRampErrors {
      * @dev error selector: 0xa12d8719
      */
     error RestrictedCountry(string country);
-    /*
-     * @dev error selector: 0xa17e11d5
-     */
-    error InsufficientLiquidity(uint256 requested, uint256 available);
+
     /*
      * @dev error selector: 0x4d78a3cb
      */

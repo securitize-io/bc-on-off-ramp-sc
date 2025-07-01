@@ -24,6 +24,11 @@ import {ISecuritizeOffRamp} from "../ISecuritizeOffRamp.sol";
  * @title ILiquidityProvider
  */
 interface ILiquidityProvider {
+    /*
+     * @dev error selector: 0xa17e11d5
+     */
+    error InsufficientLiquidity(uint256 requested, uint256 available);
+
     /**
      * @dev Proxy Initializer.
      * @param _liquidityToken liquidity token that the asset is being redeemed for.

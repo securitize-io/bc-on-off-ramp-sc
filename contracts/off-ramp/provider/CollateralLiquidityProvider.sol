@@ -117,11 +117,19 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
         return IERC20(externalCollateralRedemption.asset()).balanceOf(collateralProvider);
     }
 
+    function _availableLiquidity() private view returns (uint256) {
+        return IERC20(externalCollateralRedemption.asset()).balanceOf(collateralProvider);
+    }
+
     function supplyTo(
         address redeemer,
         uint256 amount,
         uint256 minOutputAmount
     ) public whenNotPaused onlySecuritizeRedemption {
+        if (amount > _availableLiquidity()) {
+            revert InsufficientLiquidity(amount, _availableLiquidity());
+        }
+
         // Take collateral funds from collateral provider
         IERC20(externalCollateralRedemption.asset()).transferFrom(collateralProvider, address(this), amount);
 

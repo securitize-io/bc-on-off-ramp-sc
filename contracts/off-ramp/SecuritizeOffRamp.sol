@@ -18,6 +18,7 @@
 pragma solidity ^0.8.22;
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ISecuritizeOffRamp} from "./ISecuritizeOffRamp.sol";
 import {ISecuritizeOffRampErrors} from "./ISecuritizeOffRampErrors.sol";
 import {BaseContract} from "../common/BaseContract.sol";
@@ -91,8 +92,9 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, ISecuritizeOffRampErrors, EIP7
      * @param amount The amount being redeemed
      * @param liquidity The liquidity provided
      * @param rate The rate value
+     * @param fee The fee applied to the redemption
      */
-    event RedemptionCompleted(address indexed redeemer, uint256 amount, uint256 liquidity, uint256 rate);
+    event RedemptionCompleted(address indexed redeemer, uint256 amount, uint256 liquidity, uint256 rate, uint256 fee);
 
     /**
      * @dev Emitted when a country restriction status is updated
@@ -200,36 +202,31 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, ISecuritizeOffRampErrors, EIP7
             revert RestrictedCountry(redeemerCountry);
         }
 
-        // Apply fee if it exists, transfer it to the fee collector
-        IFeeManager feeManagerInstance = IFeeManager(feeManager);
-        uint256 fee = feeManagerInstance.getFee(assetAmount);
-        asset.transferFrom(msg.sender, feeManagerInstance.feeCollector(), fee);
-
-        uint256 assetAmountAfterFee = assetAmount - fee;
-
         // Transfer asset to liquidity provider
         if (assetBurn) {
-            asset.burn(msg.sender, assetAmountAfterFee, "Redemption burn");
+            asset.burn(msg.sender, assetAmount, "Redemption burn");
         } else {
-            asset.transferFrom(msg.sender, liquidityProvider.recipient(), assetAmountAfterFee);
+            asset.transferFrom(msg.sender, liquidityProvider.recipient(), assetAmount);
         }
 
-        uint256 liquidityTokenAmount = _calculateLiquidityTokenAmountAfterFee(assetAmountAfterFee, rate);
+        uint256 liquidityTokenAmount = _calculateLiquidityTokenAmountWithOutFee(assetAmount, rate);
 
-        // TODO: can we move this check to the liquidity provider?
-        // It could be better to avoid call public functions on the liquidity provider and save gas
-        if (liquidityTokenAmount > liquidityProvider.availableLiquidity()) {
-            revert InsufficientLiquidity(liquidityTokenAmount, liquidityProvider.availableLiquidity());
-        }
+        // Apply fee if it exists, transfer it to the fee collector
+        uint256 fee = _getFee(liquidityTokenAmount);
+
+        uint256 liquidityTokenAmountAfterFee = liquidityTokenAmount - fee;
 
         // Check slippage protection - ensure minimum output amount is met
-        if (liquidityTokenAmount < minOutputAmount) {
-            revert InsufficientOutputAmount(liquidityTokenAmount, minOutputAmount);
+        if (liquidityTokenAmountAfterFee < minOutputAmount) {
+            revert InsufficientOutputAmount(liquidityTokenAmountAfterFee, minOutputAmount);
         }
 
-        liquidityProvider.supplyTo(msg.sender, liquidityTokenAmount, minOutputAmount);
+        // Supply liquidity tokens to the fee collector
+        liquidityProvider.supplyTo(IFeeManager(feeManager).feeCollector(), fee, 0);
+        // Supply liquidity tokens to the redeemer
+        liquidityProvider.supplyTo(msg.sender, liquidityTokenAmountAfterFee, minOutputAmount);
 
-        emit RedemptionCompleted(msg.sender, assetAmount, liquidityTokenAmount, rate);
+        emit RedemptionCompleted(msg.sender, assetAmount, liquidityTokenAmount, rate, fee);
     }
 
     /**
@@ -260,12 +257,12 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, ISecuritizeOffRampErrors, EIP7
         return _calculateLiquidityTokenAmount(assetAmount, rate);
     }
 
-    function _calculateLiquidityTokenAmount(uint256 assetAmount, uint256 rate) private view returns (uint256) {
-        IFeeManager feeManagerInstance = IFeeManager(feeManager);
-        uint256 fee = feeManagerInstance.getFee(assetAmount);
-        uint256 assetAmountAfterFee = assetAmount - fee;
-
-        return _calculateLiquidityTokenAmountAfterFee(assetAmountAfterFee, rate);
+    function calculateLiquidityTokenAmountWithoutFee(uint256 assetAmount) public view returns (uint256) {
+        uint256 rate = navProvider.rate();
+        if (rate == 0) {
+            revert RateNotDefined();
+        }
+        return _calculateLiquidityTokenAmountWithOutFee(assetAmount, rate);
     }
 
     /**
@@ -273,7 +270,10 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, ISecuritizeOffRampErrors, EIP7
      * @param assetAmount The amount of asset tokens to redeem
      * @return The amount of liquidity tokens to provide
      */
-    function _calculateLiquidityTokenAmountAfterFee(uint256 assetAmount, uint256 rate) private view returns (uint256) {
+    function _calculateLiquidityTokenAmountWithOutFee(
+        uint256 assetAmount,
+        uint256 rate
+    ) private view returns (uint256) {
         if (liquidityDecimals > assetDecimals) {
             return ((assetAmount * rate) * (10 ** (liquidityDecimals - assetDecimals))) / (10 ** liquidityDecimals);
         }
@@ -281,6 +281,17 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, ISecuritizeOffRampErrors, EIP7
             return (assetAmount * rate) / (10 ** (assetDecimals - liquidityDecimals)) / (10 ** liquidityDecimals);
         }
         return (assetAmount * rate) / (10 ** assetDecimals);
+    }
+
+    function _calculateLiquidityTokenAmount(uint256 assetAmount, uint256 rate) private view returns (uint256) {
+        uint256 liquidityTokenAmount = _calculateLiquidityTokenAmountWithOutFee(assetAmount, rate);
+        uint256 fee = _getFee(liquidityTokenAmount);
+        return liquidityTokenAmount - fee;
+    }
+
+    function _getFee(uint256 amount) private view returns (uint256) {
+        IFeeManager feeManagerInstance = IFeeManager(feeManager);
+        return feeManagerInstance.getFee(amount);
     }
 
     function _updateCountryRestriction(string memory country, bool isRestricted) private {
