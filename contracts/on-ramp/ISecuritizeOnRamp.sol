@@ -27,6 +27,7 @@ interface ISecuritizeOnRamp is Errors {
     error OnlySecuritizeOnRampError();
     error InvestorSubscriptionDisabledError();
     error SameValueError();
+    error MinSubscriptionAmountError();
 
     /**
      * @dev Emitted for a new subscription agreement

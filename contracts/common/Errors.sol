@@ -18,7 +18,6 @@
 pragma solidity ^0.8.22;
 
 interface Errors {
-    error MinSubscriptionAmountError();
     error InvestorNotRegisteredError();
     error NonZeroNavRateError();
     error NonPositiveAmountError();
