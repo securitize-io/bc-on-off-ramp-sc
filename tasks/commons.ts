@@ -116,7 +116,7 @@ task('set-allowance', 'Set allowance for the liquidity provider')
     .setAction(async (args, hre) => {
         console.log('');
         consoleCyan('task: set-allowance');
-        consoleYellow('Arguments:');
+        consoleCyan('Arguments:');
         console.log(`- Token: ${args.token}`);
         console.log(`- Owner: ${args.owner}`);
         console.log(`- Spender: ${args.spender}`);
@@ -137,4 +137,61 @@ task('set-allowance', 'Set allowance for the liquidity provider')
         } else {
             consoleRed(`Allowance already set for ${args.spender}: ${allowance.toString()}`);
         }
+    });
+
+task('allowance', 'Approve tokens for a spender')
+    .addParam('token', 'Token address')
+    .addParam('owner', 'Owner address')
+    .addParam('spender', 'Spender address')
+    .setAction(async (taskArgs, hre) => {
+        console.log('');
+        consoleCyan('task: allowance');
+        consoleCyan('Arguments:');
+        console.log(`- Token: ${taskArgs.token}`);
+        console.log(`- Spender: ${taskArgs.spender}`);
+
+        const token = await hre.ethers.getContractAt('IERC20', taskArgs.token);
+        const allowance = await token.allowance(taskArgs.owner, taskArgs.spender);
+        consoleGreen(`Allowance: ${allowance.toString()}`);
+    });
+
+/*
+npx hardhat redeem --network sepolia --redemption-address 0x123 --asset-amount 10000000 --min-output-amount 0
+*/
+task('redeem', 'Redeem tokens from the SecuritizeOffRamp contract')
+    .addParam('redemptionAddress', 'SecuritizeOffRamp contract address')
+    .addParam('assetAmount', 'Amount of tokens to redeem')
+    .addParam('minOutputAmount', 'Minimum amount of output tokens to receive')
+    .addFlag('force', 'Force the redemption even if the amount is zero')
+    .setAction(async (taskArgs, hre) => {
+        console.log('');
+        consoleCyan('task: redeem');
+        consoleCyan('Arguments:');
+        console.log(`- Redemption Address: ${taskArgs.redemptionAddress}`);
+        console.log(`- Asset Amount: ${taskArgs.assetAmount}`);
+        console.log(`- Min Output Amount: ${taskArgs.minOutputAmount}`);
+
+        const redemption = await hre.ethers.getContractAt('SecuritizeOffRamp', taskArgs.redemptionAddress);
+        const tx = await redemption.redeem(taskArgs.assetAmount, taskArgs.minOutputAmount, {
+            ...(taskArgs.force ? { gasLimit: 1000000 } : {}),
+        });
+        await tx.wait();
+
+        console.log(`Transaction hash: ${tx.hash}`);
+        consoleGreen(`Redeemed ${taskArgs.assetAmount} tokens with min output of ${taskArgs.minOutputAmount}`);
+    });
+
+task('balance', 'Check the balance of a token for a given address')
+    .addParam('token', 'Token address')
+    .addParam('address', 'Address to check balance for')
+    .setAction(async (taskArgs, hre) => {
+        console.log('');
+        consoleCyan('task: balance');
+        consoleCyan('Arguments:');
+        console.log(`- Token: ${taskArgs.token}`);
+        console.log(`- Address: ${taskArgs.address}`);
+
+        const token = await hre.ethers.getContractAt('IERC20', taskArgs.token);
+        const balance = await token.balanceOf(taskArgs.address);
+        consoleGreen(`Balance of ${taskArgs.address} for token ${taskArgs.token}: ${balance.toString()}`);
     });

@@ -1,5 +1,5 @@
 import { task } from 'hardhat/config';
-import { consoleCyan, consoleGreen, consoleYellow } from '../../utils';
+import { consoleCyan, consoleGreen, consoleMagenta } from '../../utils';
 
 /*
 npx hardhat deploy-redemption-allowance-protocol \
@@ -59,21 +59,8 @@ task('deploy-redemption-allowance-protocol', 'Deploy Redemption Protocol (Allowa
 
         console.log('');
         consoleGreen('Securitize Redemption Protocol has been deployed successfully');
-
-        consoleYellow(
-            'Proceeding to configure the protocol: setting allowance provider wallet and linking liquidity provider to the redemption contract...',
-        );
-
-        console.log('Updating liquidity provider on securitize redemption contract');
-        // FIXME: ProviderError: replacement transaction underpriced
-        // Set liquidity provider on securitize redemption contract
-        await redemption.updateLiquidityProvider(liquidityProviderAddress);
-
-        console.log('Setting liquidity provider wallet');
-        // Set liquidity provider wallet
-        await liquidityProvider.setAllowanceProviderWallet(args.providerWallet);
-
-        consoleGreen('Securitize Redemption Protocol has been configured successfully');
+        consoleMagenta(`- Redemption Address: ${redemptionAddress}`);
+        consoleMagenta(`- Liquidity Provider Address: ${liquidityProviderAddress}`);
 
         return { redemption, liquidityProvider };
     });
@@ -89,7 +76,7 @@ task('deploy-offramp', 'Deploy SecuritizeOffRamp proxy')
     .setAction(async (taskArgs, hre) => {
         console.log('');
         consoleCyan('task: deploy-offramp');
-        consoleYellow('Arguments:');
+        consoleCyan('Arguments:');
         console.log(`- Asset: ${taskArgs.asset}`);
         console.log(`- NAV Provider: ${taskArgs.navProvider}`);
         console.log(`- Fee Manager: ${taskArgs.feeManager}`);
@@ -118,7 +105,7 @@ task('deploy-allowance-provider', 'Deploy AllowanceLiquidityProvider proxy')
     .setAction(async (taskArgs, hre) => {
         console.log('');
         consoleCyan('task: deploy-allowance-provider');
-        consoleYellow('Arguments:');
+        consoleCyan('Arguments:');
         console.log(`- Liquidity Token: ${taskArgs.liquidityToken}`);
         console.log(`- Recipient: ${taskArgs.recipient}`);
         console.log(`- Redemption Address: ${taskArgs.redemptionAddress}`);
@@ -143,4 +130,43 @@ task('deploy-allowance-provider', 'Deploy AllowanceLiquidityProvider proxy')
         }
 
         return { liquidityProviderAddress: proxyAddress, liquidityProviderImpl: implAddress };
+    });
+
+/*
+npx hardhat config-redemption-allowance-protocol \
+    --network sepolia \
+    --redemption-address 0xC76cb6FF7F5C504A9fadCaF8751C003F3E27eD13 \
+    --liquidity-provider-address 0x2aF15165248b6EE1d7450dEe94D0fCa1d12fF0c3 \
+    --provider-wallet 0xe76B92272667363FD487a71c13b7799ED924C9b8
+*/
+task('config-redemption-allowance-protocol', 'Configure Redemption Protocol (Allowance implementation)')
+    .addParam('redemptionAddress', 'SecuritizeOffRamp proxy address')
+    .addParam('liquidityProviderAddress', 'AllowanceLiquidityProvider proxy address')
+    .addParam('providerWallet', 'Wallet that provides liquidity')
+    .setAction(async (taskArgs, hre) => {
+        console.log('');
+        consoleCyan('task: config-redemption-allowance-protocol');
+        consoleCyan('Arguments:');
+        console.log(`- Redemption Address: ${taskArgs.redemptionAddress}`);
+        console.log(`- Liquidity Provider Address: ${taskArgs.liquidityProviderAddress}`);
+        console.log(`- Provider Wallet: ${taskArgs.providerWallet}`);
+
+        const redemption = await hre.ethers.getContractAt('SecuritizeOffRamp', taskArgs.redemptionAddress);
+        const liquidityProvider = await hre.ethers.getContractAt(
+            'AllowanceLiquidityProvider',
+            taskArgs.liquidityProviderAddress,
+        );
+
+        console.log('Setting liquidity provider wallet');
+        // Set liquidity provider wallet
+        await liquidityProvider.setAllowanceProviderWallet(taskArgs.providerWallet);
+        console.log('Successfully set liquidity provider wallet');
+
+        console.log('');
+        console.log('Updating liquidity provider on securitize redemption contract');
+        // Set liquidity provider on securitize redemption contract
+        await redemption.updateLiquidityProvider(taskArgs.liquidityProviderAddress);
+        console.log('Successfully updated liquidity provider on securitize redemption contract');
+
+        consoleGreen('Securitize Redemption Protocol has been configured successfully');
     });

@@ -34,7 +34,7 @@ task('deploy-redemption-collateral-protocol', 'Deploy Redemption Protocol (Colla
     .setAction(async (args, hre) => {
         console.log('');
         consoleCyan('task: deploy-redemption-collateral-protocol');
-        consoleYellow('Arguments:');
+        consoleCyan('Arguments:');
         console.log(`- Asset: ${args.asset}`);
         console.log(`- NAV Provider: ${args.navProvider}`);
         console.log(`- Fee Manager: ${args.feeManager}`);
@@ -76,7 +76,7 @@ task('deploy-redemption-collateral-protocol', 'Deploy Redemption Protocol (Colla
             liquidityProviderAddress,
         );
 
-        // console.log('');
+        console.log('');
         consoleGreen('Securitize Redemption Protocol has been deployed successfully');
 
         consoleYellow(
@@ -113,7 +113,7 @@ task('deploy-collateral-provider', 'Deploy CollateralLiquidityProvider proxy')
     .setAction(async (taskArgs, hre) => {
         console.log('');
         consoleCyan('task: deploy-collateral-provider');
-        consoleYellow('Arguments:');
+        consoleCyan('Arguments:');
         console.log(`- Liquidity Token: ${taskArgs.liquidity}`);
         console.log(`- Recipient: ${taskArgs.recipient}`);
         console.log(`- Securitize OffRamp: ${taskArgs.securitizeOffRamp}`);
