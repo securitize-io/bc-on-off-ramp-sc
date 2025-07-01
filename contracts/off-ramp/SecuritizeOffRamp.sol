@@ -257,7 +257,7 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, ISecuritizeOffRampErrors, EIP7
         return _calculateLiquidityTokenAmount(assetAmount, rate);
     }
 
-    function calculateLiquidityTokenAmountWithoutFee(uint256 assetAmount) public view returns (uint256) {
+    function calculateLiquidityTokenAmountWithOutFee(uint256 assetAmount) public view returns (uint256) {
         uint256 rate = navProvider.rate();
         if (rate == 0) {
             revert RateNotDefined();

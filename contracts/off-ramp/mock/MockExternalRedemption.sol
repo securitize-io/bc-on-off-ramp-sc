@@ -88,6 +88,15 @@ contract MockExternalRedemption is ISecuritizeOffRamp {
         return _amount;
     }
 
+    /*
+     *  1:1 redeem mock - simplified for testing
+     */
+    function calculateLiquidityTokenAmountWithOutFee(uint256 _amount) public pure returns (uint256) {
+        // For mock purposes, we'll use a simple 1:1 conversion
+        // The real implementation would adjust for decimals
+        return _amount;
+    }
+
     // Events needed for interface compatibility
     event RedemptionFeeUpdated(uint256 oldFee, uint256 newFee);
 }

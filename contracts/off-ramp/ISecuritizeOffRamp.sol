@@ -75,5 +75,12 @@ interface ISecuritizeOffRamp {
      * @param _amount The amount of asset tokens to redeem.
      * @return The amount of liquidity tokens.
      */
+    function calculateLiquidityTokenAmountWithOutFee(uint256 _amount) external view returns (uint256);
+
+    /**
+     * @dev Calculates the amount of liquidity tokens to receive in redemption process
+     * @param _amount The amount of asset tokens to redeem.
+     * @return The amount of liquidity tokens.
+     */
     function calculateLiquidityTokenAmount(uint256 _amount) external view returns (uint256);
 }
