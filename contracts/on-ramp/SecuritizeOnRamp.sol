@@ -293,7 +293,6 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
         } else {
             assetProvider.supplyTo(_msgSender(), amount);
         }
-
     }
 
     function _registerInvestor(
