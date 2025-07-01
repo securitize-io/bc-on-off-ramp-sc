@@ -187,13 +187,6 @@ interface ISecuritizeOnRamp is Errors {
     function calculateDsTokenAmount(uint256 _liquidityAmount) external returns (uint256);
 
     /**
-     * @dev Convert dsToken to liquiditys using current NAV rate.
-     * @param _dsTokenAmount the amount of dsToken
-     * @return liquidityAmount The amount of liquidityAmount
-     */
-    function calculateLiquidityAmount(uint256 _dsTokenAmount) external returns (uint256);
-
-    /**
      * @dev Update the asset provider
      * @param _assetProvider The new asset provider address
      */

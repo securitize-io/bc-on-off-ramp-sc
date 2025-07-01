@@ -221,13 +221,6 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
         return _liquidityAmount * 10 ** IERC20Metadata(address(assetProvider.asset())).decimals() / currentNavRate;
     }
 
-    function calculateLiquidityAmount(uint256 _dsTokenAmount) public override view returns (uint256) {
-        // liquidityAmount = (assetAmount * rate) / (1 - (fee_mbps / 100000))
-
-        // current -> liquidityAmount = assetAmount * rate
-        return _dsTokenAmount * navProvider.rate() / (10 ** IERC20Metadata(address(assetProvider.asset())).decimals());
-    }
-
     function updateAssetProvider(address _assetProvider) external override onlyOwner {
         if (_assetProvider == address(0)) {
             revert NonZeroAddressError();
