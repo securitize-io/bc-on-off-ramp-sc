@@ -45,7 +45,7 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
     mapping(string => uint256) internal noncePerInvestor;
 
     // init params
-    IDSServiceConsumer public dsServiceConsumer;
+    IDSServiceConsumer public dsToken;
     IERC20Metadata public liquidityToken;
     IAssetProvider public assetProvider;
     ISecuritizeNavProvider public navProvider;
@@ -57,6 +57,7 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
     // adhoc configuration variables
     uint256 public minSubscriptionAmount;
     bool public investorSubscriptionEnabled;
+    bool public twoStepTransfer;
 
     function initialize(
         address _dsToken,
@@ -68,7 +69,7 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
         __EIP712_init(NAME, VERSION);
         __BaseContract_init();
 
-        dsServiceConsumer = IDSServiceConsumer(_dsToken);
+        dsToken = IDSServiceConsumer(_dsToken);
         liquidityToken = IERC20Metadata(_liquidity);
         custodianWallet = _custodianWallet;
         navProvider = ISecuritizeNavProvider(_navProvider);
@@ -97,7 +98,7 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
     }
 
     modifier investorExists() {
-        IDSRegistryService registryService = IDSRegistryService(dsServiceConsumer.getDSService(dsServiceConsumer.REGISTRY_SERVICE()));
+        IDSRegistryService registryService = IDSRegistryService(dsToken.getDSService(dsToken.REGISTRY_SERVICE()));
         if (!registryService.isWallet(_msgSender())) {
             revert InvestorNotRegisteredError();
         }
@@ -117,7 +118,6 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
 
     function subscribe(
         string memory _investorId,
-        address _investorWallet,
         string memory _investorCountry,
         uint8[] memory _investorAttributeIds,
         uint256[] memory _investorAttributeValues,
@@ -130,61 +130,43 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
         if (_blockLimit < block.number) {
             revert TransactionTooOldError();
         }
-        uint256 dsTokenAmount = calculateDsTokenAmount(_liquidityAmount);
+
+        uint256 fee = feeManager.getFee(_liquidityAmount);
+        uint256 dsTokenAmount = calculateDsTokenAmount(_liquidityAmount - fee); // calculate dsToken using liquidityAmount - fee
         if (dsTokenAmount < _minOutAmount) {
             revert SlippageControlError();
         }
 
         _registerInvestor(
             _investorId,
-            _investorWallet,
+            _msgSender(),
             _investorCountry,
             _investorAttributeIds,
             _investorAttributeValues,
             _investorAttributeExpirations
         );
 
-        _executeLiquidityTransfer(_investorWallet, _liquidityAmount);
-        assetProvider.supplyTo(_msgSender(), dsTokenAmount);
+        _executeLiquidityTransfer(_msgSender(), _liquidityAmount, fee);
+        _executeAssetTransfer(dsTokenAmount);
 
-        emit DocumentSigned (_investorWallet, _agreementHash);
-        emit Swap(_msgSender(), dsTokenAmount, _liquidityAmount, _investorWallet);
-    }
-
-    function swapFor(
-        uint256 _dsTokenAmount,
-        uint256 _maxLiquidityAmount
-    ) public override whenNotPaused investorExists nonZeroNavRate validateInvestorSubscription {
-        if (_dsTokenAmount <= 0) {
-            revert NonPositiveAmountError();
-        }
-        uint256 liquidityAmount = calculateLiquidityAmount(_dsTokenAmount);
-        if (liquidityAmount > _maxLiquidityAmount) {
-            revert SlippageControlError();
-        }
-        if (liquidityAmount < minSubscriptionAmount) {
-            revert MinSubscriptionAmountError();
-        }
-
-        _executeLiquidityTransfer(_msgSender(), liquidityAmount);
-        assetProvider.supplyTo(_msgSender(), _dsTokenAmount);
-
-        emit Swap(_msgSender(), _dsTokenAmount, liquidityAmount, _msgSender());
+        emit DocumentSigned (_msgSender(), _agreementHash);
+        emit Swap(_msgSender(), dsTokenAmount, _liquidityAmount, _msgSender(), fee);
     }
 
     function swap(
         uint256 _liquidityAmount,
         uint256 _minOutAmount
     ) public override whenNotPaused investorExists nonZeroNavRate validateInvestorSubscription validateMinSubscriptionAmount(_liquidityAmount) {
-        uint256 dsTokenAmount = calculateDsTokenAmount(_liquidityAmount);
+        uint256 fee = feeManager.getFee(_liquidityAmount);
+        uint256 dsTokenAmount = calculateDsTokenAmount(_liquidityAmount - fee); // calculate dsToken using liquidityAmount - fee
         if (dsTokenAmount < _minOutAmount) {
             revert SlippageControlError();
         }
 
-        _executeLiquidityTransfer(_msgSender(), _liquidityAmount);
-        assetProvider.supplyTo(_msgSender(), dsTokenAmount);
+        _executeLiquidityTransfer(_msgSender(), _liquidityAmount, fee);
+        _executeAssetTransfer(dsTokenAmount);
 
-        emit Swap(_msgSender(), dsTokenAmount, _liquidityAmount, _msgSender());
+        emit Swap(_msgSender(), dsTokenAmount, _liquidityAmount, _msgSender(), fee);
     }
 
     function executePreApprovedTransaction(
@@ -225,7 +207,7 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
         address signer = ECDSA.recover(digest, signature);
 
         // Check that the recovered address is an issuer
-        IDSTrustService trustService = IDSTrustService(dsServiceConsumer.getDSService(dsServiceConsumer.TRUST_SERVICE()));
+        IDSTrustService trustService = IDSTrustService(dsToken.getDSService(dsToken.TRUST_SERVICE()));
         uint256 signerRole = trustService.getRole(signer);
         if (signerRole != trustService.ISSUER() && signerRole != trustService.MASTER()) {
             revert InvalidEIP712Signature();
@@ -240,6 +222,9 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
     }
 
     function calculateLiquidityAmount(uint256 _dsTokenAmount) public override view returns (uint256) {
+        // liquidityAmount = (assetAmount * rate) / (1 - (fee_mbps / 100000))
+
+        // current -> liquidityAmount = assetAmount * rate
         return _dsTokenAmount * navProvider.rate() / (10 ** IERC20Metadata(address(assetProvider.asset())).decimals());
     }
 
@@ -281,22 +266,39 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
         emit InvestorSubscriptionUpdated(investorSubscriptionEnabled);
     }
 
-    function _executeLiquidityTransfer(address from, uint256 amount) private {
+    function toggleTwoStepTransfer(bool _twoStepTransfer) external override onlyOwner {
+        if (_twoStepTransfer == twoStepTransfer) {
+            revert SameValueError();
+        }
+        twoStepTransfer = _twoStepTransfer;
+        emit TwoStepTransferUpdated(twoStepTransfer);
+    }
+
+    function _executeLiquidityTransfer(address from, uint256 amount, uint256 fee) private {
         if (liquidityToken.balanceOf(_msgSender()) < amount) {
             revert InsufficientERC20BalanceError();
         }
 
-        uint256 fee = feeManager.getFee(amount);
         uint256 amountExcludingFee = amount - fee;
-        liquidityToken.transferFrom(from, address(this), amountExcludingFee);
-        liquidityToken.transferFrom(from, feeManager.feeCollector(), fee);
+        liquidityToken.transferFrom(from, address(this), amount);
+        liquidityToken.transfer(feeManager.feeCollector(), fee);
 
         if (bridgeChainId != 0 && address(USDCBridge) != address(0)) {
-            liquidityToken.approve(address(USDCBridge), amount);
+            liquidityToken.approve(address(USDCBridge), amountExcludingFee);
             USDCBridge.sendUSDCCrossChainDeposit(bridgeChainId, custodianWallet, amountExcludingFee);
         } else {
             liquidityToken.transferFrom(from, custodianWallet, amountExcludingFee);
         }
+    }
+
+    function _executeAssetTransfer(uint256 amount) private {
+        if (twoStepTransfer) {
+            assetProvider.supplyTo(address(this), amount);
+            IERC20Metadata(address(dsToken)).transfer(_msgSender(), amount);
+        } else {
+            assetProvider.supplyTo(_msgSender(), amount);
+        }
+
     }
 
     function _registerInvestor(
@@ -307,7 +309,7 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
         uint256[] memory _investorAttributeValues,
         uint256[] memory _investorAttributeExpirations
     ) private {
-        IDSRegistryService registryService = IDSRegistryService(dsServiceConsumer.getDSService(dsServiceConsumer.REGISTRY_SERVICE()));
+        IDSRegistryService registryService = IDSRegistryService(dsToken.getDSService(dsToken.REGISTRY_SERVICE()));
 
         address[] memory investorWallets = new address[](1);
         investorWallets[0] = _newInvestorWallet;

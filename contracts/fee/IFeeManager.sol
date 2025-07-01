@@ -26,7 +26,6 @@ import {Errors} from "../common/Errors.sol";
  */
 interface IFeeManager is Errors {
 
-    event FeeUpdated(uint256 oldFee, uint256 newFee);
     event FeeCollectorUpdated(address oldCollector, address newCollector);
 
     /**

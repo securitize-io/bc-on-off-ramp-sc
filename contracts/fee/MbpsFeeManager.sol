@@ -35,6 +35,8 @@ contract MbpsFeeManager is IFeeManager, BaseContract {
 
     address public feeCollector;
 
+    event FeeUpdated(uint256 oldFee, uint256 newFee);
+
     function initialize(
         uint256 _fee,
         address _feeCollector

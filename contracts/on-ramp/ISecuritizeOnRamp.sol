@@ -34,12 +34,14 @@ interface ISecuritizeOnRamp is Errors {
      * @param _dsTokenValue asset amount
      * @param _liquidityValue stable coin amount
      * @param _newWalletTo wallet recipient
+     * @param _fee fee collected
      */
     event Swap(
         address indexed _from,
         uint256 _dsTokenValue,
         uint256 _liquidityValue,
-        address indexed _newWalletTo
+        address indexed _newWalletTo,
+        uint256 indexed _fee
     );
 
     /**
@@ -94,6 +96,12 @@ interface ISecuritizeOnRamp is Errors {
     event InvestorSubscriptionUpdated(bool newValue);
 
     /**
+     * @dev Emitted when the twoStepTransfer is updated
+     * @param newValue New value
+     */
+    event TwoStepTransferUpdated(bool newValue);
+
+    /**
      * @dev Emitted when the bridge params are updated
      * @param chainId the chain id
      * @param bridge the bridge address
@@ -119,19 +127,17 @@ interface ISecuritizeOnRamp is Errors {
     /**
      * @dev It does a swap between a Stable Coin ERC-20 token and DSToken.
      * @param _investorId investor sender (blockchainId). BlockchainId should be created by main-api
-     * @param _investorWallet: address of the investor. It should be previously approved
      * @param _investorCountry: investor country
      * @param _investorAttributeIds attributes to set.
      * @param _investorAttributeValues values to set.
      * @param _investorAttributeExpirations expiration values.
      * @param _minOutAmount minimum amount of DSTokens that are acceptable in return
-     * @param _liquidityAmount send to issuer's wallet
+     * @param _liquidityAmount send to custodian wallet
      * @param _blockLimit max block number when pre-approved transaction does not work anymore
      * @param _agreementHash hash of PDF document created before starting swap operation.
      */
     function subscribe(
         string memory _investorId,
-        address _investorWallet,
         string memory _investorCountry,
         uint8[] memory _investorAttributeIds,
         uint256[] memory _investorAttributeValues,
@@ -141,13 +147,6 @@ interface ISecuritizeOnRamp is Errors {
         uint256 _blockLimit,
         bytes32 _agreementHash
     ) external;
-
-    /**
-     * @dev It does a swap between a Stable Coin ERC-20 token and DSToken.
-     * @param _dsTokenAmount the amount of DSTokens to mint to investor's new wallet
-     * @param _maxLiquidityAmount maximum expected amount of stable coin to be paid by the investor
-     */
-    function swapFor(uint256 _dsTokenAmount, uint256 _maxLiquidityAmount) external;
 
     /**
      * @dev It does a swap between a Stable Coin ERC-20 token and DSToken.
@@ -217,6 +216,12 @@ interface ISecuritizeOnRamp is Errors {
      * @param _investorSubscription new value
      */
     function toggleInvestorSubscription(bool _investorSubscription) external;
+
+    /**
+     * @notice This method enable/disable two step transfer feature
+     * @param _twoStepTransfer new value
+     */
+    function toggleTwoStepTransfer(bool _twoStepTransfer) external;
 
     /**
      * @notice Update bridge configuration
