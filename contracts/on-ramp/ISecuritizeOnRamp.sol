@@ -17,9 +17,9 @@
  */
 pragma solidity ^0.8.22;
 
-import {Errors} from "../common/Errors.sol";
+import {IOnOffRamp} from "../common/IOnOffRamp.sol";
 
-interface ISecuritizeOnRamp is Errors {
+interface ISecuritizeOnRamp is IOnOffRamp {
 
     error InvalidEIP712Signature();
     error IncorrectParamLength();
@@ -93,12 +93,6 @@ interface ISecuritizeOnRamp is Errors {
      * @param newValue New value
      */
     event InvestorSubscriptionUpdated(bool newValue);
-
-    /**
-     * @dev Emitted when the twoStepTransfer is updated
-     * @param newValue New value
-     */
-    event TwoStepTransferUpdated(bool newValue);
 
     /**
      * @dev Emitted when the bridge params are updated
