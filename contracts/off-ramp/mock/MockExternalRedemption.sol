@@ -36,13 +36,7 @@ contract MockExternalRedemption is ISecuritizeOffRamp {
     error InsufficientOutputAmount(uint256 actual, uint256 minimum);
 
     // Events needed for compatibility with tests
-    event RedemptionCompleted(
-        address indexed redeemer,
-        uint256 assetAmount,
-        uint256 liquidityAmount,
-        uint256 rate,
-        uint256 fee
-    );
+    event RedemptionCompleted(address indexed redeemer, uint256 assetAmount, uint256 liquidityAmount, uint256 rate);
 
     constructor(address _mockAsset, address _liquidityToken, address _navProvider) {
         assetAddress = _liquidityToken; // This is the key change - in MockExternalRedemption, we need to make assetAddress match liquidityToken for test compatibility
@@ -74,7 +68,7 @@ contract MockExternalRedemption is ISecuritizeOffRamp {
         IDSToken(asset).transferFrom(msg.sender, address(this), amount);
 
         // Emit event for consistency
-        emit RedemptionCompleted(msg.sender, amount, outputAmount, 1, 0); // Mock rate of 1 for simplicity
+        emit RedemptionCompleted(msg.sender, amount, outputAmount, 1); // Mock rate of 1 for simplicity
     }
 
     function updateLiquidityProvider(address _liquidityProvider) external {

@@ -98,9 +98,8 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, ISecuritizeOffRampErrors, EIP7
      * @param amount The amount being redeemed
      * @param liquidity The liquidity provided
      * @param rate The rate value
-     * @param fee The fee applied to the redemption
      */
-    event RedemptionCompleted(address indexed redeemer, uint256 amount, uint256 liquidity, uint256 rate, uint256 fee);
+    event RedemptionCompleted(address indexed redeemer, uint256 amount, uint256 liquidity, uint256 rate);
 
     /**
      * @dev Emitted when a country restriction status is updated
@@ -225,20 +224,16 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, ISecuritizeOffRampErrors, EIP7
 
         uint256 liquidityTokenAmount = _calculateLiquidityTokenAmountWithOutFee(assetAmount, rate);
 
-        // Apply fee if it exists, transfer it to the fee collector
-        uint256 fee = _getFee(liquidityTokenAmount);
-
         // Two-step mode: funds flow through contract, like a Dealer role
         if (twoStepsMode) {
-            IFeeManager feeManagerInstance = IFeeManager(feeManager);
-            uint256 assetAmountAfterFee = assetAmount - fee;
-
             // Get DS tokens from investor to contract
             asset.transferFrom(msg.sender, address(this), assetAmount);
 
-            // Transfer fee from contract to fee collector
-            if (fee > 0) {
-                asset.transfer(feeManagerInstance.feeCollector(), fee);
+            // Transfer DS tokens from contract to recipient or burn
+            if (assetBurn) {
+                asset.burn(address(this), assetAmount, "Redemption burn");
+            } else {
+                asset.transfer(liquidityProvider.recipient(), assetAmount);
             }
 
             // Get liquidity from provider to contract
@@ -246,13 +241,14 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, ISecuritizeOffRampErrors, EIP7
 
             // Transfer full liquidity from contract to investor
             uint256 offRampBalance = liquidityProvider.liquidityToken().balanceOf(address(this));
-            liquidityProvider.liquidityToken().transfer(msg.sender, offRampBalance);
 
-            // Transfer asset from contract to recipient
-            if (assetBurn) {
-                asset.burn(address(this), assetAmountAfterFee, "Redemption burn");
-            } else {
-                asset.transfer(liquidityProvider.recipient(), assetAmountAfterFee);
+            uint256 fee = _getFee(offRampBalance);
+
+            liquidityProvider.liquidityToken().transfer(msg.sender, offRampBalance - fee);
+
+            // Transfer fee from contract to fee collector
+            if (fee > 0) {
+                asset.transfer(IFeeManager(feeManager).feeCollector(), fee);
             }
         } else {
             // Transfer asset to liquidity provider
@@ -262,6 +258,9 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, ISecuritizeOffRampErrors, EIP7
                 asset.transferFrom(msg.sender, liquidityProvider.recipient(), assetAmount);
             }
 
+            // Apply fee if it exists, transfer it to the fee collector
+            uint256 fee = _getFee(liquidityTokenAmount);
+
             uint256 liquidityTokenAmountAfterFee = liquidityTokenAmount - fee;
 
             // Check slippage protection - ensure minimum output amount is met
@@ -270,12 +269,14 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, ISecuritizeOffRampErrors, EIP7
             }
 
             // Supply liquidity tokens to the fee collector
-            liquidityProvider.supplyTo(IFeeManager(feeManager).feeCollector(), fee, 0);
+            if (fee > 0) {
+                liquidityProvider.supplyTo(IFeeManager(feeManager).feeCollector(), fee, 0);
+            }
             // Supply liquidity tokens to the redeemer
             liquidityProvider.supplyTo(msg.sender, liquidityTokenAmountAfterFee, minOutputAmount);
         }
 
-        emit RedemptionCompleted(msg.sender, assetAmount, liquidityTokenAmount, rate, fee);
+        emit RedemptionCompleted(msg.sender, assetAmount, liquidityTokenAmount, rate);
     }
 
     /**

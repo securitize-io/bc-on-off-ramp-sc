@@ -499,7 +499,7 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 // Verify the redemption completes correctly with no fee applied
                 await expect(redemptionFromInvestor.redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT))
                     .to.emit(redemption, 'RedemptionCompleted')
-                    .withArgs(investor.address, ASSET_AMOUNT, collateralToRedeem, FIXED_RATE, ZERO_FEE);
+                    .withArgs(investor.address, ASSET_AMOUNT, collateralToRedeem, FIXED_RATE);
 
                 // Check balances
                 expect(await dsTokenMock.balanceOf(investor)).to.equal(0);
@@ -558,7 +558,7 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 // Simply verify the event is emitted with the correct values
                 await expect(redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT))
                     .to.emit(redemption, 'RedemptionCompleted')
-                    .withArgs(investor.address, ASSET_AMOUNT, collateralToRedeem, FIXED_RATE, expectedFee);
+                    .withArgs(investor.address, ASSET_AMOUNT, collateralToRedeem, FIXED_RATE);
 
                 // Check balances
                 expect(await dsTokenMock.balanceOf(investor)).to.equal(0);
@@ -614,7 +614,7 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 // Simply verify the event is emitted with the correct values
                 await expect(redemption.connect(investor).redeem(smallAmount, MIN_OUTPUT_AMOUNT))
                     .to.emit(redemption, 'RedemptionCompleted')
-                    .withArgs(investor.address, smallAmount, calcAmount, FIXED_RATE, expectedFee);
+                    .withArgs(investor.address, smallAmount, calcAmount, FIXED_RATE);
 
                 // FIXME: Check balances
                 // expect(await dsTokenMock.balanceOf(investor)).to.equal(0);
