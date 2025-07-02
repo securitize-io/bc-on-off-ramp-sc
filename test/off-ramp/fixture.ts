@@ -218,6 +218,12 @@ export const deployRedemptionAllowanceProtocol = async () => {
         providerWallet: securitizeWallet.address,
     });
 
+    await hre.run('config-redemption-allowance-protocol', {
+        redemptionAddress: contracts.redemption.target,
+        liquidityProviderAddress: contracts.liquidityProvider.target,
+        providerWallet: securitizeWallet.address,
+    });
+
     return {
         ...contracts,
         dsTokenMock,
