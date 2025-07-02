@@ -249,7 +249,7 @@ contract SecuritizeOffRamp is
 
             // Transfer fee from contract to fee collector
             if (fee > 0) {
-                asset.transfer(IFeeManager(feeManager).feeCollector(), fee);
+                liquidityProvider.liquidityToken().transfer(IFeeManager(feeManager).feeCollector(), fee);
             }
         } else {
             // Transfer asset to liquidity provider
