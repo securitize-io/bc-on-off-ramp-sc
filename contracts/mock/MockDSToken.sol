@@ -28,10 +28,6 @@ contract MockDSToken is ERC20 {
     uint256 public constant REGISTRY_SERVICE = 4;
     uint256 public constant TRUST_SERVICE = 1;
 
-    /*
-     *  Storage
-     */
-    mapping(address => uint256) public balances;
     address public registryService;
     address public trustService;
     uint8 public tokenDecimals;
@@ -59,7 +55,7 @@ contract MockDSToken is ERC20 {
     /// @param _to Address of token receiver.
     /// @param _value Number of tokens to issue.
     function issueTokens(address _to, uint256 _value) public {
-        balances[_to] += _value;
+        _mint(_to, _value);
     }
 
     function getDSService(uint256 _service) public view returns (address) {

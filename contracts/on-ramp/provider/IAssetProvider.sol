@@ -25,12 +25,6 @@ import {Errors} from "../../common/Errors.sol";
  * @title IAssetProvider
  */
 interface IAssetProvider is Errors {
-    /**
-     * @dev Proxy Initializer.
-     * @param _asset securitize rwa
-     * @param _securitizeOnRamp The address of the securitize on ramp contract.
-     **/
-    function initialize(address _asset, address _securitizeOnRamp) external;
 
     /**
      * @dev Supplies assets to a recipient

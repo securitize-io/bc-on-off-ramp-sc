@@ -21,11 +21,13 @@ import "@securitize/digital_securities/contracts/nav/ISecuritizeNavProvider.sol"
 
 contract MockFeeManager {
 
-    function feeCollector() external pure returns (address) {
-        return address(bytes20(bytes('0x4d30605acfeF3E494De69dd10169606619eF56f6')));
+    address public feeCollector;
+
+    constructor(address _feeCollector) {
+        feeCollector = _feeCollector;
     }
 
     function getFee(uint256 /*amount*/) external pure returns (uint256) {
-        return 1e4;
+        return 2000; // 2000 mbps = 0.2 %
     }
 }
