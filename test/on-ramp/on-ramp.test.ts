@@ -231,6 +231,16 @@ describe('On-Ramp Unit Tests', function() {
             .revertedWithCustomError(onRamp, 'InvalidEIP712SignatureError');
         });
 
+        it('Should fail - tx data corrupted', async function () {
+          await mockTrustService.setRole(await eip712Signer.getAddress(), 0);
+          const subscribeParams = ['1', await unknownWallet.getAddress(), 'US', [], [], [], 0, 1e6, 0, HASH];
+          const txData = await buildTypedData(onRamp, subscribeParams);
+          txData.nonce = 2;
+          const signature = await eip712OnRamp(eip712Signer, await onRamp.getAddress(), txData);
+          await expect(onRamp.executePreApprovedTransaction(signature, txData))
+            .revertedWithCustomError(onRamp, 'InvalidEIP712SignatureError');
+        });
+
         it('Should fail if usdc amount is lower than minSubscriptionAmount', async function () {
           const subscribeParams = ['1', await unknownWallet.getAddress(), 'US', [], [], [], 0, 1e6, 0, HASH];
           const txData = await buildTypedData(onRamp, subscribeParams);

@@ -178,7 +178,7 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
         // Check recovered address role
         IDSTrustService trustService = IDSTrustService(dsToken.getDSService(dsToken.TRUST_SERVICE()));
         uint256 signerRole = trustService.getRole(signer);
-        if (signerRole != trustService.EXCHANGE() && signerRole != trustService.EXCHANGE()) {
+        if (signerRole != trustService.EXCHANGE() && signerRole != trustService.ISSUER()) {
             revert InvalidEIP712SignatureError();
         }
         noncePerInvestor[txData.senderInvestor] = noncePerInvestor[txData.senderInvestor] + 1;
