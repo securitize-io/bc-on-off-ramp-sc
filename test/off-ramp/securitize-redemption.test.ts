@@ -682,7 +682,7 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 //redeem
                 const redemptionFromInvestor = await redemption.connect(investor);
                 await expect(redemptionFromInvestor.redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT)).revertedWithCustomError(
-                    redemption,
+                    liquidityProvider,
                     'InsufficientLiquidity',
                 );
             });
@@ -710,7 +710,7 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 //redeem
                 const redemptionFromInvestor = await redemption.connect(investor);
                 await expect(redemptionFromInvestor.redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT)).revertedWithCustomError(
-                    redemption,
+                    liquidityProvider,
                     'InsufficientLiquidity',
                 );
             });
