@@ -50,13 +50,13 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
     ISecuritizeNavProvider public navProvider;
     IFeeManager public feeManager;
     address public custodianWallet;
-    IUSDCBridge public USDCBridge;
-    uint16 public bridgeChainId;
 
     // adhoc configuration variables
     uint256 public minSubscriptionAmount;
     bool public investorSubscriptionEnabled;
     bool public twoStepTransfer;
+    IUSDCBridge public USDCBridge;
+    uint16 public bridgeChainId;
 
     function initialize(
         address _dsToken,
@@ -178,7 +178,7 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
         // Check recovered address role
         IDSTrustService trustService = IDSTrustService(dsToken.getDSService(dsToken.TRUST_SERVICE()));
         uint256 signerRole = trustService.getRole(signer);
-        if (signerRole != trustService.EXCHANGE()) {
+        if (signerRole != trustService.EXCHANGE() && signerRole != trustService.EXCHANGE()) {
             revert InvalidEIP712SignatureError();
         }
         noncePerInvestor[txData.senderInvestor] = noncePerInvestor[txData.senderInvestor] + 1;

@@ -1,8 +1,8 @@
 import { task, types } from 'hardhat/config';
 
 export enum AssetProviderType {
-  ALLOWANCE,
-  MINTING
+  ALLOWANCE = 'ALLOWANCE',
+  MINTING = 'MINING',
 }
 
 task('deploy-on-ramp', 'Deploy on ramp protocol')
@@ -43,7 +43,7 @@ task('deploy-on-ramp', 'Deploy on ramp protocol')
           await onRamp.getAddress(),
           args.provider
         ]);
-        console.log(`Please do not forget to approve allowance to assetProvider contract`);
+        console.warn(`Please do not forget to approve allowance to assetProvider contract`);
         break;
       case AssetProviderType.MINTING.toString():
         AssetProvider = await hre.ethers.getContractFactory('MintingAssetProvider');
@@ -51,7 +51,7 @@ task('deploy-on-ramp', 'Deploy on ramp protocol')
           args.token,
           await onRamp.getAddress(),
         ]);
-        console.log(`Please do not forget grant issuer permissions to Minting provider`);
+        console.warn(`Please do not forget grant issuer permissions to Minting provider`);
         break;
       default:
         throw new Error(`Unsupported type ${args.type}`);
@@ -70,6 +70,14 @@ task('deploy-on-ramp', 'Deploy on ramp protocol')
     // Update asset provider on on-ramp contract
     await onRamp.updateAssetProvider(assetProviderAddress);
     //////////////////////////
+
+    console.log('Please configure add hoc config parameters to align your requirements:');
+    console.log('minSubscriptionAmount - default 0');
+    console.log('investorSubscriptionEnabled - default false');
+    console.log('twoStepTransfer - default false');
+    console.log('USDCBridge - default 0x');
+    console.log('bridgeChainId - default 0');
+
 
     return { onRamp, assetProvider }
   });

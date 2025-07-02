@@ -1,6 +1,6 @@
 import { task, types } from 'hardhat/config';
 
-task('deploy-fee-manager', 'Deploy fee manager')
+task('deploy-mbps-fee-manager', 'Deploy fee manager')
   .addParam('mbps', 'Fee manager mbps config', undefined, types.int, false)
   .addParam('collector', 'Fee collector address', undefined, types.string, false)
   .setAction(async (args, hre) => {
