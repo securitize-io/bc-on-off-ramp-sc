@@ -59,10 +59,10 @@ contract MintingAssetProvider is IAssetProvider, BaseContract {
         address _securitizeOnRamp
     ) public onlyProxy initializer {
         if (_asset == address(0)) {
-            revert ZeroAddress("asset");
+            revert NonZeroAddressError();
         }
         if (_securitizeOnRamp == address(0)) {
-            revert ZeroAddress("securitizeOnRamp");
+            revert NonZeroAddressError();
         }
         __BaseContract_init();
         asset = IDSToken(_asset);

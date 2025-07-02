@@ -15,33 +15,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-pragma solidity 0.8.22;
+pragma solidity ^0.8.22;
 
 import {Errors} from "../common/Errors.sol";
 
-/**
- * @title IFeeManager
- * @dev Interface for managing fees in the on/off ramp protocol
- */
-interface IFeeManager is Errors {
-
-    event FeeCollectorUpdated(address oldCollector, address newCollector);
+interface IOnOffRamp is Errors {
 
     /**
-    * @notice the fee collector address
-    */
-    function feeCollector() external view returns (address);
-
-    /**
-     * @dev Returns the computed fee
-     * @param amount Amount to calculate fees
+     * @dev Emitted when the twoStepTransfer is updated
+     * @param newValue New value
      */
-    function getFee(uint256 amount) external view returns (uint256);
+    event TwoStepTransferUpdated(bool newValue);
 
     /**
-     * @dev Sets the fee collector address
-     * @param _feeCollector Address to collect fees
+     * @notice This method enable/disable two step transfer feature
+     * @param _twoStepTransfer new value
      */
-    function setFeeCollector(address _feeCollector) external;
+    function toggleTwoStepTransfer(bool _twoStepTransfer) external;
 }

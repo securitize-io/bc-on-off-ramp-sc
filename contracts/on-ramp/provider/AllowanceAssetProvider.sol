@@ -43,7 +43,6 @@ contract AllowanceAssetProvider is IAllowanceAssetProvider, BaseContract {
      * @dev The caller account is not authorized to perform an operation.
      */
     error UnauthorizedAccount(address account);
-    error ZeroAddress(string parameter);
 
     /**
      * @dev Throws if called by any account other than the on ramp contract.
@@ -60,10 +59,10 @@ contract AllowanceAssetProvider is IAllowanceAssetProvider, BaseContract {
         address _securitizeOnRamp
     ) public onlyProxy initializer {
         if (_asset == address(0)) {
-            revert ZeroAddress("asset");
+            revert NonZeroAddressError();
         }
         if (_securitizeOnRamp == address(0)) {
-            revert ZeroAddress("securitizeOnRamp");
+            revert NonZeroAddressError();
         }
         __BaseContract_init();
         asset = IDSToken(_asset);
@@ -72,7 +71,7 @@ contract AllowanceAssetProvider is IAllowanceAssetProvider, BaseContract {
 
     function setAllowanceProviderWallet(address _assetProviderWallet) external onlyOwner {
         if (_assetProviderWallet == address(0)) {
-            revert ZeroAddress("assetProviderWallet");
+            revert NonZeroAddressError();
         }
         address oldAddress = assetProviderWallet;
         assetProviderWallet = _assetProviderWallet;

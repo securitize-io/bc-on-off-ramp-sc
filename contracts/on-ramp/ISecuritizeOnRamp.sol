@@ -17,32 +17,42 @@
  */
 pragma solidity ^0.8.22;
 
-interface ISecuritizeOnRamp {
+import {IOnOffRamp} from "../common/IOnOffRamp.sol";
+
+interface ISecuritizeOnRamp is IOnOffRamp {
+
+    error InvalidEIP712Signature();
+    error IncorrectParamLength();
+    error TransactionTooOldError();
+    error OnlySecuritizeOnRampError();
+    error InvestorSubscriptionDisabledError();
+    error SameValueError();
+    error MinSubscriptionAmountError();
 
     /**
      * @dev Emitted for a new subscription agreement
      * @param _from investor
      * @param _dsTokenValue asset amount
-     * @param _stableCoinValue stable coin amount
-     * @param _newWalletTo nav rate
+     * @param _liquidityValue stable coin amount
+     * @param _newWalletTo wallet recipient
      */
     event Swap(
         address indexed _from,
         uint256 _dsTokenValue,
-        uint256 _stableCoinValue,
+        uint256 _liquidityValue,
         address indexed _newWalletTo
     );
 
     /**
      * @dev Emitted when an existing investor buy assets
      * @param _from investor
-     * @param _stableCoinAmount stable coin amount
+     * @param _liquidityAmount stable coin amount
      * @param _dsTokenAmount asset amount
      * @param _navRate nav rate
      */
     event Buy(
         address indexed _from,
-        uint256 _stableCoinAmount,
+        uint256 _liquidityAmount,
         uint256 _dsTokenAmount,
         uint256 _navRate
     );
@@ -64,68 +74,79 @@ interface ISecuritizeOnRamp {
      */
     event AssetProviderUpdated(address indexed oldProvider, address indexed newProvider);
 
+    /**
+     * @dev Emitted when the nav provider is updated
+     * @param oldProvider Old provider address
+     * @param newProvider New provider address
+     */
+    event NavProviderUpdated(address indexed oldProvider, address indexed newProvider);
+
+    /**
+     * @dev Emitted when the minSubscriptionAmount is updated
+     * @param oldValue Old value
+     * @param newValue New value
+     */
+    event MinSubscriptionAmountUpdated(uint256 oldValue, uint256 newValue);
+
+    /**
+     * @dev Emitted when the investorSubscriptionEnabled is updated
+     * @param newValue New value
+     */
+    event InvestorSubscriptionUpdated(bool newValue);
+
+    /**
+     * @dev Emitted when the bridge params are updated
+     * @param chainId the chain id
+     * @param bridge the bridge address
+     */
+    event BridgeParamsUpdated(uint16 chainId, address bridge);
 
     /**
     * @notice initialize function
     * @param _dsToken securitize asset
-    * @param _stableCoin stable coin to purchase assets
-    * @param _assetProvider asset provider
-    * @param _navProvider securitize nav providerç
+    * @param _liquidity stable coin to purchase assets
+    * @param _navProvider securitize nav provider
     * @param _feeManager on ramp fee manager
     * @param _custodianWallet stable coin recipient wallet
-    * @param _bridgeChainId wm chain id - zero for no bridging
-    * @param _USDCBridge Securitize usdc bridge protocol - zero address for no bridging
     */
     function initialize(
         address _dsToken,
-        address _stableCoin,
-        address _assetProvider,
+        address _liquidity,
         address _navProvider,
         address _feeManager,
-        address _custodianWallet,
-        uint16 _bridgeChainId,
-        address _USDCBridge
+        address _custodianWallet
     ) external;
 
     /**
      * @dev It does a swap between a Stable Coin ERC-20 token and DSToken.
-     * @param _senderInvestorId investor sender (blockchainId). BlockchainId should be created by main-api
-     * @param _newInvestorWallet: address of the investor. It should be previously approved
+     * @param _investorId investor sender (blockchainId). BlockchainId should be created by main-api
      * @param _investorCountry: investor country
      * @param _investorAttributeIds attributes to set.
      * @param _investorAttributeValues values to set.
      * @param _investorAttributeExpirations expiration values.
      * @param _minOutAmount minimum amount of DSTokens that are acceptable in return
-     * @param _stableCoinAmount send to issuer's wallet
+     * @param _liquidityAmount send to custodian wallet
      * @param _blockLimit max block number when pre-approved transaction does not work anymore
      * @param _agreementHash hash of PDF document created before starting swap operation.
      */
     function subscribe(
-        string memory _senderInvestorId,
-        address _newInvestorWallet,
+        string memory _investorId,
         string memory _investorCountry,
         uint8[] memory _investorAttributeIds,
         uint256[] memory _investorAttributeValues,
         uint256[] memory _investorAttributeExpirations,
         uint256 _minOutAmount,
-        uint256 _stableCoinAmount,
+        uint256 _liquidityAmount,
         uint256 _blockLimit,
         bytes32 _agreementHash
     ) external;
 
     /**
      * @dev It does a swap between a Stable Coin ERC-20 token and DSToken.
-     * @param _dsTokenAmount the amount of DSTokens to mint to investor's new wallet
-     * @param _maxStableCoinAmount maximum expected amount of stable coin to be paid by the investor
-     */
-    function swapFor(uint256 _dsTokenAmount, uint256 _maxStableCoinAmount) external;
-
-    /**
-     * @dev It does a swap between a Stable Coin ERC-20 token and DSToken.
-     * @param _stableCoinAmount amount of stable coin that investor will spend
+     * @param _liquidityAmount amount of stable coin that investor will spend
      * @param _minOutAmount minimum amount of DSTokens that are acceptable in return
      */
-    function swap(uint256 _stableCoinAmount, uint256 _minOutAmount) external;
+    function swap(uint256 _liquidityAmount, uint256 _minOutAmount) external;
 
     /**
      * @dev Validates off-chain EIP-712 message signature and executes encoded transaction data.
@@ -145,28 +166,54 @@ interface ISecuritizeOnRamp {
     ) external;
 
     /**
-    * @dev Returns nonce per investor
-    * @param _investorId investor (blockchainId).
-    */
+     * @dev Returns nonce per investor
+     * @param _investorId investor (blockchainId).
+     */
     function nonceByInvestor(string memory _investorId) external returns (uint256);
 
     /**
-    * @dev Calculates the DSToken amount using current NAV rate.
-    * @param _stableCoinAmount the amount of stable coins
-    * @return dsTokenAmount The calculated amount of DSToken
-    */
-    function calculateDsTokenAmount(uint256 _stableCoinAmount) external returns (uint256);
-
-    /**
-    * @dev Convert dsToken to stableCoins using current NAV rate.
-    * @param _dsTokenAmount the amount of dsToken
-    * @return stableCoinAmount The amount of stableCoinAmount
-    */
-    function calculateStableCoinAmount(uint256 _dsTokenAmount) external returns (uint256);
+     * @dev Calculates the DSToken amount using current NAV rate.
+     * @param _liquidityAmount the amount of stable coins
+     * @return dsTokenAmount The calculated amount of DSToken
+     */
+    function calculateDsTokenAmount(uint256 _liquidityAmount) external returns (uint256);
 
     /**
      * @dev Update the asset provider
      * @param _assetProvider The new asset provider address
      */
     function updateAssetProvider(address _assetProvider) external;
+
+    /**
+     * @dev Update the NAV rate provider implementation.
+     * @param _navProvider The NAV rate provider implementation address
+     */
+    function updateNavProvider(address _navProvider) external;
+
+    /**
+     * @dev Update the minimum subscription amount
+     * @param _minSubscriptionAmount new value
+     */
+    function updateMinSubscriptionAmount(uint256 _minSubscriptionAmount) external;
+
+    /**
+     * @notice This method enable/disable headless methods (swap/swapFor)
+     * @dev Update the investor subscription feature
+     * @param _investorSubscription new value
+     */
+    function toggleInvestorSubscription(bool _investorSubscription) external;
+
+    /**
+     * @notice This method enable/disable two step transfer feature
+     * @param _twoStepTransfer new value
+     */
+    function toggleTwoStepTransfer(bool _twoStepTransfer) external;
+
+    /**
+     * @notice Update bridge configuration
+     * @dev chain Id is not EVM chain id, please refer to https://wormhole.com/docs/build/reference/chain-ids/
+     * @param _chainId new chain id
+     * @param _bridge new bridge address
+     */
+    function updateBridgeParams(uint16 _chainId, address _bridge) external;
 }

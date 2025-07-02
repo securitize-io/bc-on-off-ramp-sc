@@ -19,11 +19,12 @@ pragma solidity 0.8.22;
 
 import {ISecuritizeOnRamp} from "../ISecuritizeOnRamp.sol";
 import {IDSToken} from "@securitize/digital_securities/contracts/token/IDSToken.sol";
+import {Errors} from "../../common/Errors.sol";
 
 /**
  * @title IAssetProvider
  */
-interface IAssetProvider {
+interface IAssetProvider is Errors {
     /**
      * @dev Proxy Initializer.
      * @param _asset securitize rwa

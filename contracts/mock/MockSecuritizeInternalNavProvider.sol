@@ -15,33 +15,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 pragma solidity 0.8.22;
 
-import {Errors} from "../common/Errors.sol";
+import "@securitize/digital_securities/contracts/nav/ISecuritizeNavProvider.sol";
 
-/**
- * @title IFeeManager
- * @dev Interface for managing fees in the on/off ramp protocol
- */
-interface IFeeManager is Errors {
-
-    event FeeCollectorUpdated(address oldCollector, address newCollector);
-
+contract MockSecuritizeInternalNavProvider is ISecuritizeNavProvider {
     /**
-    * @notice the fee collector address
-    */
-    function feeCollector() external view returns (address);
-
-    /**
-     * @dev Returns the computed fee
-     * @param amount Amount to calculate fees
+     * @dev rate: NAV rate expressed with 6 decimals
      */
-    function getFee(uint256 amount) external view returns (uint256);
+    uint256 public rate;
 
-    /**
-     * @dev Sets the fee collector address
-     * @param _feeCollector Address to collect fees
-     */
-    function setFeeCollector(address _feeCollector) external;
+    constructor(uint256 _rate) {
+        rate = _rate;
+    }
+
+    function setRate(uint256 _rate) external override {
+        rate = _rate;
+    }
+
+    function initialize(uint256 _rate) public override {
+        rate = _rate;
+    }
 }

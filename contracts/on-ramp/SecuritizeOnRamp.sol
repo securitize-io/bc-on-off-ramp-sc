@@ -21,6 +21,7 @@ import {BaseContract} from "../common/BaseContract.sol";
 import {ISecuritizeOnRamp} from "./ISecuritizeOnRamp.sol";
 import {IUSDCBridge} from "./cttp/IUSDCBridge.sol";
 import {IFeeManager} from "../fee/IFeeManager.sol";
+import {IAssetProvider} from "./provider/IAssetProvider.sol";
 import {IDSRegistryService} from "@securitize/digital_securities/contracts/registry/IDSRegistryService.sol";
 import {IDSTrustService} from "@securitize/digital_securities/contracts/trust/IDSTrustService.sol";
 import {ISecuritizeNavProvider} from "@securitize/digital_securities/contracts/nav/ISecuritizeNavProvider.sol";
@@ -29,7 +30,6 @@ import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IER
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import {IAssetProvider} from "./provider/IAssetProvider.sol";
 
 contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract {
 
@@ -44,8 +44,9 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
 
     mapping(string => uint256) internal noncePerInvestor;
 
-    IDSServiceConsumer public dsServiceConsumer;
-    IERC20Metadata public stableCoinToken;
+    // init params
+    IDSServiceConsumer public dsToken;
+    IERC20Metadata public liquidityToken;
     IAssetProvider public assetProvider;
     ISecuritizeNavProvider public navProvider;
     IFeeManager public feeManager;
@@ -53,31 +54,61 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
     IUSDCBridge public USDCBridge;
     uint16 public bridgeChainId;
 
+    // adhoc configuration variables
+    uint256 public minSubscriptionAmount;
+    bool public investorSubscriptionEnabled;
+    bool public twoStepTransfer;
+
     function initialize(
         address _dsToken,
-        address _stableCoin,
-        address _assetProvider,
+        address _liquidity,
         address _navProvider,
         address _feeManager,
-        address _custodianWallet,
-        uint16 _bridgeChainId,
-        address _USDCBridge
+        address _custodianWallet
     ) public override initializer onlyProxy {
         __EIP712_init(NAME, VERSION);
         __BaseContract_init();
 
-        dsServiceConsumer = IDSServiceConsumer(_dsToken);
-        stableCoinToken = IERC20Metadata(_stableCoin);
-        assetProvider = IAssetProvider(_assetProvider);
+        dsToken = IDSServiceConsumer(_dsToken);
+        liquidityToken = IERC20Metadata(_liquidity);
         custodianWallet = _custodianWallet;
         navProvider = ISecuritizeNavProvider(_navProvider);
         feeManager = IFeeManager(_feeManager);
-        bridgeChainId = _bridgeChainId;
-        USDCBridge = IUSDCBridge(_USDCBridge);
     }
 
     modifier onlySecuritizeOnRamp() {
-        require(_msgSender() == address(this), "Only Securitize on ramp");
+        if (_msgSender() != address(this)) {
+            revert OnlySecuritizeOnRampError();
+        }
+        _;
+    }
+
+    modifier validateMinSubscriptionAmount(uint256 _amount) {
+        if (_amount < minSubscriptionAmount) {
+            revert MinSubscriptionAmountError();
+        }
+        _;
+    }
+
+    modifier validateInvestorSubscription() {
+        if (!investorSubscriptionEnabled) {
+            revert InvestorSubscriptionDisabledError();
+        }
+        _;
+    }
+
+    modifier investorExists() {
+        IDSRegistryService registryService = IDSRegistryService(dsToken.getDSService(dsToken.REGISTRY_SERVICE()));
+        if (!registryService.isWallet(_msgSender())) {
+            revert InvestorNotRegisteredError();
+        }
+        _;
+    }
+
+    modifier nonZeroNavRate() {
+        if (navProvider.rate() <= 0) {
+            revert NonZeroNavRateError();
+        }
         _;
     }
 
@@ -86,72 +117,55 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
     }
 
     function subscribe(
-        string memory _senderInvestorId,
-        address _newInvestorWallet,
+        string memory _investorId,
         string memory _investorCountry,
         uint8[] memory _investorAttributeIds,
         uint256[] memory _investorAttributeValues,
         uint256[] memory _investorAttributeExpirations,
         uint256 _minOutAmount,
-        uint256 _stableCoinAmount,
+        uint256 _liquidityAmount,
         uint256 _blockLimit,
         bytes32 _agreementHash
-    ) public override whenNotPaused onlySecuritizeOnRamp {
-        require(_blockLimit >= block.number, "Transaction too old");
-        require(stableCoinToken.balanceOf(_newInvestorWallet) >= _stableCoinAmount, "Not enough stable tokens balance");
-        uint256 dsTokenAmount = calculateDsTokenAmount(_stableCoinAmount);
-        require(dsTokenAmount >= _minOutAmount, "DSToken mount is lower than acceptable slippage");
+    ) public override whenNotPaused onlySecuritizeOnRamp nonZeroNavRate validateMinSubscriptionAmount(_liquidityAmount) {
+        if (_blockLimit < block.number) {
+            revert TransactionTooOldError();
+        }
+
+        uint256 dsTokenAmount = calculateDsTokenAmount(_liquidityAmount);
+        if (dsTokenAmount < _minOutAmount) {
+            revert SlippageControlError();
+        }
 
         _registerInvestor(
-            _senderInvestorId,
-            _newInvestorWallet,
+            _investorId,
+            _msgSender(),
             _investorCountry,
             _investorAttributeIds,
             _investorAttributeValues,
             _investorAttributeExpirations
         );
 
-        _executeStableCoinTransfer(_newInvestorWallet, _stableCoinAmount);
-        assetProvider.supplyTo(_msgSender(), dsTokenAmount);
+        _executeLiquidityTransfer(_msgSender(), _liquidityAmount);
+        _executeAssetTransfer(dsTokenAmount);
 
-        emit DocumentSigned (_newInvestorWallet, _agreementHash);
-        emit Swap(_msgSender(), dsTokenAmount, _stableCoinAmount, _newInvestorWallet);
+        emit DocumentSigned (_msgSender(), _agreementHash);
+        emit Swap(_msgSender(), dsTokenAmount, _liquidityAmount, _msgSender());
     }
 
-    function swapFor(uint256 _dsTokenAmount, uint256 _maxStableCoinAmount) public override whenNotPaused {
-        IDSRegistryService registryService = IDSRegistryService(dsServiceConsumer.getDSService(dsServiceConsumer.REGISTRY_SERVICE()));
-        require(registryService.isWallet(_msgSender()), "Investor not registered");
-        require(_dsTokenAmount > 0, "DSToken amount must be greater than 0");
-        require(navProvider.rate() > 0, "NAV Rate must be greater than 0");
+    function swap(
+        uint256 _liquidityAmount,
+        uint256 _minOutAmount
+    ) public override whenNotPaused investorExists nonZeroNavRate validateInvestorSubscription validateMinSubscriptionAmount(_liquidityAmount) {
 
-        uint256 stableCoinAmount = calculateStableCoinAmount(_dsTokenAmount);
+        uint256 dsTokenAmount = calculateDsTokenAmount(_liquidityAmount); // calculate dsToken using liquidityAmount - fee
+        if (dsTokenAmount < _minOutAmount) {
+            revert SlippageControlError();
+        }
 
-        // TODO use the fee
-        uint256 fee = feeManager.getFee(stableCoinAmount);
+        _executeLiquidityTransfer(_msgSender(), _liquidityAmount);
+        _executeAssetTransfer(dsTokenAmount);
 
-        require(stableCoinAmount <= _maxStableCoinAmount, "Stable coin amount is higher than acceptable slippage");
-        require(stableCoinToken.balanceOf(_msgSender()) >= stableCoinAmount, "Not enough stable coin balance");
-
-        _executeStableCoinTransfer(_msgSender(), stableCoinAmount);
-        assetProvider.supplyTo(_msgSender(), _dsTokenAmount);
-
-        emit Buy(_msgSender(), _dsTokenAmount, stableCoinAmount, navProvider.rate());
-    }
-
-    function swap(uint256 _stableCoinAmount, uint256 _minOutAmount) public override whenNotPaused {
-        IDSRegistryService registryService = IDSRegistryService(dsServiceConsumer.getDSService(dsServiceConsumer.REGISTRY_SERVICE()));
-        require(registryService.isWallet(_msgSender()), "Investor not registered");
-        require(navProvider.rate() > 0, "NAV Rate must be greater than 0");
-
-        uint256 dsTokenAmount = calculateDsTokenAmount(_stableCoinAmount);
-        require(dsTokenAmount >= _minOutAmount, "DSToken mount is lower than acceptable slippage");
-
-        require(stableCoinToken.balanceOf(_msgSender()) >= _stableCoinAmount, "Not enough stable coin balance");
-
-        _executeStableCoinTransfer(_msgSender(), _stableCoinAmount);
-        assetProvider.supplyTo(_msgSender(), dsTokenAmount);
-
-        emit Buy(_msgSender(), dsTokenAmount, _stableCoinAmount, navProvider.rate());
+        emit Swap(_msgSender(), dsTokenAmount, _liquidityAmount, _msgSender());
     }
 
     function executePreApprovedTransaction(
@@ -162,19 +176,11 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
         bytes memory data,
         uint256[] memory params
     ) public override whenNotPaused {
-        require(params.length == 2, "Incorrect params length");
+        if (params.length != 2)  {
+            revert IncorrectParamLength();
+        }
         doExecuteByInvestor(signature, senderInvestor, destination, data, executor, params);
     }
-
-    /**
-     * @dev Update the NAV rate provider implementation.
-     * @param _navProvider The NAV rate provider implementation address
-     */
-    function updateNavProvider(address _navProvider) public onlyOwner {
-        require(_navProvider != address(0), "NAV provider cannot be zero address");
-        navProvider = ISecuritizeNavProvider(_navProvider);
-    }
-
 
     function doExecuteByInvestor(
         bytes memory signature,
@@ -198,38 +204,94 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
 
         bytes32 digest = _hashTypedDataV4(structHash);
         address signer = ECDSA.recover(digest, signature);
-        require(signer != address(0), "Invalid signature");
 
         // Check that the recovered address is an issuer
-        IDSTrustService trustService = IDSTrustService(dsServiceConsumer.getDSService(dsServiceConsumer.TRUST_SERVICE()));
+        IDSTrustService trustService = IDSTrustService(dsToken.getDSService(dsToken.TRUST_SERVICE()));
         uint256 signerRole = trustService.getRole(signer);
-        require(signerRole == trustService.ISSUER() || signerRole == trustService.MASTER(), "Insufficient trust level");
+        if (signerRole != trustService.ISSUER() && signerRole != trustService.MASTER()) {
+            revert InvalidEIP712Signature();
+        }
         noncePerInvestor[_senderInvestorId] = noncePerInvestor[_senderInvestorId] + 1;
         Address.functionCall(_destination, _data);
     }
 
-    function calculateDsTokenAmount(uint256 _stableCoinAmount) public override view returns (uint256) {
+    function calculateDsTokenAmount(uint256 _liquidityAmount) public override view returns (uint256) {
+        uint256 fee = feeManager.getFee(_liquidityAmount);
+        uint256 liquidityAmountExcludingFee = _liquidityAmount - fee;
         uint256 currentNavRate = navProvider.rate();
-        return _stableCoinAmount * 10 ** IERC20Metadata(address(assetProvider.asset())).decimals() / currentNavRate;
+        return liquidityAmountExcludingFee * 10 ** IERC20Metadata(address(assetProvider.asset())).decimals() / currentNavRate;
     }
 
-    function calculateStableCoinAmount(uint256 _dsTokenAmount) public override view returns (uint256) {
-        return _dsTokenAmount * navProvider.rate() / (10 ** IERC20Metadata(address(assetProvider.asset())).decimals());
-    }
-
-    function updateAssetProvider(address _assetProvider) external onlyOwner {
+    function updateAssetProvider(address _assetProvider) external override onlyOwner {
+        if (_assetProvider == address(0)) {
+            revert NonZeroAddressError();
+        }
         address oldProvider = address(assetProvider);
         assetProvider = IAssetProvider(_assetProvider);
         emit AssetProviderUpdated(oldProvider, _assetProvider);
     }
 
-    function _executeStableCoinTransfer(address from, uint256 value) private {
+    function updateNavProvider(address _navProvider) external override onlyOwner {
+        if (_navProvider == address(0)) {
+            revert NonZeroAddressError();
+        }
+        address oldProvider = address(_navProvider);
+        navProvider = ISecuritizeNavProvider(_navProvider);
+        emit NavProviderUpdated(oldProvider, _navProvider);
+    }
+
+    function updateMinSubscriptionAmount(uint256 _minSubscriptionAmount) external override onlyOwner {
+        uint256 oldValue = minSubscriptionAmount;
+        minSubscriptionAmount = _minSubscriptionAmount;
+        emit MinSubscriptionAmountUpdated(oldValue, minSubscriptionAmount);
+    }
+
+    function updateBridgeParams(uint16 _chainId, address _bridge) external override onlyOwner {
+        bridgeChainId = _chainId;
+        USDCBridge = IUSDCBridge(_bridge);
+        emit BridgeParamsUpdated(_chainId, _bridge);
+    }
+
+    function toggleInvestorSubscription(bool _investorSubscription) external override onlyOwner {
+        if (_investorSubscription == investorSubscriptionEnabled) {
+            revert SameValueError();
+        }
+        investorSubscriptionEnabled = _investorSubscription;
+        emit InvestorSubscriptionUpdated(investorSubscriptionEnabled);
+    }
+
+    function toggleTwoStepTransfer(bool _twoStepTransfer) external override onlyOwner {
+        if (_twoStepTransfer == twoStepTransfer) {
+            revert SameValueError();
+        }
+        twoStepTransfer = _twoStepTransfer;
+        emit TwoStepTransferUpdated(twoStepTransfer);
+    }
+
+    function _executeLiquidityTransfer(address from, uint256 amount) private {
+        if (liquidityToken.balanceOf(_msgSender()) < amount) {
+            revert InsufficientERC20BalanceError();
+        }
+
+        uint256 fee = feeManager.getFee(amount);
+        uint256 amountExcludingFee = amount - fee;
+        liquidityToken.transferFrom(from, address(this), amount);
+        liquidityToken.transfer(feeManager.feeCollector(), fee);
+
         if (bridgeChainId != 0 && address(USDCBridge) != address(0)) {
-            stableCoinToken.transferFrom(from, address(this), value);
-            stableCoinToken.approve(address(USDCBridge), value);
-            USDCBridge.sendUSDCCrossChainDeposit(bridgeChainId, custodianWallet, value);
+            liquidityToken.approve(address(USDCBridge), amountExcludingFee);
+            USDCBridge.sendUSDCCrossChainDeposit(bridgeChainId, custodianWallet, amountExcludingFee);
         } else {
-            stableCoinToken.transferFrom(from, custodianWallet, value);
+            liquidityToken.transferFrom(from, custodianWallet, amountExcludingFee);
+        }
+    }
+
+    function _executeAssetTransfer(uint256 amount) private {
+        if (twoStepTransfer) {
+            assetProvider.supplyTo(address(this), amount);
+            IERC20Metadata(address(dsToken)).transfer(_msgSender(), amount);
+        } else {
+            assetProvider.supplyTo(_msgSender(), amount);
         }
     }
 
@@ -241,7 +303,7 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
         uint256[] memory _investorAttributeValues,
         uint256[] memory _investorAttributeExpirations
     ) private {
-        IDSRegistryService registryService = IDSRegistryService(dsServiceConsumer.getDSService(dsServiceConsumer.REGISTRY_SERVICE()));
+        IDSRegistryService registryService = IDSRegistryService(dsToken.getDSService(dsToken.REGISTRY_SERVICE()));
 
         address[] memory investorWallets = new address[](1);
         investorWallets[0] = _newInvestorWallet;
