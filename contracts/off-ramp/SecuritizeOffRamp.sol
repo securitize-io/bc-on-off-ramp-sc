@@ -22,6 +22,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ISecuritizeOffRamp} from "./ISecuritizeOffRamp.sol";
 import {ISecuritizeOffRampErrors} from "./ISecuritizeOffRampErrors.sol";
 import {BaseContract} from "../common/BaseContract.sol";
+import {IOnOffRamp} from "../common/IOnOffRamp.sol";
 import {IDSRegistryService} from "@securitize/digital_securities/contracts/registry/IDSRegistryService.sol";
 import {IDSServiceConsumer} from "@securitize/digital_securities/contracts/service/IDSServiceConsumer.sol";
 import {ILiquidityProvider} from "./provider/ILiquidityProvider.sol";
@@ -31,7 +32,13 @@ import {IDSToken} from "@securitize/digital_securities/contracts/token/IDSToken.
 import {TokenDataStore} from "@securitize/digital_securities/contracts/data-stores/TokenDataStore.sol";
 import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
 
-contract SecuritizeOffRamp is ISecuritizeOffRamp, ISecuritizeOffRampErrors, EIP712Upgradeable, BaseContract {
+contract SecuritizeOffRamp is
+    IOnOffRamp,
+    ISecuritizeOffRamp,
+    ISecuritizeOffRampErrors,
+    EIP712Upgradeable,
+    BaseContract
+{
     string public constant NAME = "SecuritizeOffRamp";
     string public constant VERSION = "1";
 
@@ -70,7 +77,7 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, ISecuritizeOffRampErrors, EIP7
      * @dev Two steps mode flag for Dealer role functionality
      * When enabled, assets and liquidity first go to the contract before their final destination
      */
-    bool public twoStepsMode;
+    bool public twoStepTransfer;
 
     address public feeManager;
 
@@ -114,12 +121,6 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, ISecuritizeOffRampErrors, EIP7
      * @param newFee New fee value in mbps
      */
     event RedemptionFeeUpdated(uint256 oldFee, uint256 newFee);
-
-    /**
-     * @dev Emitted when two steps mode is updated
-     * @param enabled Whether the two steps mode is enabled
-     */
-    event TwoStepsModeUpdated(bool enabled);
 
     /**
      * @dev Throws if the given address is the zero address
@@ -189,11 +190,11 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, ISecuritizeOffRampErrors, EIP7
 
     /**
      * @dev Enables or disables the two steps mode
-     * @param twoStepsMode_ Whether to enable or disable two steps mode
+     * @param twoStepTransfer_ Whether to enable or disable two steps mode
      */
-    function setTwoStepsMode(bool twoStepsMode_) external onlyOwner {
-        twoStepsMode = twoStepsMode_;
-        emit TwoStepsModeUpdated(twoStepsMode_);
+    function toggleTwoStepTransfer(bool twoStepTransfer_) external onlyOwner {
+        twoStepTransfer = twoStepTransfer_;
+        emit TwoStepTransferUpdated(twoStepTransfer_);
     }
 
     /**
@@ -225,7 +226,7 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, ISecuritizeOffRampErrors, EIP7
         uint256 liquidityTokenAmount = _calculateLiquidityTokenAmountWithOutFee(assetAmount, rate);
 
         // Two-step mode: funds flow through contract, like a Dealer role
-        if (twoStepsMode) {
+        if (twoStepTransfer) {
             // Get DS tokens from investor to contract
             asset.transferFrom(msg.sender, address(this), assetAmount);
 

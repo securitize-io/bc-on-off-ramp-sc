@@ -32,7 +32,6 @@ import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/crypt
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract {
-
     using Address for address;
     using ECDSA for bytes32;
 
@@ -112,7 +111,7 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
         _;
     }
 
-    function nonceByInvestor(string memory _investorId) override public view returns (uint256) {
+    function nonceByInvestor(string memory _investorId) public view override returns (uint256) {
         return noncePerInvestor[_investorId];
     }
 
@@ -126,11 +125,19 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
         uint256 _liquidityAmount,
         uint256 _blockLimit,
         bytes32 _agreementHash
-    ) public override whenNotPaused onlySecuritizeOnRamp nonZeroNavRate validateMinSubscriptionAmount(_liquidityAmount) {
+    )
+        public
+        override
+        whenNotPaused
+        onlySecuritizeOnRamp
+        nonZeroNavRate
+        validateMinSubscriptionAmount(_liquidityAmount)
+    {
         if (_blockLimit < block.number) {
             revert TransactionTooOldError();
         }
 
+        // TODO: could be better to call a private function?
         uint256 dsTokenAmount = calculateDsTokenAmount(_liquidityAmount);
         if (dsTokenAmount < _minOutAmount) {
             revert SlippageControlError();
@@ -148,15 +155,22 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
         _executeLiquidityTransfer(_msgSender(), _liquidityAmount);
         _executeAssetTransfer(dsTokenAmount);
 
-        emit DocumentSigned (_msgSender(), _agreementHash);
+        emit DocumentSigned(_msgSender(), _agreementHash);
         emit Swap(_msgSender(), dsTokenAmount, _liquidityAmount, _msgSender());
     }
 
     function swap(
         uint256 _liquidityAmount,
         uint256 _minOutAmount
-    ) public override whenNotPaused investorExists nonZeroNavRate validateInvestorSubscription validateMinSubscriptionAmount(_liquidityAmount) {
-
+    )
+        public
+        override
+        whenNotPaused
+        investorExists
+        nonZeroNavRate
+        validateInvestorSubscription
+        validateMinSubscriptionAmount(_liquidityAmount)
+    {
         uint256 dsTokenAmount = calculateDsTokenAmount(_liquidityAmount); // calculate dsToken using liquidityAmount - fee
         if (dsTokenAmount < _minOutAmount) {
             revert SlippageControlError();
@@ -176,7 +190,7 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
         bytes memory data,
         uint256[] memory params
     ) public override whenNotPaused {
-        if (params.length != 2)  {
+        if (params.length != 2) {
             revert IncorrectParamLength();
         }
         doExecuteByInvestor(signature, senderInvestor, destination, data, executor, params);
@@ -192,6 +206,7 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
     ) internal {
         bytes32 structHash = keccak256(
             abi.encode(
+                // TODO: what about add chainId?
                 TXTYPE_HASH,
                 keccak256(bytes(_senderInvestorId)),
                 _destination,
@@ -215,11 +230,13 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
         Address.functionCall(_destination, _data);
     }
 
-    function calculateDsTokenAmount(uint256 _liquidityAmount) public override view returns (uint256) {
+    function calculateDsTokenAmount(uint256 _liquidityAmount) public view override returns (uint256) {
         uint256 fee = feeManager.getFee(_liquidityAmount);
         uint256 liquidityAmountExcludingFee = _liquidityAmount - fee;
         uint256 currentNavRate = navProvider.rate();
-        return liquidityAmountExcludingFee * 10 ** IERC20Metadata(address(assetProvider.asset())).decimals() / currentNavRate;
+        return
+            (liquidityAmountExcludingFee * 10 ** IERC20Metadata(address(assetProvider.asset())).decimals()) /
+            currentNavRate;
     }
 
     function updateAssetProvider(address _assetProvider) external override onlyOwner {
@@ -307,6 +324,14 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
 
         address[] memory investorWallets = new address[](1);
         investorWallets[0] = _newInvestorWallet;
-        registryService.updateInvestor(_senderInvestorId, "", _investorCountry, investorWallets, _investorAttributeIds, _investorAttributeValues, _investorAttributeExpirations);
+        registryService.updateInvestor(
+            _senderInvestorId,
+            "",
+            _investorCountry,
+            investorWallets,
+            _investorAttributeIds,
+            _investorAttributeValues,
+            _investorAttributeExpirations
+        );
     }
 }
