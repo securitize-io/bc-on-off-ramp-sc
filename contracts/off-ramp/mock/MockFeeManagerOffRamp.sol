@@ -19,7 +19,7 @@ pragma solidity ^0.8.22;
 
 import "../../fee/IFeeManager.sol";
 
-contract MockFeeManager is IFeeManager {
+contract MockFeeManagerOffRamp is IFeeManager {
     uint256 public constant FEE_DENOMINATOR = 100_000;
     uint256 public redemptionFee;
     address public feeCollector;

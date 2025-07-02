@@ -5,7 +5,7 @@ export const HASH = "0x2bb80d537b1da3e38bd30361aa855686bde0eacd7162fef6a25fe97bf
 
 export const deployOnRampAllowance = async () => {
   // Set up a mock registry Service
-  const mockRegistryService = await hre.ethers.deployContract('MockRegistryService', []);
+  const mockRegistryService = await hre.ethers.deployContract('MockRegistryService', ['AR']);
   const registryServiceAddress = await mockRegistryService.getAddress();
 
   // Set up a mock trust Service
@@ -15,7 +15,7 @@ export const deployOnRampAllowance = async () => {
   // dstoken mock
   const dsTokenMock = await hre.ethers.deployContract('MockDSToken', ['Token1', 'TK1', 18, registryServiceAddress, trustServiceAddress]);
   // usdc mock
-  const usdcMock = await hre.ethers.deployContract('MockERC20', ['USDC', 'USDC', 6]);
+  const usdcMock = await hre.ethers.deployContract('MockERC20', ['USDC', 'USDC', 6, registryServiceAddress]);
   // nav mock
   const navMock = await hre.ethers.deployContract('MockSecuritizeInternalNavProvider', [1e6]);
   // fee mock

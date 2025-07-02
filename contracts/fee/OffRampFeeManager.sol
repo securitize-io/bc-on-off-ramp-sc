@@ -30,7 +30,6 @@ contract FeeManager is IFeeManager {
     address public feeCollector;
 
     event RedemptionFeeUpdated(uint256 oldFee, uint256 newFee);
-    event FeeCollectorUpdated(address oldCollector, address newCollector);
     error InvalidRedemptionFee(uint256 redemptionFee);
     error InvalidFeeCollectorAddress();
 

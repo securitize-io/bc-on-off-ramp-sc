@@ -22,8 +22,35 @@ pragma solidity ^0.8.22;
 uint256 constant REGISTRY_SERVICE = 4;
 
 contract MockRegistryService {
-
     address public wallet;
+    string internal investorCountry;
+    string internal invalidCountryCode;
+    bool internal returnInvalidCountry;
+
+    constructor(string memory _investorCountry) {
+        investorCountry = _investorCountry;
+        returnInvalidCountry = false;
+    }
+
+    function updateCountry(string memory country) public {
+        investorCountry = country;
+    }
+
+    function setInvalidCountryMode(bool _mode, string memory _invalidCountryCode) public {
+        returnInvalidCountry = _mode;
+        invalidCountryCode = _invalidCountryCode;
+    }
+
+    function getCountry(string memory) public view returns (string memory) {
+        if (returnInvalidCountry) {
+            return invalidCountryCode;
+        }
+        return investorCountry;
+    }
+
+    function getInvestor(address) public view returns (string memory) {
+        return investorCountry; // Returned string does not matter
+    }
 
     function updateInvestor(
         string calldata /*_id*/,

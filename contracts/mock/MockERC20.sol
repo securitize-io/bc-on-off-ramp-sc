@@ -21,8 +21,16 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract MockERC20 is ERC20 {
     uint8 private tokenDecimals;
+    uint256 public constant REGISTRY_SERVICE = 4;
+    address public registryService;
 
-    constructor(string memory _name, string memory _symbol, uint8 _decimals) ERC20(_name, _symbol) {
+    constructor(
+        string memory _name,
+        string memory _symbol,
+        uint8 _decimals,
+        address _registryService
+    ) ERC20(_name, _symbol) {
+        registryService = _registryService;
         tokenDecimals = _decimals;
     }
 
@@ -33,5 +41,9 @@ contract MockERC20 is ERC20 {
 
     function decimals() public view override returns (uint8) {
         return tokenDecimals;
+    }
+
+    function getDSService(uint256) public view returns (address) {
+        return registryService;
     }
 }

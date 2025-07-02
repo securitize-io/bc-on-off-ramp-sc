@@ -70,7 +70,7 @@ export const deployRedemptionProtocol = async () => {
     ]);
     await newExternalRedemptionContractDaiMock.updateLiquidityProvider(mockDaiAllowanceLiquidityProvider.getAddress());
 
-    const mockFeeManager = await hre.ethers.deployContract('MockFeeManager', [0, FEE_COLLECTOR]); // Initialize with 0 fee and zero address for feeCollector
+    const mockFeeManager = await hre.ethers.deployContract('MockFeeManagerOffRamp', [0, FEE_COLLECTOR]); // Initialize with 0 fee and zero address for feeCollector
     const [securitizeWallet] = await hre.ethers.getSigners();
 
     const contracts = await hre.run('deploy-redemption-collateral-protocol', {
@@ -142,7 +142,7 @@ export const deployRedemptionProtocolWithMultipleTokens = async () => {
     ]);
     await externalRedemptionContractMock.updateLiquidityProvider(mockAllowanceLiquidityProvider.getAddress());
 
-    const mockFeeManager = await hre.ethers.deployContract('MockFeeManager', [0, FEE_COLLECTOR]); // Initialize with 0 fee and zero address for feeCollector
+    const mockFeeManager = await hre.ethers.deployContract('MockFeeManagerOffRamp', [0, FEE_COLLECTOR]); // Initialize with 0 fee and zero address for feeCollector
 
     const [securitizeWallet] = await hre.ethers.getSigners();
 
@@ -204,7 +204,7 @@ export const deployRedemptionAllowanceProtocol = async () => {
     const securitizeNavProviderMock = await hre.ethers.deployContract('MockSecuritizeInternalNavProvider', [
         FIXED_RATE,
     ]);
-    const mockFeeManager = await hre.ethers.deployContract('MockFeeManager', [0, FEE_COLLECTOR]); // Initialize with 0 fee and zero address for feeCollector
+    const mockFeeManager = await hre.ethers.deployContract('MockFeeManagerOffRamp', [0, FEE_COLLECTOR]); // Initialize with 0 fee and zero address for feeCollector
 
     const [securitizeWallet] = await hre.ethers.getSigners();
 
