@@ -66,6 +66,12 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, ISecuritizeOffRampErrors, EIP7
      */
     mapping(string => bool) public restrictedCountries;
 
+    /**
+     * @dev Two steps mode flag for Dealer role functionality
+     * When enabled, assets and liquidity first go to the contract before their final destination
+     */
+    bool public twoStepsMode;
+
     address public feeManager;
 
     address public assetAddress;
@@ -109,6 +115,12 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, ISecuritizeOffRampErrors, EIP7
      * @param newFee New fee value in mbps
      */
     event RedemptionFeeUpdated(uint256 oldFee, uint256 newFee);
+
+    /**
+     * @dev Emitted when two steps mode is updated
+     * @param enabled Whether the two steps mode is enabled
+     */
+    event TwoStepsModeUpdated(bool enabled);
 
     /**
      * @dev Throws if the given address is the zero address
@@ -177,6 +189,15 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, ISecuritizeOffRampErrors, EIP7
     }
 
     /**
+     * @dev Enables or disables the two steps mode
+     * @param twoStepsMode_ Whether to enable or disable two steps mode
+     */
+    function setTwoStepsMode(bool twoStepsMode_) external onlyOwner {
+        twoStepsMode = twoStepsMode_;
+        emit TwoStepsModeUpdated(twoStepsMode_);
+    }
+
+    /**
      * @dev Redeems asset tokens for liquidity tokens
      * @param assetAmount The amount of asset tokens to redeem
      * @param minOutputAmount The minimum amount of liquidity tokens that must be received (slippage protection)
@@ -202,29 +223,57 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, ISecuritizeOffRampErrors, EIP7
             revert RestrictedCountry(redeemerCountry);
         }
 
-        // Transfer asset to liquidity provider
-        if (assetBurn) {
-            asset.burn(msg.sender, assetAmount, "Redemption burn");
-        } else {
-            asset.transferFrom(msg.sender, liquidityProvider.recipient(), assetAmount);
-        }
-
         uint256 liquidityTokenAmount = _calculateLiquidityTokenAmountWithOutFee(assetAmount, rate);
 
         // Apply fee if it exists, transfer it to the fee collector
         uint256 fee = _getFee(liquidityTokenAmount);
 
-        uint256 liquidityTokenAmountAfterFee = liquidityTokenAmount - fee;
+        // Two-step mode: funds flow through contract, like a Dealer role
+        if (twoStepsMode) {
+            IFeeManager feeManagerInstance = IFeeManager(feeManager);
+            uint256 assetAmountAfterFee = assetAmount - fee;
 
-        // Check slippage protection - ensure minimum output amount is met
-        if (liquidityTokenAmountAfterFee < minOutputAmount) {
-            revert InsufficientOutputAmount(liquidityTokenAmountAfterFee, minOutputAmount);
+            // Get DS tokens from investor to contract
+            asset.transferFrom(msg.sender, address(this), assetAmount);
+
+            // Transfer fee from contract to fee collector
+            if (fee > 0) {
+                asset.transfer(feeManagerInstance.feeCollector(), fee);
+            }
+
+            // Get liquidity from provider to contract
+            liquidityProvider.supplyTo(address(this), liquidityTokenAmount, minOutputAmount);
+
+            // Transfer full liquidity from contract to investor
+            uint256 offRampBalance = liquidityProvider.liquidityToken().balanceOf(address(this));
+            liquidityProvider.liquidityToken().transfer(msg.sender, offRampBalance);
+
+            // Transfer asset from contract to recipient
+            if (assetBurn) {
+                asset.burn(address(this), assetAmountAfterFee, "Redemption burn");
+            } else {
+                asset.transfer(liquidityProvider.recipient(), assetAmountAfterFee);
+            }
+        } else {
+            // Transfer asset to liquidity provider
+            if (assetBurn) {
+                asset.burn(msg.sender, assetAmount, "Redemption burn");
+            } else {
+                asset.transferFrom(msg.sender, liquidityProvider.recipient(), assetAmount);
+            }
+
+            uint256 liquidityTokenAmountAfterFee = liquidityTokenAmount - fee;
+
+            // Check slippage protection - ensure minimum output amount is met
+            if (liquidityTokenAmountAfterFee < minOutputAmount) {
+                revert InsufficientOutputAmount(liquidityTokenAmountAfterFee, minOutputAmount);
+            }
+
+            // Supply liquidity tokens to the fee collector
+            liquidityProvider.supplyTo(IFeeManager(feeManager).feeCollector(), fee, 0);
+            // Supply liquidity tokens to the redeemer
+            liquidityProvider.supplyTo(msg.sender, liquidityTokenAmountAfterFee, minOutputAmount);
         }
-
-        // Supply liquidity tokens to the fee collector
-        liquidityProvider.supplyTo(IFeeManager(feeManager).feeCollector(), fee, 0);
-        // Supply liquidity tokens to the redeemer
-        liquidityProvider.supplyTo(msg.sender, liquidityTokenAmountAfterFee, minOutputAmount);
 
         emit RedemptionCompleted(msg.sender, assetAmount, liquidityTokenAmount, rate, fee);
     }
