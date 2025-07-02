@@ -54,8 +54,9 @@ contract MockDSToken is ERC20 {
     /// @dev Issues new tokens.
     /// @param _to Address of token receiver.
     /// @param _value Number of tokens to issue.
-    function issueTokens(address _to, uint256 _value) public {
+    function issueTokens(address _to, uint256 _value) public returns (bool) {
         _mint(_to, _value);
+        return true;
     }
 
     function getDSService(uint256 _service) public view returns (address) {

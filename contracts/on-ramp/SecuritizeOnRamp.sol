@@ -270,12 +270,12 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
         }
     }
 
-    function _executeAssetTransfer(address from, uint256 amount) private {
+    function _executeAssetTransfer(address to, uint256 amount) private {
         if (twoStepTransfer) {
             assetProvider.supplyTo(address(this), amount);
-            IERC20Metadata(address(dsToken)).transfer(from, amount);
+            IERC20Metadata(address(dsToken)).transfer(to, amount);
         } else {
-            assetProvider.supplyTo(from, amount);
+            assetProvider.supplyTo(to, amount);
         }
     }
 

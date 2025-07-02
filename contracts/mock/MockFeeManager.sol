@@ -27,7 +27,7 @@ contract MockFeeManager {
         feeCollector = _feeCollector;
     }
 
-    function getFee(uint256 /*amount*/) external pure returns (uint256) {
-        return 2000; // 2000 mbps = 0.2 %
+    function getFee(uint256 amount) external pure returns (uint256) {
+        return (amount * 2000 + 100_000 - 1) / 100_000;
     }
 }

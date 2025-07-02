@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import { loadFixture } from '@nomicfoundation/hardhat-network-helpers';
-import { deployOnRampAllowance, HASH } from './fixture';
+import { deployOnRampAllowance, deployOnRampMinting, HASH } from './fixture';
 import { Contract, ethers } from 'ethers';
 import hre from 'hardhat';
 import { eip712OnRamp } from './eip-712.helper';
@@ -267,7 +267,7 @@ describe('On-Ramp Unit Tests', function() {
         });
 
         it('Should fail - investor with insufficient liquidity', async function () {
-          const subscribeParams = ['1', await unknownWallet.getAddress(), 'US', [], [], [], 998000, 1e6, blockNumber + 1, HASH];
+          const subscribeParams = ['1', await unknownWallet.getAddress(), 'US', [], [], [], 980000, 1e6, blockNumber + 1, HASH];
           const txData = await buildTypedData(onRamp, subscribeParams);
           const signature = await eip712OnRamp(eip712Signer, await onRamp.getAddress(), txData);
           await expect(onRamp.executePreApprovedTransaction(signature, txData))
@@ -276,7 +276,7 @@ describe('On-Ramp Unit Tests', function() {
 
         it('Should fail - investor insufficient allowance', async function () {
           await usdcMock.mint(unknownWallet, 1e6);
-          const subscribeParams = ['1', await unknownWallet.getAddress(), 'US', [], [], [], 998000, 1e6, blockNumber + 10, HASH];
+          const subscribeParams = ['1', await unknownWallet.getAddress(), 'US', [], [], [], 980000, 1e6, blockNumber + 10, HASH];
           const txData = await buildTypedData(onRamp, subscribeParams);
           const signature = await eip712OnRamp(eip712Signer, await onRamp.getAddress(), txData);
           await expect(onRamp.executePreApprovedTransaction(signature, txData))
@@ -289,7 +289,7 @@ describe('On-Ramp Unit Tests', function() {
           const liquidityFromInvestor = usdcMock.connect(unknownWallet) as Contract;
           await liquidityFromInvestor.approve(onRamp, 1e6);
 
-          const subscribeParams = ['1', await unknownWallet.getAddress(), 'US', [], [], [], 998000, 1e6, blockNumber + 10, HASH];
+          const subscribeParams = ['1', await unknownWallet.getAddress(), 'US', [], [], [], 980000, 1e6, blockNumber + 10, HASH];
           const txData = await buildTypedData(onRamp, subscribeParams);
           const signature = await eip712OnRamp(eip712Signer, await onRamp.getAddress(), txData);
           await expect(onRamp.executePreApprovedTransaction(signature, txData))
@@ -305,14 +305,14 @@ describe('On-Ramp Unit Tests', function() {
           const dsTokenFromAssetProviderWallet = dsTokenMock.connect(assetProviderWallet) as Contract;
           await dsTokenFromAssetProviderWallet.approve(assetProvider, 1e6);
 
-          const subscribeParams = ['1', await unknownWallet.getAddress(), 'US', [], [], [], 998000, 1e6, blockNumber + 10, HASH];
+          const subscribeParams = ['1', await unknownWallet.getAddress(), 'US', [], [], [], 980000, 1e6, blockNumber + 10, HASH];
           const txData = await buildTypedData(onRamp, subscribeParams);
           const signature = await eip712OnRamp(eip712Signer, await onRamp.getAddress(), txData);
           await expect(onRamp.executePreApprovedTransaction(signature, txData))
             .revertedWithCustomError(dsTokenMock, 'ERC20InsufficientBalance');
         });
 
-        it('Should subscribe successfully', async function () {
+        it('Should subscribe successfully - allowance asset provider - one step transfer', async function () {
           await usdcMock.mint(unknownWallet, 1e6);
           await dsTokenMock.issueTokens(assetProviderWallet, 1e6);
 
@@ -324,22 +324,329 @@ describe('On-Ramp Unit Tests', function() {
           const dsTokenFromAssetProviderWallet = dsTokenMock.connect(assetProviderWallet) as Contract;
           await dsTokenFromAssetProviderWallet.approve(assetProvider, 1e6);
 
-          const subscribeParams = ['1', await unknownWallet.getAddress(), 'US', [], [], [], 998000, 1e6, blockNumber + 10, HASH];
+          const subscribeParams = ['1', await unknownWallet.getAddress(), 'US', [], [], [], 980000, 1e6, blockNumber + 10, HASH];
           const txData = await buildTypedData(onRamp, subscribeParams);
           const signature = await eip712OnRamp(eip712Signer, await onRamp.getAddress(), txData);
 
           await expect(onRamp.executePreApprovedTransaction(signature, txData))
             .emit(onRamp, 'Swap').withArgs(onRamp, calculatedDSTokenAmount, 1e6, unknownWallet)
-            .emit(onRamp, 'DocumentSigned').withArgs(unknownWallet, HASH)
+            .emit(onRamp, 'DocumentSigned').withArgs(unknownWallet, HASH);
           expect(await usdcMock.balanceOf(unknownWallet)).to.equal(0);
           expect(await dsTokenMock.balanceOf(unknownWallet)).to.equal(calculatedDSTokenAmount);
           // custodian wallet
-          expect(await usdcMock.balanceOf(custodianWallet)).to.equal(998000);
+          expect(await usdcMock.balanceOf(custodianWallet)).to.equal(980000);
           // fee collector
           expect(await usdcMock.balanceOf(feeCollector)).to.equal(1e6 - Number(calculatedDSTokenAmount));
           // asset provider wallet
           expect(await dsTokenMock.balanceOf(assetProviderWallet)).to.equal(1e6 - Number(calculatedDSTokenAmount));
         });
+
+        it('Should subscribe successfully - allowance asset provider - two step transfer', async function () {
+          await usdcMock.mint(unknownWallet, 1e6);
+          await dsTokenMock.issueTokens(assetProviderWallet, 1e6);
+
+          const liquidityFromInvestor = usdcMock.connect(unknownWallet) as Contract;
+          await liquidityFromInvestor.approve(onRamp, 1e6);
+
+          const calculatedDSTokenAmount = await onRamp.calculateDsTokenAmount(1e6)
+
+          const dsTokenFromAssetProviderWallet = dsTokenMock.connect(assetProviderWallet) as Contract;
+          await dsTokenFromAssetProviderWallet.approve(assetProvider, 1e6);
+
+          // activate two step
+          await onRamp.toggleTwoStepTransfer(true);
+
+          const subscribeParams = ['1', await unknownWallet.getAddress(), 'US', [], [], [], 980000, 1e6, blockNumber + 10, HASH];
+          const txData = await buildTypedData(onRamp, subscribeParams);
+          const signature = await eip712OnRamp(eip712Signer, await onRamp.getAddress(), txData);
+
+          await expect(onRamp.executePreApprovedTransaction(signature, txData))
+            .emit(onRamp, 'Swap').withArgs(onRamp, calculatedDSTokenAmount, 1e6, unknownWallet)
+            .emit(onRamp, 'DocumentSigned').withArgs(unknownWallet, HASH);
+          expect(await usdcMock.balanceOf(unknownWallet)).to.equal(0);
+          expect(await dsTokenMock.balanceOf(unknownWallet)).to.equal(calculatedDSTokenAmount);
+          // custodian wallet
+          expect(await usdcMock.balanceOf(custodianWallet)).to.equal(980000);
+          // fee collector
+          expect(await usdcMock.balanceOf(feeCollector)).to.equal(1e6 - Number(calculatedDSTokenAmount));
+          // asset provider wallet
+          expect(await dsTokenMock.balanceOf(assetProviderWallet)).to.equal(1e6 - Number(calculatedDSTokenAmount));
+        });
+
+        it('Should subscribe successfully - minting asset provider - one step transfer', async function () {
+          ({
+            onRamp,
+            mockTrustService,
+            usdcMock,
+            unknownWallet,
+            eip712Signer,
+            dsTokenMock,
+            assetProvider,
+            custodianWallet,
+            feeCollector
+          } = await loadFixture(deployOnRampMinting));
+
+          await usdcMock.mint(unknownWallet, 1e6);
+
+          const liquidityFromInvestor = usdcMock.connect(unknownWallet) as Contract;
+          await liquidityFromInvestor.approve(onRamp, 1e6);
+
+          const calculatedDSTokenAmount = await onRamp.calculateDsTokenAmount(1e6)
+
+          const subscribeParams = ['1', await unknownWallet.getAddress(), 'US', [], [], [], 980000, 1e6, blockNumber + 20, HASH];
+          const txData = await buildTypedData(onRamp, subscribeParams);
+          const signature = await eip712OnRamp(eip712Signer, await onRamp.getAddress(), txData);
+
+          await expect(onRamp.executePreApprovedTransaction(signature, txData))
+            .emit(onRamp, 'Swap').withArgs(onRamp, calculatedDSTokenAmount, 1e6, unknownWallet)
+            .emit(onRamp, 'DocumentSigned').withArgs(unknownWallet, HASH);
+          expect(await usdcMock.balanceOf(unknownWallet)).to.equal(0);
+          expect(await dsTokenMock.balanceOf(unknownWallet)).to.equal(calculatedDSTokenAmount);
+          // custodian wallet
+          expect(await usdcMock.balanceOf(custodianWallet)).to.equal(980000);
+          // fee collector
+          expect(await usdcMock.balanceOf(feeCollector)).to.equal(1e6 - Number(calculatedDSTokenAmount));
+        });
+
+        it('Should subscribe successfully - minting asset provider - two step transfer', async function () {
+          ({
+            onRamp,
+            mockTrustService,
+            usdcMock,
+            unknownWallet,
+            eip712Signer,
+            dsTokenMock,
+            assetProvider,
+            custodianWallet,
+            feeCollector
+          } = await loadFixture(deployOnRampMinting));
+
+          await usdcMock.mint(unknownWallet, 1e6);
+
+          const liquidityFromInvestor = usdcMock.connect(unknownWallet) as Contract;
+          await liquidityFromInvestor.approve(onRamp, 1e6);
+
+          const calculatedDSTokenAmount = await onRamp.calculateDsTokenAmount(1e6)
+
+          // activate two step for minting provider
+          await onRamp.toggleTwoStepTransfer(true);
+
+          const subscribeParams = ['1', await unknownWallet.getAddress(), 'US', [], [], [], 980000, 1e6, blockNumber + 20, HASH];
+          const txData = await buildTypedData(onRamp, subscribeParams);
+          const signature = await eip712OnRamp(eip712Signer, await onRamp.getAddress(), txData);
+
+          await expect(onRamp.executePreApprovedTransaction(signature, txData))
+            .emit(onRamp, 'Swap').withArgs(onRamp, calculatedDSTokenAmount, 1e6, unknownWallet)
+            .emit(onRamp, 'DocumentSigned').withArgs(unknownWallet, HASH);
+          expect(await usdcMock.balanceOf(unknownWallet)).to.equal(0);
+          expect(await dsTokenMock.balanceOf(unknownWallet)).to.equal(calculatedDSTokenAmount);
+          // custodian wallet
+          expect(await usdcMock.balanceOf(custodianWallet)).to.equal(980000);
+          // fee collector
+          expect(await usdcMock.balanceOf(feeCollector)).to.equal(1e6 - Number(calculatedDSTokenAmount));
+        });
+      });
+    });
+    describe('Swap method', function() {
+      it('Should fail to swap if contract is paused', async function () {
+        const { onRamp } = await loadFixture(deployOnRampAllowance);
+        await onRamp.pause();
+        expect(await onRamp.paused()).to.equal(true);
+        await expect(onRamp.swap(0, 0))
+          .revertedWithCustomError(onRamp, 'EnforcedPause');
+      });
+
+      it('Should fail if the investor is not registered', async function() {
+        const { onRamp } = await loadFixture(deployOnRampAllowance);
+        await expect(onRamp.swap(0, 0))
+          .revertedWithCustomError(onRamp, 'InvestorNotRegisteredError');
+      });
+
+      it('Should fail if the headless method is disabled', async function() {
+        const { onRamp, mockRegistryService, owner } = await loadFixture(deployOnRampAllowance);
+        await mockRegistryService.addWallet(owner);
+        await expect(onRamp.swap(0, 0))
+          .revertedWithCustomError(onRamp, 'InvestorSubscriptionDisabledError');
+      });
+
+      it('Should fail if usdc amount is lower than minSubscriptionAmount', async function () {
+        const { onRamp, mockRegistryService, owner } = await loadFixture(deployOnRampAllowance);
+        await mockRegistryService.addWallet(owner);
+        await onRamp.toggleInvestorSubscription(true);
+        await onRamp.updateMinSubscriptionAmount(2e6);
+        await expect(onRamp.swap(1e6, 1e6))
+          .revertedWithCustomError(onRamp, 'MinSubscriptionAmountError');
+      });
+
+      it('Should fail - slipagge error', async function () {
+        const { onRamp, mockRegistryService, owner } = await loadFixture(deployOnRampAllowance);
+        await mockRegistryService.addWallet(owner);
+        await onRamp.toggleInvestorSubscription(true);
+        await expect(onRamp.swap(1e6, 1e6))
+          .revertedWithCustomError(onRamp, 'SlippageControlError');
+      });
+
+      it('Should fail - investor insufficient balance', async function () {
+        const { onRamp, mockRegistryService, owner } = await loadFixture(deployOnRampAllowance);
+        await mockRegistryService.addWallet(owner);
+        await onRamp.toggleInvestorSubscription(true);
+        const dsTokenAmount = await onRamp.calculateDsTokenAmount(1e6);
+        await expect(onRamp.swap(1e6, dsTokenAmount))
+          .revertedWithCustomError(onRamp, 'InsufficientERC20BalanceError');
+      });
+
+      it('Should fail - investor insufficient allowance', async function () {
+        const { onRamp, mockRegistryService, owner, usdcMock } = await loadFixture(deployOnRampAllowance);
+        await usdcMock.mint(owner, 1e6);
+        await mockRegistryService.addWallet(owner);
+        await onRamp.toggleInvestorSubscription(true);
+        const dsTokenAmount = await onRamp.calculateDsTokenAmount(1e6);
+        await expect(onRamp.swap(1e6, dsTokenAmount))
+          .revertedWithCustomError(usdcMock, 'ERC20InsufficientAllowance');
+      });
+
+      it('Should fail - allowance asset provider - insufficient provider wallet allowance', async function () {
+        const { onRamp, mockRegistryService, owner, usdcMock, dsTokenMock } = await loadFixture(deployOnRampAllowance);
+        await usdcMock.mint(owner, 1e6);
+        await usdcMock.approve(onRamp, 1e6);
+        await mockRegistryService.addWallet(owner);
+        await onRamp.toggleInvestorSubscription(true);
+        const dsTokenAmount = await onRamp.calculateDsTokenAmount(1e6);
+        await expect(onRamp.swap(1e6, dsTokenAmount))
+          .revertedWithCustomError(dsTokenMock, 'ERC20InsufficientAllowance');
+      });
+
+      it('Should fail - allowance asset provider - insufficient provider wallet balance', async function () {
+        const { onRamp, mockRegistryService, owner, usdcMock, dsTokenMock, assetProviderWallet, assetProvider } = await loadFixture(deployOnRampAllowance);
+        await usdcMock.mint(owner, 1e6);
+        await usdcMock.approve(onRamp, 1e6);
+
+        const dsTokenFromAssetProviderWallet = dsTokenMock.connect(assetProviderWallet) as Contract;
+        await dsTokenFromAssetProviderWallet.approve(assetProvider, 1e6);
+
+        await mockRegistryService.addWallet(owner);
+        await onRamp.toggleInvestorSubscription(true);
+        const dsTokenAmount = await onRamp.calculateDsTokenAmount(1e6);
+        await expect(onRamp.swap(1e6, dsTokenAmount))
+          .revertedWithCustomError(dsTokenMock, 'ERC20InsufficientBalance');
+      });
+
+      it('Should swap successfully - allowance asset provider - one step transfer', async function () {
+        const {
+          onRamp,
+          mockRegistryService,
+          owner,
+          usdcMock,
+          dsTokenMock,
+          assetProviderWallet,
+          assetProvider,
+          custodianWallet,
+          feeCollector
+        } = await loadFixture(deployOnRampAllowance);
+        await usdcMock.mint(owner, 1e6);
+        await usdcMock.approve(onRamp, 1e6);
+
+        const dsTokenFromAssetProviderWallet = dsTokenMock.connect(assetProviderWallet) as Contract;
+        await dsTokenFromAssetProviderWallet.approve(assetProvider, 1e6);
+        await dsTokenMock.issueTokens(assetProviderWallet, 1e6);
+
+        await mockRegistryService.addWallet(owner);
+        await onRamp.toggleInvestorSubscription(true);
+        const dsTokenAmount = await onRamp.calculateDsTokenAmount(1e6);
+        await expect(onRamp.swap(1e6, dsTokenAmount)).emit(onRamp, 'Swap').withArgs(owner, dsTokenAmount, 1e6, owner);
+        expect(await usdcMock.balanceOf(owner)).to.equal(0);
+        expect(await dsTokenMock.balanceOf(owner)).to.equal(dsTokenAmount);
+        // custodian wallet
+        expect(await usdcMock.balanceOf(custodianWallet)).to.equal(980000);
+        // fee collector
+        expect(await usdcMock.balanceOf(feeCollector)).to.equal(1e6 - Number(dsTokenAmount));
+        // asset provider wallet
+        expect(await dsTokenMock.balanceOf(assetProviderWallet)).to.equal(1e6 - Number(dsTokenAmount));
+      });
+
+      it('Should swap successfully - allowance asset provider - two step transfer', async function () {
+        const {
+          onRamp,
+          mockRegistryService,
+          owner,
+          usdcMock,
+          dsTokenMock,
+          assetProviderWallet,
+          assetProvider,
+          custodianWallet,
+          feeCollector
+        } = await loadFixture(deployOnRampAllowance);
+        await usdcMock.mint(owner, 1e6);
+        await usdcMock.approve(onRamp, 1e6);
+
+        const dsTokenFromAssetProviderWallet = dsTokenMock.connect(assetProviderWallet) as Contract;
+        await dsTokenFromAssetProviderWallet.approve(assetProvider, 1e6);
+        await dsTokenMock.issueTokens(assetProviderWallet, 1e6);
+
+        await mockRegistryService.addWallet(owner);
+        await onRamp.toggleInvestorSubscription(true);
+        await onRamp.toggleTwoStepTransfer(true);
+        const dsTokenAmount = await onRamp.calculateDsTokenAmount(1e6);
+        await expect(onRamp.swap(1e6, dsTokenAmount)).emit(onRamp, 'Swap').withArgs(owner, dsTokenAmount, 1e6, owner);
+        expect(await usdcMock.balanceOf(owner)).to.equal(0);
+        expect(await dsTokenMock.balanceOf(owner)).to.equal(dsTokenAmount);
+        // custodian wallet
+        expect(await usdcMock.balanceOf(custodianWallet)).to.equal(980000);
+        // fee collector
+        expect(await usdcMock.balanceOf(feeCollector)).to.equal(1e6 - Number(dsTokenAmount));
+        // asset provider wallet
+        expect(await dsTokenMock.balanceOf(assetProviderWallet)).to.equal(1e6 - Number(dsTokenAmount));
+      });
+
+      it('Should swap successfully - minting asset provider - one step tranfer', async function () {
+        const {
+          onRamp,
+          mockRegistryService,
+          owner,
+          usdcMock,
+          dsTokenMock,
+          custodianWallet,
+          feeCollector
+        } = await loadFixture(deployOnRampMinting);
+        await usdcMock.mint(owner, 1e6);
+        await usdcMock.approve(onRamp, 1e6);
+
+        await mockRegistryService.addWallet(owner);
+        await onRamp.toggleInvestorSubscription(true);
+        const dsTokenAmount = await onRamp.calculateDsTokenAmount(1e6);
+        await expect(onRamp.swap(1e6, dsTokenAmount)).emit(onRamp, 'Swap').withArgs(owner, dsTokenAmount, 1e6, owner);
+        expect(await usdcMock.balanceOf(owner)).to.equal(0);
+        expect(await dsTokenMock.balanceOf(owner)).to.equal(dsTokenAmount);
+        // custodian wallet
+        expect(await usdcMock.balanceOf(custodianWallet)).to.equal(980000);
+        // fee collector
+        expect(await usdcMock.balanceOf(feeCollector)).to.equal(1e6 - Number(dsTokenAmount));
+      });
+
+      it('Should swap successfully - minting asset provider - two step tranfer', async function () {
+        const {
+          onRamp,
+          mockRegistryService,
+          owner,
+          usdcMock,
+          dsTokenMock,
+          custodianWallet,
+          feeCollector
+        } = await loadFixture(deployOnRampMinting);
+        await usdcMock.mint(owner, 1e6);
+        await usdcMock.approve(onRamp, 1e6);
+
+        await mockRegistryService.addWallet(owner);
+        await onRamp.toggleInvestorSubscription(true);
+        await onRamp.toggleTwoStepTransfer(true);
+        const dsTokenAmount = await onRamp.calculateDsTokenAmount(1e6);
+        await expect(onRamp.swap(1e6, dsTokenAmount)).emit(onRamp, 'Swap').withArgs(owner, dsTokenAmount, 1e6, owner);
+        expect(await usdcMock.balanceOf(owner)).to.equal(0);
+        expect(await dsTokenMock.balanceOf(owner)).to.equal(dsTokenAmount);
+        // custodian wallet
+        expect(await usdcMock.balanceOf(custodianWallet)).to.equal(980000);
+        // fee collector
+        expect(await usdcMock.balanceOf(feeCollector)).to.equal(1e6 - Number(dsTokenAmount));
       });
     });
   });

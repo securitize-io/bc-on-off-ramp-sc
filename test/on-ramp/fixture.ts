@@ -4,6 +4,14 @@ import { AssetProviderType } from '../../tasks';
 export const HASH = "0x2bb80d537b1da3e38bd30361aa855686bde0eacd7162fef6a25fe97bf527a25b";
 
 export const deployOnRampAllowance = async () => {
+  return deployOnRamp(AssetProviderType.ALLOWANCE)
+};
+
+export const deployOnRampMinting = async () => {
+  return deployOnRamp(AssetProviderType.MINTING)
+};
+
+const deployOnRamp = async (type: AssetProviderType) => {
   const [owner, custodianWallet, feeCollector, assetProviderWallet, unknownWallet, eip712Signer] = await hre.ethers.getSigners();
   // Set up a mock registry Service
   const mockRegistryService = await hre.ethers.deployContract('MockRegistryService', []);
@@ -29,8 +37,8 @@ export const deployOnRampAllowance = async () => {
     nav: await navMock.getAddress(),
     fee: await feeMock.getAddress(),
     custodian: await custodianWallet.getAddress(),
-    type: AssetProviderType.ALLOWANCE.toString(),
-    provider: await assetProviderWallet.getAddress(),
+    type: type.toString(),
+    provider: await assetProviderWallet.getAddress(), // only for asset allowance mode
   });
 
   return {
@@ -43,7 +51,8 @@ export const deployOnRampAllowance = async () => {
     unknownWallet,
     eip712Signer,
     mockTrustService,
+    mockRegistryService,
     assetProviderWallet,
     feeCollector
   };
-};
+}
