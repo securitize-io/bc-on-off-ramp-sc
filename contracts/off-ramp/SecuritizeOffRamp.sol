@@ -115,7 +115,7 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, BaseContract {
      */
     modifier addressNonZero(address _address, string memory parameter) {
         if (_address == address(0)) {
-            revert ZeroAddress(parameter);
+            revert NonZeroAddressError();
         }
         _;
     }
@@ -192,7 +192,7 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, BaseContract {
     function redeem(uint256 assetAmount, uint256 minOutputAmount) external whenNotPaused {
         uint256 rate = navProvider.rate();
         if (rate == 0) {
-            revert RateNotDefined();
+            revert NonZeroNavRateError();
         }
 
         if (asset.balanceOf(msg.sender) < assetAmount) {
@@ -201,7 +201,7 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, BaseContract {
 
         // This can occur if redeem is called before updateLiquidityProvider has been executed
         if (address(liquidityProvider) == address(0)) {
-            revert ZeroAddress("liquidityProvider");
+            revert NonZeroAddressError();
         }
 
         // Verify user's country
@@ -290,7 +290,7 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, BaseContract {
     function calculateLiquidityTokenAmount(uint256 assetAmount) public view returns (uint256) {
         uint256 rate = navProvider.rate();
         if (rate == 0) {
-            revert RateNotDefined();
+            revert NonZeroNavRateError();
         }
         return _calculateLiquidityTokenAmount(assetAmount, rate);
     }
@@ -298,7 +298,7 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, BaseContract {
     function calculateLiquidityTokenAmountWithOutFee(uint256 assetAmount) public view returns (uint256) {
         uint256 rate = navProvider.rate();
         if (rate == 0) {
-            revert RateNotDefined();
+            revert NonZeroNavRateError();
         }
         return _calculateLiquidityTokenAmountWithOutFee(assetAmount, rate);
     }

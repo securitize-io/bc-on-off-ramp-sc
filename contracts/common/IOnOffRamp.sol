@@ -17,7 +17,7 @@
  */
 pragma solidity ^0.8.22;
 
-import {Errors} from "../common/Errors.sol";
+import {Errors} from "./Errors.sol";
 
 interface IOnOffRamp is Errors {
 

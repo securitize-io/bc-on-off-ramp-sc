@@ -17,15 +17,9 @@
  */
 pragma solidity ^0.8.22;
 
-interface ISecuritizeOffRampErrors {
-    /*
-     * @dev error selector: 0xeac0d389
-     */
-    error ZeroAddress(string parameter);
-    /*
-     * @dev error selector: 0x899c84b8
-     */
-    error RateNotDefined();
+import {Errors} from "../common/Errors.sol";
+
+interface ISecuritizeOffRampErrors is Errors {
     /*
      * @dev error selector: 0xa952e4e7
      */

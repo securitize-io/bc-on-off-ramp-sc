@@ -31,7 +31,6 @@ contract FeeManager is IFeeManager {
 
     event RedemptionFeeUpdated(uint256 oldFee, uint256 newFee);
     error InvalidRedemptionFee(uint256 redemptionFee);
-    error InvalidFeeCollectorAddress();
 
     constructor(uint256 _initialFee, address _feeCollector) {
         redemptionFee = _initialFee;
@@ -67,7 +66,7 @@ contract FeeManager is IFeeManager {
      */
     function setFeeCollector(address _feeCollector) external {
         if (_feeCollector == address(0)) {
-            revert InvalidFeeCollectorAddress();
+            revert NonZeroAddressError();
         }
         address oldCollector = feeCollector;
         feeCollector = _feeCollector;
