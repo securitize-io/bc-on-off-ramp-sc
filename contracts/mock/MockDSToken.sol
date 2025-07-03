@@ -29,6 +29,7 @@ contract MockDSToken is ERC20 {
     address public registryService;
     address public trustService;
     uint8 public tokenDecimals;
+    uint256 public constant REGISTRY_SERVICE = 4;
 
     constructor(
         string memory _name,
@@ -49,5 +50,9 @@ contract MockDSToken is ERC20 {
 
     function getDSService(uint256) public view returns (address) {
         return registryService;
+    }
+
+    function decimals() public view override returns (uint8) {
+        return tokenDecimals;
     }
 }

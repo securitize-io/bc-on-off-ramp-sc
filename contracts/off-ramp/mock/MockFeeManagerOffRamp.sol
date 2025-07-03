@@ -17,15 +17,12 @@
  */
 pragma solidity ^0.8.22;
 
-import "../../fee/IFeeManager.sol";
-
-contract MockFeeManagerOffRamp is IFeeManager {
+contract MockFeeManagerOffRamp {
     uint256 public constant FEE_DENOMINATOR = 100_000;
     uint256 public redemptionFee;
     address public feeCollector;
 
     event RedemptionFeeUpdated(uint256 oldFee, uint256 newFee);
-    error InvalidRedemptionFee(uint256 redemptionFee);
 
     constructor(uint256 _initialFee, address _feeCollector) {
         redemptionFee = _initialFee;
@@ -33,23 +30,12 @@ contract MockFeeManagerOffRamp is IFeeManager {
     }
 
     function getFee(uint256 amount) external view returns (uint256) {
-        return (amount * redemptionFee + FEE_DENOMINATOR - 1) / FEE_DENOMINATOR; // Round up to avoid zero fees
+        return (amount * redemptionFee + FEE_DENOMINATOR - 1) / FEE_DENOMINATOR;
     }
 
     function setRedemptionFee(uint256 _redemptionFee) external {
-        if (_redemptionFee > FEE_DENOMINATOR) {
-            revert InvalidRedemptionFee(_redemptionFee);
-        }
-
         uint256 oldFee = redemptionFee;
         redemptionFee = _redemptionFee;
         emit RedemptionFeeUpdated(oldFee, _redemptionFee);
-    }
-
-    function setFeeCollector(address _feeCollector) external {
-        if (_feeCollector == address(0)) {
-            revert NonZeroAddressError();
-        }
-        feeCollector = _feeCollector;
     }
 }

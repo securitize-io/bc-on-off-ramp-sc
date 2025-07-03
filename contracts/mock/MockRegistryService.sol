@@ -32,10 +32,6 @@ contract MockRegistryService {
         returnInvalidCountry = false;
     }
 
-    function updateCountry(string memory country) public {
-        investorCountry = country;
-    }
-
     function setInvalidCountryMode(bool _mode, string memory _invalidCountryCode) public {
         returnInvalidCountry = _mode;
         invalidCountryCode = _invalidCountryCode;
@@ -50,26 +46,5 @@ contract MockRegistryService {
 
     function getInvestor(address) public view returns (string memory) {
         return investorCountry; // Returned string does not matter
-    }
-
-    function updateInvestor(
-        string calldata /*_id*/,
-        string calldata /*_collisionHash*/,
-        string memory /*_country*/,
-        address[] memory _wallets,
-        uint8[] memory /*_attributeIds*/,
-        uint256[] memory /*_attributeValues*/,
-        uint256[] memory /*_attributeExpirations*/
-    ) public returns (bool) {
-        wallet = _wallets[0];
-        return true;
-    }
-
-    function addWallet(address _wallet) public {
-        wallet = _wallet;
-    }
-
-    function isWallet(address _wallet) public view returns (bool) {
-        return wallet == _wallet;
     }
 }
