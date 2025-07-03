@@ -30,18 +30,8 @@ import {ISecuritizeNavProvider} from "./nav/ISecuritizeNavProvider.sol";
 import {IFeeManager} from "../fee/IFeeManager.sol";
 import {IDSToken} from "@securitize/digital_securities/contracts/token/IDSToken.sol";
 import {TokenDataStore} from "@securitize/digital_securities/contracts/data-stores/TokenDataStore.sol";
-import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
 
-contract SecuritizeOffRamp is
-    IOnOffRamp,
-    ISecuritizeOffRamp,
-    ISecuritizeOffRampErrors,
-    EIP712Upgradeable,
-    BaseContract
-{
-    string public constant NAME = "SecuritizeOffRamp";
-    string public constant VERSION = "1";
-
+contract SecuritizeOffRamp is IOnOffRamp, ISecuritizeOffRamp, ISecuritizeOffRampErrors, BaseContract {
     /**
      * @dev asset to be redeemed.
      */
@@ -148,7 +138,6 @@ contract SecuritizeOffRamp is
         addressNonZero(_navProvider, "navProvider")
         addressNonZero(_feeManager, "feeManager")
     {
-        __EIP712_init(NAME, VERSION);
         __BaseContract_init();
 
         uint256 _assetDecimals = TokenDataStore(_asset).decimals();
