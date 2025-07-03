@@ -62,7 +62,17 @@ npm run compile
 ```
 
 ### Deploy
- TODO
+
+#### Fee Manager
+```sh
+npx hardhat deploy-mbps-fee-manager --network arbitrum --mbps 2000 --collector {feeCollectorAddress}
+```
+
+#### On Ramp
+
+```sh
+npx hardhat deploy-on-ramp --network arbitrum --token {dsToken} --liquidity {liquidityToken} --nav {navProvider} --fee {feeManager} --custodian {custodian} --type ALLOWANCE --provider {allowanceProviderWallet}
+```
 
 ### Test
 
