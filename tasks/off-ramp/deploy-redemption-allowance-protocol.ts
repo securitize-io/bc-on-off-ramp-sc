@@ -159,7 +159,9 @@ task('config-redemption-allowance-protocol', 'Configure Redemption Protocol (All
 
         console.log('Setting liquidity provider wallet');
         // Set liquidity provider wallet
-        await liquidityProvider.setAllowanceProviderWallet(taskArgs.providerWallet);
+        const tx = await liquidityProvider.setAllowanceProviderWallet(taskArgs.providerWallet);
+        await tx.wait(1);
+
         console.log('Successfully set liquidity provider wallet');
 
         console.log('');

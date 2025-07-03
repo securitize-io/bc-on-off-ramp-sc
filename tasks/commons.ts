@@ -113,6 +113,7 @@ task('set-allowance', 'Set allowance for the liquidity provider')
     .addParam('token', 'Stable coin to provide liquidity')
     .addParam('owner', 'Wallet that provides liquidity')
     .addParam('spender', 'Address of the liquidity provider')
+    .addOptionalParam('amount', 'Address of the liquidity provider')
     .setAction(async (args, hre) => {
         console.log('');
         consoleCyan('task: set-allowance');
@@ -121,7 +122,7 @@ task('set-allowance', 'Set allowance for the liquidity provider')
         console.log(`- Owner: ${args.owner}`);
         console.log(`- Spender: ${args.spender}`);
 
-        const MAX_UINT256 = hre.ethers.MaxUint256;
+        const MAX_UINT256 = args.amount ? BigInt(args.amount) : hre.ethers.MaxUint256;
 
         const token = await hre.ethers.getContractAt('IERC20', args.token);
         const ownerWallet = await hre.ethers.getSigner(args.owner);

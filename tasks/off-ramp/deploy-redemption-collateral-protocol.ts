@@ -1,5 +1,5 @@
 import { task } from 'hardhat/config';
-import { consoleCyan, consoleGreen, consoleYellow } from '../../utils';
+import { consoleCyan, consoleGreen, consoleMagenta, consoleYellow } from '../../utils';
 
 /*
 npx hardhat deploy-redemption-collateral-protocol \
@@ -78,6 +78,8 @@ task('deploy-redemption-collateral-protocol', 'Deploy Redemption Protocol (Colla
 
         console.log('');
         consoleGreen('Securitize Redemption Protocol has been deployed successfully');
+        consoleMagenta(`- Redemption Address: ${redemptionAddress}`);
+        consoleMagenta(`- Liquidity Provider Address: ${liquidityProviderAddress}`);
 
         consoleYellow(
             'Proceeding to configure the protocol: setting external collateral redemption, collateral provider, and linking liquidity provider to the redemption contract...',
@@ -85,11 +87,14 @@ task('deploy-redemption-collateral-protocol', 'Deploy Redemption Protocol (Colla
 
         console.log('Updating liquidity provider on securitize redemption contract');
         // Set liquidity provider on securitize redemption contract
-        await redemption.updateLiquidityProvider(liquidityProviderAddress);
+        let tx = await redemption.updateLiquidityProvider(liquidityProviderAddress);
+        await tx.wait(1);
 
+        console.log('');
         console.log('Setting collateral provider wallet');
         // Set collateral provider
-        await liquidityProvider.setCollateralProvider(args.providerWallet);
+        tx = await liquidityProvider.setCollateralProvider(args.providerWallet);
+        await tx.wait(1);
 
         console.log('Setting external collateral redemption');
         // Set external collateral redemption
