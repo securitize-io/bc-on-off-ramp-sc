@@ -822,6 +822,224 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                     COLLATERAL_TREASURY - collateralToRedeem,
                 );
             });
+
+            it('Should execute two-step redemption correctly', async function () {
+                const [securitizeWallet, investor] = await hre.ethers.getSigners();
+                const {
+                    redemption,
+                    liquidityProvider,
+                    dsTokenMock,
+                    dsTokenCollateralMock,
+                    usdcMock,
+                    externalRedemptionContractMock,
+                } = await loadFixture(deployRedemptionProtocol);
+                const externalRedemptionAddress = await externalRedemptionContractMock.getAddress();
+                const redemptionAddress = await redemption.getAddress();
+
+                // Enable two-step transfer mode
+                await redemption.toggleTwoStepTransfer(true);
+                expect(await redemption.twoStepTransfer()).to.equal(true);
+
+                // mint assets to investor
+                await dsTokenMock.mint(investor, ASSET_AMOUNT);
+                const dsTokenDecimals = await dsTokenMock.decimals();
+                // calculate collateral/usdc to redeem
+                const collateralToRedeem = (ASSET_AMOUNT * FIXED_RATE) / 10n ** dsTokenDecimals;
+
+                // provide liquidity to external mock contract
+                await usdcMock.mint(externalRedemptionAddress, collateralToRedeem);
+
+                // provide collateral asset to securitize wallet
+                await dsTokenCollateralMock.mint(securitizeWallet, COLLATERAL_TREASURY);
+
+                // allow liquidity provider to take collateral assets from treasury
+                await dsTokenCollateralMock.approve(liquidityProvider, collateralToRedeem);
+
+                // allow securitize redemption contract to take assets from investor wallet
+                const dsTokenFromInvestor = await dsTokenMock.connect(investor);
+                await dsTokenFromInvestor.approve(await redemption.getAddress(), ASSET_AMOUNT);
+
+                // Record balances before redemption
+                const initialInvestorAssetBalance = await dsTokenMock.balanceOf(investor);
+                const initialInvestorUsdcBalance = await usdcMock.balanceOf(investor);
+                const initialRedemptionAssetBalance = await dsTokenMock.balanceOf(redemptionAddress);
+                const initialRedemptionUsdcBalance = await usdcMock.balanceOf(redemptionAddress);
+                const recipientAddress = await liquidityProvider.recipient();
+
+                //redeem using two-step mode
+                const redemptionFromInvestor = await redemption.connect(investor);
+                await expect(redemptionFromInvestor.redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT))
+                    .to.emit(redemption, 'RedemptionCompleted')
+                    .withArgs(investor.address, ASSET_AMOUNT, collateralToRedeem, FIXED_RATE);
+
+                // Check that assets were transferred through the contract in two steps
+                expect(await dsTokenMock.balanceOf(investor)).to.equal(initialInvestorAssetBalance - ASSET_AMOUNT);
+                expect(await dsTokenMock.balanceOf(redemptionAddress)).to.equal(initialRedemptionAssetBalance); // Should be 0 after transfer to recipient
+                expect(await dsTokenMock.balanceOf(recipientAddress)).to.equal(ASSET_AMOUNT); // Recipient should receive the assets
+
+                // Check that liquidity was handled through the contract
+                expect(await usdcMock.balanceOf(redemptionAddress)).to.equal(initialRedemptionUsdcBalance); // Should be 0 after transfer to investor
+                expect(await usdcMock.balanceOf(investor)).to.equal(initialInvestorUsdcBalance + collateralToRedeem);
+                expect(await usdcMock.balanceOf(externalRedemptionAddress)).to.equal(0);
+                expect(await dsTokenCollateralMock.balanceOf(securitizeWallet)).to.equal(
+                    COLLATERAL_TREASURY - collateralToRedeem,
+                );
+            });
+
+            it('Should execute two-step redemption with asset burn correctly', async function () {
+                const [securitizeWallet, investor] = await hre.ethers.getSigners();
+                const {
+                    redemption,
+                    liquidityProvider,
+                    dsTokenMock,
+                    dsTokenCollateralMock,
+                    usdcMock,
+                    externalRedemptionContractMock,
+                } = await loadFixture(deployRedemptionProtocolWithAssetBurn);
+                const externalRedemptionAddress = await externalRedemptionContractMock.getAddress();
+                const redemptionAddress = await redemption.getAddress();
+
+                // Enable two-step transfer mode (asset burn is already enabled from fixture)
+                await redemption.toggleTwoStepTransfer(true);
+                expect(await redemption.twoStepTransfer()).to.equal(true);
+                expect(await redemption.assetBurn()).to.equal(true);
+
+                // mint assets to investor
+                await dsTokenMock.mint(investor, ASSET_AMOUNT);
+                const dsTokenDecimals = await dsTokenMock.decimals();
+                // calculate collateral/usdc to redeem
+                const collateralToRedeem = (ASSET_AMOUNT * FIXED_RATE) / 10n ** dsTokenDecimals;
+
+                // Record initial total supply
+                const initialTotalSupply = await dsTokenMock.totalSupply();
+
+                // provide liquidity to external mock contract
+                await usdcMock.mint(externalRedemptionAddress, collateralToRedeem);
+
+                // provide collateral asset to securitize wallet
+                await dsTokenCollateralMock.mint(securitizeWallet, COLLATERAL_TREASURY);
+
+                // allow liquidity provider to take collateral assets from treasury
+                await dsTokenCollateralMock.approve(liquidityProvider, collateralToRedeem);
+
+                // allow securitize redemption contract to take assets from investor wallet
+                const dsTokenFromInvestor = await dsTokenMock.connect(investor);
+                await dsTokenFromInvestor.approve(await redemption.getAddress(), ASSET_AMOUNT);
+
+                // Record balances before redemption
+                const initialInvestorAssetBalance = await dsTokenMock.balanceOf(investor);
+                const recipientAddress = await liquidityProvider.recipient();
+                const initialRecipientBalance = await dsTokenMock.balanceOf(recipientAddress);
+
+                //redeem using two-step mode with asset burn
+                const redemptionFromInvestor = await redemption.connect(investor);
+                await expect(redemptionFromInvestor.redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT))
+                    .to.emit(redemption, 'RedemptionCompleted')
+                    .withArgs(investor.address, ASSET_AMOUNT, collateralToRedeem, FIXED_RATE);
+
+                // Check that assets were burned (not transferred to recipient)
+                expect(await dsTokenMock.balanceOf(investor)).to.equal(initialInvestorAssetBalance - ASSET_AMOUNT);
+                expect(await dsTokenMock.balanceOf(redemptionAddress)).to.equal(0); // Should be 0 after burn
+                expect(await dsTokenMock.balanceOf(recipientAddress)).to.equal(initialRecipientBalance); // Should remain the same
+                expect(await dsTokenMock.totalSupply()).to.equal(initialTotalSupply - ASSET_AMOUNT); // Total supply should decrease
+
+                // Check that investor received liquidity tokens
+                expect(await usdcMock.balanceOf(investor)).to.equal(collateralToRedeem);
+                expect(await usdcMock.balanceOf(externalRedemptionAddress)).to.equal(0);
+                expect(await dsTokenCollateralMock.balanceOf(securitizeWallet)).to.equal(
+                    COLLATERAL_TREASURY - collateralToRedeem,
+                );
+            });
+
+            it('Should handle fees correctly in two-step redemption', async function () {
+                const [securitizeWallet, investor] = await hre.ethers.getSigners();
+                const {
+                    redemption,
+                    liquidityProvider,
+                    dsTokenMock,
+                    dsTokenCollateralMock,
+                    usdcMock,
+                    externalRedemptionContractMock,
+                    mockFeeManager,
+                } = await loadFixture(deployRedemptionProtocol);
+                const externalRedemptionAddress = await externalRedemptionContractMock.getAddress();
+                const redemptionAddress = await redemption.getAddress();
+
+                // Enable two-step transfer mode
+                await redemption.toggleTwoStepTransfer(true);
+                expect(await redemption.twoStepTransfer()).to.equal(true);
+
+                // Set a fee of 1% (1000 basis points)
+                const fee = 1000;
+                await mockFeeManager.setRedemptionFee(fee);
+
+                // mint assets to investor
+                await dsTokenMock.mint(investor, ASSET_AMOUNT);
+                const dsTokenDecimals = await dsTokenMock.decimals();
+                // calculate collateral/usdc to redeem
+                const collateralToRedeem = (ASSET_AMOUNT * FIXED_RATE) / 10n ** dsTokenDecimals;
+
+                // provide liquidity to external mock contract
+                await usdcMock.mint(externalRedemptionAddress, collateralToRedeem);
+
+                // provide collateral asset to securitize wallet
+                await dsTokenCollateralMock.mint(securitizeWallet, COLLATERAL_TREASURY);
+
+                // allow liquidity provider to take collateral assets from treasury
+                await dsTokenCollateralMock.approve(liquidityProvider, collateralToRedeem);
+
+                // allow securitize redemption contract to take assets from investor wallet
+                const dsTokenFromInvestor = await dsTokenMock.connect(investor);
+                await dsTokenFromInvestor.approve(await redemption.getAddress(), ASSET_AMOUNT);
+
+                // Calculate expected fee (should be calculated on the actual balance in the contract)
+                const expectedFeeAmount = await mockFeeManager.getFee(collateralToRedeem);
+                const expectedLiquidityAfterFee = collateralToRedeem - expectedFeeAmount;
+
+                //redeem using two-step mode with fees
+                const redemptionFromInvestor = await redemption.connect(investor);
+                await expect(redemptionFromInvestor.redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT))
+                    .to.emit(redemption, 'RedemptionCompleted')
+                    .withArgs(investor.address, ASSET_AMOUNT, collateralToRedeem, FIXED_RATE);
+
+                // Check that investor received liquidity minus fees
+                expect(await usdcMock.balanceOf(investor)).to.equal(expectedLiquidityAfterFee);
+
+                // Check that fee collector received the fee
+                const feeCollector = await mockFeeManager.feeCollector();
+                expect(await usdcMock.balanceOf(feeCollector)).to.equal(expectedFeeAmount);
+
+                // Check that redemption contract doesn't hold any tokens after operation
+                expect(await usdcMock.balanceOf(redemptionAddress)).to.equal(0);
+                expect(await dsTokenMock.balanceOf(redemptionAddress)).to.equal(0);
+            });
+
+            it('Should toggle two-step transfer mode correctly', async function () {
+                const [_, unauthorized] = await hre.ethers.getSigners();
+                const { redemption } = await loadFixture(deployRedemptionProtocol);
+
+                // Initially should be false
+                expect(await redemption.twoStepTransfer()).to.equal(false);
+
+                // Enable two-step transfer
+                await expect(redemption.toggleTwoStepTransfer(true))
+                    .to.emit(redemption, 'TwoStepTransferUpdated')
+                    .withArgs(true);
+                expect(await redemption.twoStepTransfer()).to.equal(true);
+
+                // Disable two-step transfer
+                await expect(redemption.toggleTwoStepTransfer(false))
+                    .to.emit(redemption, 'TwoStepTransferUpdated')
+                    .withArgs(false);
+                expect(await redemption.twoStepTransfer()).to.equal(false);
+
+                // Should fail when trying to toggle with unauthorized wallet
+                const redemptionFromUnauthorized = await redemption.connect(unauthorized);
+                await expect(redemptionFromUnauthorized.toggleTwoStepTransfer(true)).revertedWithCustomError(
+                    redemption,
+                    'OwnableUnauthorizedAccount',
+                );
+            });
         });
     });
 
