@@ -60,7 +60,7 @@ contract MockExternalRedemption is ISecuritizeOffRamp {
 
         // Check minimum output amount requirement
         if (outputAmount < _minOutputAmount) {
-            revert InsufficientOutputAmount(outputAmount, _minOutputAmount);
+            revert SlippageControlError();
         }
 
         // Transfer tokens - this needs to match what SecuritizeOffRamp does
@@ -91,7 +91,7 @@ contract MockExternalRedemption is ISecuritizeOffRamp {
     /*
      *  1:1 redeem mock - simplified for testing
      */
-    function calculateLiquidityTokenAmountWithOutFee(uint256 _amount) public pure returns (uint256) {
+    function calculateLiquidityTokenAmountWithoutFee(uint256 _amount) public pure returns (uint256) {
         // For mock purposes, we'll use a simple 1:1 conversion
         // The real implementation would adjust for decimals
         return _amount;

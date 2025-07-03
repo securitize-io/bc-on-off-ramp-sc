@@ -525,7 +525,7 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 const fee = 1000;
                 await mockFeeManager.setRedemptionFee(fee);
 
-                const calcAmount = await redemption.calculateLiquidityTokenAmountWithOutFee(ASSET_AMOUNT);
+                const calcAmount = await redemption.calculateLiquidityTokenAmountWithoutFee(ASSET_AMOUNT);
                 const expectedFee = await mockFeeManager.getFee(calcAmount);
 
                 // mint assets to investor
@@ -593,7 +593,7 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 // Calculate collateral/usdc to redeem
                 const collateralToRedeem = (ASSET_AMOUNT * FIXED_RATE) / 10n ** dsTokenDecimals;
 
-                const calcAmount = await redemption.calculateLiquidityTokenAmountWithOutFee(smallAmount);
+                const calcAmount = await redemption.calculateLiquidityTokenAmountWithoutFee(smallAmount);
                 const expectedFee = await mockFeeManager.getFee(calcAmount);
 
                 // Provide liquidity to external mock contract
@@ -750,9 +750,9 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
 
                 // Try to redeem with too high minimum output amount
                 const redemptionFromInvestor = await redemption.connect(investor);
-                await expect(redemptionFromInvestor.redeem(ASSET_AMOUNT, tooHighMinOutputAmount))
-                    .to.be.revertedWithCustomError(redemption, 'InsufficientOutputAmount')
-                    .withArgs(calculatedAmount, tooHighMinOutputAmount);
+                await expect(
+                    redemptionFromInvestor.redeem(ASSET_AMOUNT, tooHighMinOutputAmount),
+                ).to.be.revertedWithCustomError(redemption, 'SlippageControlError');
 
                 // Now redeem with an acceptable minimum output amount
                 await expect(redemptionFromInvestor.redeem(ASSET_AMOUNT, calculatedAmount)).to.emit(

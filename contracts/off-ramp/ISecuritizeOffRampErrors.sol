@@ -45,8 +45,4 @@ interface ISecuritizeOffRampErrors is Errors {
      * @dev error selector: 0xfef38516
      */
     error ExcessiveDecimals(uint256 decimals, uint256 maxDecimals);
-    /*
-     * @dev error selector: 0xd28d3eb5
-     */
-    error InsufficientOutputAmount(uint256 outputAmount, uint256 minOutputAmount);
 }
