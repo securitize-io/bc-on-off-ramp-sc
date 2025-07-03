@@ -30,6 +30,8 @@ const deployOnRamp = async (type: AssetProviderType) => {
   const navMock = await hre.ethers.deployContract('MockSecuritizeInternalNavProvider', [1e6]);
   // fee mock
   const feeMock = await hre.ethers.deployContract('MockFeeManager', [feeCollector]);
+  // bridge mock
+  const bridgeMock = await hre.ethers.deployContract('MockUSDCBridge', [usdcMock]);
 
   const contracts = await hre.run('deploy-on-ramp', {
     token: await dsTokenMock.getAddress(),
@@ -53,6 +55,7 @@ const deployOnRamp = async (type: AssetProviderType) => {
     mockTrustService,
     mockRegistryService,
     assetProviderWallet,
-    feeCollector
+    feeCollector,
+    bridgeMock
   };
 }

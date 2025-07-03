@@ -648,6 +648,33 @@ describe('On-Ramp Unit Tests', function() {
         // fee collector
         expect(await usdcMock.balanceOf(feeCollector)).to.equal(1e6 - Number(dsTokenAmount));
       });
+
+      it('Should swap successfully - bridge usdc', async function () {
+        const {
+          onRamp,
+          mockRegistryService,
+          owner,
+          usdcMock,
+          dsTokenMock,
+          custodianWallet,
+          feeCollector,
+          bridgeMock,
+        } = await loadFixture(deployOnRampMinting);
+        await usdcMock.mint(owner, 1e6);
+        await usdcMock.approve(onRamp, 1e6);
+
+        await mockRegistryService.addWallet(owner);
+        await onRamp.toggleInvestorSubscription(true);
+        await onRamp.updateBridgeParams(1, await bridgeMock.getAddress());
+        const dsTokenAmount = await onRamp.calculateDsTokenAmount(1e6);
+        await expect(onRamp.swap(1e6, dsTokenAmount)).emit(onRamp, 'Swap').withArgs(owner, dsTokenAmount, 1e6, owner);
+        expect(await usdcMock.balanceOf(owner)).to.equal(0); // burnt by bridge
+        expect(await dsTokenMock.balanceOf(owner)).to.equal(dsTokenAmount);
+        // custodian wallet
+        expect(await usdcMock.balanceOf(custodianWallet)).to.equal(0); // burnt by bridge
+        // fee collector
+        expect(await usdcMock.balanceOf(feeCollector)).to.equal(1e6 - Number(dsTokenAmount));
+      });
     });
   });
 });
