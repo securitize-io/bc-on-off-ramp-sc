@@ -32,11 +32,11 @@ contract MockExternalRedemption is ISecuritizeOffRamp {
     bool public assetBurn;
     IERC20 private liquidityToken;
 
-    // Custom errors to match the main contract
-    error InsufficientOutputAmount(uint256 actual, uint256 minimum);
-
     // Events needed for compatibility with tests
     event RedemptionCompleted(address indexed redeemer, uint256 assetAmount, uint256 liquidityAmount, uint256 rate);
+
+    // Events needed for interface compatibility
+    event RedemptionFeeUpdated(uint256 oldFee, uint256 newFee);
 
     constructor(address _mockAsset, address _liquidityToken, address _navProvider) {
         assetAddress = _liquidityToken; // This is the key change - in MockExternalRedemption, we need to make assetAddress match liquidityToken for test compatibility
@@ -97,6 +97,7 @@ contract MockExternalRedemption is ISecuritizeOffRamp {
         return _amount;
     }
 
-    // Events needed for interface compatibility
-    event RedemptionFeeUpdated(uint256 oldFee, uint256 newFee);
+    function toggleTwoStepTransfer(bool _twoStepTransfer) external override {
+        // Not needed for mock, but required by interface
+    }
 }

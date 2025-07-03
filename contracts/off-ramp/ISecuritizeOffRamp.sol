@@ -20,11 +20,13 @@ pragma solidity ^0.8.22;
 import {IDSToken} from "@securitize/digital_securities/contracts/token/IDSToken.sol";
 import {ILiquidityProvider} from "./provider/ILiquidityProvider.sol";
 import {ISecuritizeNavProvider} from "./nav/ISecuritizeNavProvider.sol";
+import {IOnOffRamp} from "../common/IOnOffRamp.sol";
+import {ISecuritizeOffRampErrors} from "./ISecuritizeOffRampErrors.sol";
 
 /**
  * @title ISecuritizeOffRamp
  */
-interface ISecuritizeOffRamp {
+interface ISecuritizeOffRamp is IOnOffRamp, ISecuritizeOffRampErrors {
     function initialize(address _asset, address _navProvider, address _feeManager, bool _assetBurn) external;
 
     /**

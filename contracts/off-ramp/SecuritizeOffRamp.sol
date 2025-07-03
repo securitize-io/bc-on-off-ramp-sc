@@ -20,9 +20,7 @@ pragma solidity ^0.8.22;
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ISecuritizeOffRamp} from "./ISecuritizeOffRamp.sol";
-import {ISecuritizeOffRampErrors} from "./ISecuritizeOffRampErrors.sol";
 import {BaseContract} from "../common/BaseContract.sol";
-import {IOnOffRamp} from "../common/IOnOffRamp.sol";
 import {IDSRegistryService} from "@securitize/digital_securities/contracts/registry/IDSRegistryService.sol";
 import {IDSServiceConsumer} from "@securitize/digital_securities/contracts/service/IDSServiceConsumer.sol";
 import {ILiquidityProvider} from "./provider/ILiquidityProvider.sol";
@@ -31,7 +29,7 @@ import {IFeeManager} from "../fee/IFeeManager.sol";
 import {IDSToken} from "@securitize/digital_securities/contracts/token/IDSToken.sol";
 import {TokenDataStore} from "@securitize/digital_securities/contracts/data-stores/TokenDataStore.sol";
 
-contract SecuritizeOffRamp is IOnOffRamp, ISecuritizeOffRamp, ISecuritizeOffRampErrors, BaseContract {
+contract SecuritizeOffRamp is ISecuritizeOffRamp, BaseContract {
     /**
      * @dev asset to be redeemed.
      */
