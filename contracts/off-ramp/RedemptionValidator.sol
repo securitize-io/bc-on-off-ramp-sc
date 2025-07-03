@@ -20,14 +20,9 @@ library RedemptionValidator {
      * @param redeemer Address of the redeemer
      * @param assetAmount Amount to redeem
      * @param asset Asset token contract
-     * @param liquidityProvider Liquidity provider address
+
      */
-    function validateRedemption(
-        address redeemer,
-        uint256 assetAmount,
-        IERC20 asset,
-        ILiquidityProvider liquidityProvider
-    ) internal view {
+    function validateRedemption(address redeemer, uint256 assetAmount, IERC20 asset) internal view {
         // Validate redeemer balance
         if (asset.balanceOf(redeemer) < assetAmount) {
             revert ISecuritizeOffRampErrors.InsufficientRedeemerBalance(
@@ -35,11 +30,6 @@ library RedemptionValidator {
                 assetAmount,
                 asset.balanceOf(redeemer)
             );
-        }
-
-        // Validate liquidity provider is set
-        if (address(liquidityProvider) == address(0)) {
-            revert Errors.NonZeroAddressError();
         }
     }
 }

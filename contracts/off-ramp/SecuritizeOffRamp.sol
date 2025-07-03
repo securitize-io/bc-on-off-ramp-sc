@@ -131,6 +131,13 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, BaseContract {
         _;
     }
 
+    modifier nonZeroLiquidityProvider() {
+        if (address(liquidityProvider) == address(0)) {
+            revert NonZeroAddressError();
+        }
+        _;
+    }
+
     /**
      * @dev Throws if not called from the proxy
      */
@@ -169,11 +176,14 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, BaseContract {
      * @param assetAmount The amount of asset tokens to redeem
      * @param minOutputAmount The minimum amount of liquidity tokens that must be received (slippage protection)
      */
-    function redeem(uint256 assetAmount, uint256 minOutputAmount) external whenNotPaused nonZeroNavRate {
+    function redeem(
+        uint256 assetAmount,
+        uint256 minOutputAmount
+    ) external whenNotPaused nonZeroNavRate nonZeroLiquidityProvider {
         uint256 rate = navProvider.rate();
 
         // Validate redemption requirements (gas-optimized)
-        RedemptionValidator.validateRedemption(msg.sender, assetAmount, asset, liquidityProvider);
+        RedemptionValidator.validateRedemption(msg.sender, assetAmount, asset);
 
         // Validate country restrictions
         CountryValidator.validateCountryRestriction(msg.sender, dsServiceConsumer, restrictedCountries);
