@@ -48,6 +48,11 @@ contract MockDSToken is ERC20 {
         return true;
     }
 
+    function burn(address _from, uint256 _amount, string memory) external returns (bool) {
+        _burn(_from, _amount);
+        return true;
+    }
+
     function getDSService(uint256) public view returns (address) {
         return registryService;
     }

@@ -4,6 +4,7 @@ import {
     COLLATERAL_TREASURY,
     deployRedemptionAllowanceProtocol,
     deployRedemptionProtocol,
+    deployRedemptionProtocolWithAssetBurn,
     FIXED_RATE,
     invalidCountryCode,
     invalidCountryCode2,
@@ -758,6 +759,67 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 await expect(redemptionFromInvestor.redeem(ASSET_AMOUNT, calculatedAmount)).to.emit(
                     redemption,
                     'RedemptionCompleted',
+                );
+            });
+
+            it('Should burn investor assets when assetBurn is enabled', async function () {
+                const [securitizeWallet, investor] = await hre.ethers.getSigners();
+                const {
+                    redemption,
+                    liquidityProvider,
+                    dsTokenMock,
+                    dsTokenCollateralMock,
+                    usdcMock,
+                    externalRedemptionContractMock,
+                } = await loadFixture(deployRedemptionProtocolWithAssetBurn);
+                const externalRedemptionAddress = await externalRedemptionContractMock.getAddress();
+
+                // Verify assetBurn is enabled
+                expect(await redemption.assetBurn()).to.equal(true);
+
+                // mint assets to investor
+                await dsTokenMock.mint(investor, ASSET_AMOUNT);
+                const dsTokenDecimals = await dsTokenMock.decimals();
+                // calculate collateral/usdc to redeem
+                const collateralToRedeem = (ASSET_AMOUNT * FIXED_RATE) / 10n ** dsTokenDecimals;
+
+                // Record initial total supply
+                const initialTotalSupply = await dsTokenMock.totalSupply();
+                const initialInvestorBalance = await dsTokenMock.balanceOf(investor);
+
+                // provide liquidity to external mock contract
+                await usdcMock.mint(externalRedemptionAddress, collateralToRedeem);
+
+                // provide collateral asset to securitize wallet
+                await dsTokenCollateralMock.mint(securitizeWallet, COLLATERAL_TREASURY);
+
+                // allow liquidity provider to take collateral assets from treasury
+                await dsTokenCollateralMock.approve(liquidityProvider, collateralToRedeem);
+
+                // allow securitize redemption contract to take assets from investor wallet
+                const dsTokenFromInvestor = await dsTokenMock.connect(investor);
+                await dsTokenFromInvestor.approve(await redemption.getAddress(), ASSET_AMOUNT);
+
+                // Record recipient balance before redemption (should be 0 since assets will be burned)
+                const recipientAddress = await liquidityProvider.recipient();
+                const initialRecipientBalance = await dsTokenMock.balanceOf(recipientAddress);
+
+                //redeem
+                const redemptionFromInvestor = await redemption.connect(investor);
+                await expect(redemptionFromInvestor.redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT))
+                    .to.emit(redemption, 'RedemptionCompleted')
+                    .withArgs(investor.address, ASSET_AMOUNT, collateralToRedeem, FIXED_RATE);
+
+                // Check that assets were burned (not transferred to recipient)
+                expect(await dsTokenMock.balanceOf(investor)).to.equal(initialInvestorBalance - ASSET_AMOUNT);
+                expect(await dsTokenMock.balanceOf(recipientAddress)).to.equal(initialRecipientBalance); // Should remain the same
+                expect(await dsTokenMock.totalSupply()).to.equal(initialTotalSupply - ASSET_AMOUNT); // Total supply should decrease
+
+                // Check that investor received liquidity tokens
+                expect(await usdcMock.balanceOf(investor)).to.equal(collateralToRedeem);
+                expect(await usdcMock.balanceOf(externalRedemptionAddress)).to.equal(0);
+                expect(await dsTokenCollateralMock.balanceOf(securitizeWallet)).to.equal(
+                    COLLATERAL_TREASURY - collateralToRedeem,
                 );
             });
         });

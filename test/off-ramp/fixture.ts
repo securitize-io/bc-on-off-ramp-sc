@@ -267,3 +267,108 @@ export const deployRedemptionAllowanceProtocol = async () => {
         collateralProviderAddressMock: securitizeWallet.address,
     };
 };
+
+export const deployRedemptionProtocolWithAssetBurn = async () => {
+    // Set up a mock Registry Service
+    const MockRegistryService = await hre.ethers.getContractFactory('MockRegistryService');
+    const mockRegistryService = await MockRegistryService.deploy(investorCountry);
+    const registryServiceAddress = await mockRegistryService.getAddress();
+
+    // Set up a mock trust Service
+    const mockTrustService = await hre.ethers.deployContract('MockTrustService', []);
+    const trustServiceAddress = await mockTrustService.getAddress();
+
+    const dsTokenMock = await hre.ethers.deployContract('MockDSToken', [
+        'Token1',
+        'TK1',
+        18,
+        registryServiceAddress,
+        trustServiceAddress,
+    ]);
+    const dsTokenCollateralMock = await hre.ethers.deployContract('MockDSToken', [
+        'Token1',
+        'TK2',
+        6,
+        registryServiceAddress,
+        trustServiceAddress,
+    ]);
+    const dsTokenOtherCollateralMock = await hre.ethers.deployContract('MockDSToken', [
+        'Other-Token1',
+        'Other-TK2',
+        4,
+        registryServiceAddress,
+        trustServiceAddress,
+    ]);
+    const usdcMock = await hre.ethers.deployContract('MockERC20', ['USDC', 'USDC', 6, registryServiceAddress]);
+    const daiMock = await hre.ethers.deployContract('MockERC20', ['DAI', 'DAI', 6, registryServiceAddress]);
+    const securitizeNavProviderMock = await hre.ethers.deployContract('MockSecuritizeInternalNavProvider', [
+        FIXED_RATE,
+    ]);
+    const zeroRateNavProviderMock = await hre.ethers.deployContract('MockSecuritizeInternalNavProvider', ['0']);
+
+    const externalRedemptionContractMock = await hre.ethers.deployContract('MockExternalRedemption', [
+        await dsTokenCollateralMock.getAddress(),
+        await usdcMock.getAddress(),
+        await securitizeNavProviderMock.getAddress(),
+    ]);
+
+    const mockAllowanceLiquidityProvider = await hre.ethers.deployContract('MockAllowanceLiquidityProvider', [
+        await usdcMock.getAddress(),
+        await dsTokenMock.getAddress(),
+        await externalRedemptionContractMock.getAddress(),
+    ]);
+    await externalRedemptionContractMock.updateLiquidityProvider(mockAllowanceLiquidityProvider.getAddress());
+
+    const newExternalRedemptionContractMock = await hre.ethers.deployContract('MockExternalRedemption', [
+        await dsTokenOtherCollateralMock.getAddress(),
+        await usdcMock.getAddress(),
+        await securitizeNavProviderMock.getAddress(),
+    ]);
+    await newExternalRedemptionContractMock.updateLiquidityProvider(mockAllowanceLiquidityProvider.getAddress());
+
+    const newExternalRedemptionContractDaiMock = await hre.ethers.deployContract('MockExternalRedemption', [
+        await dsTokenOtherCollateralMock.getAddress(),
+        await daiMock.getAddress(),
+        await securitizeNavProviderMock.getAddress(),
+    ]);
+
+    const mockDaiAllowanceLiquidityProvider = await hre.ethers.deployContract('MockAllowanceLiquidityProvider', [
+        await daiMock.getAddress(),
+        await dsTokenMock.getAddress(),
+        await newExternalRedemptionContractDaiMock.getAddress(),
+    ]);
+    await newExternalRedemptionContractDaiMock.updateLiquidityProvider(mockDaiAllowanceLiquidityProvider.getAddress());
+
+    const mockFeeManager = await hre.ethers.deployContract('MockFeeManagerOffRamp', [0, FEE_COLLECTOR]); // Initialize with 0 fee and zero address for feeCollector
+    const [securitizeWallet] = await hre.ethers.getSigners();
+
+    const contracts = await hre.run('deploy-redemption-collateral-protocol', {
+        asset: await dsTokenMock.getAddress(),
+        navProvider: await securitizeNavProviderMock.getAddress(),
+        feeManager: await mockFeeManager.getAddress(), // Use mock fee manager for testing
+        assetBurn: 'true', // Enable asset burning
+        liquidityToken: await usdcMock.getAddress(),
+        recipient: securitizeWallet.address,
+        providerWallet: securitizeWallet.address,
+        externalCollateralRedemption: await externalRedemptionContractMock.getAddress(),
+    });
+
+    return {
+        ...contracts,
+        dsTokenMock,
+        usdcMock,
+        dsTokenCollateralMock,
+        dsTokenOtherCollateralMock,
+        externalRedemptionContractMock,
+        newExternalRedemptionContractMock,
+        newExternalRedemptionContractDaiMock,
+        securitizeNavProviderMock,
+        zeroRateNavProviderMock,
+        mockFeeManager,
+        daiMock,
+        mockAllowanceLiquidityProvider,
+        mockDaiAllowanceLiquidityProvider,
+        collateralProviderAddressMock: securitizeWallet.address,
+        mockRegistryService,
+    };
+};
