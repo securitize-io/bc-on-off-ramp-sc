@@ -21,8 +21,8 @@ Securitize on ramp protocol allows investor to purchase digital securities.
 
 ### 3. `swap`
 
-- **Description**: Investors specify the amount of stablecoins they want to use to purchase RWA tokens.
-- **Parameters**: Stablecoin amount and slippage tolerance.
+- **Description**: Investors specify the amount of liquidity they want to use to purchase RWA tokens.
+- **Parameters**: token amount and slippage tolerance.
 - **Mechanism**:
     - The contract computes the equivalent number of tokens to issue using the current NAV rate.
 - **Use Case**: Budget-constrained purchases with token output calculated.
