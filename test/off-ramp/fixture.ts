@@ -17,18 +17,30 @@ export const deployRedemptionProtocol = async () => {
     const mockRegistryService = await MockRegistryService.deploy(investorCountry);
     const registryServiceAddress = await mockRegistryService.getAddress();
 
-    const dsTokenMock = await hre.ethers.deployContract('MockERC20', ['Token1', 'TK1', 18, registryServiceAddress]);
-    const dsTokenCollateralMock = await hre.ethers.deployContract('MockERC20', [
+    // Set up a mock trust Service
+    const mockTrustService = await hre.ethers.deployContract('MockTrustService', []);
+    const trustServiceAddress = await mockTrustService.getAddress();
+
+    const dsTokenMock = await hre.ethers.deployContract('MockDSToken', [
+        'Token1',
+        'TK1',
+        18,
+        registryServiceAddress,
+        trustServiceAddress,
+    ]);
+    const dsTokenCollateralMock = await hre.ethers.deployContract('MockDSToken', [
         'Token1',
         'TK2',
         6,
         registryServiceAddress,
+        trustServiceAddress,
     ]);
-    const dsTokenOtherCollateralMock = await hre.ethers.deployContract('MockERC20', [
+    const dsTokenOtherCollateralMock = await hre.ethers.deployContract('MockDSToken', [
         'Other-Token1',
         'Other-TK2',
         4,
         registryServiceAddress,
+        trustServiceAddress,
     ]);
     const usdcMock = await hre.ethers.deployContract('MockERC20', ['USDC', 'USDC', 6, registryServiceAddress]);
     const daiMock = await hre.ethers.deployContract('MockERC20', ['DAI', 'DAI', 6, registryServiceAddress]);
@@ -106,24 +118,37 @@ export const deployRedemptionProtocolWithMultipleTokens = async () => {
     const mockRegistryService = await MockRegistryService.deploy(investorCountry);
     const registryServiceAddress = await mockRegistryService.getAddress();
 
-    const dsTokenMock = await hre.ethers.deployContract('MockERC20', ['Token1', 'TK1', 18, registryServiceAddress]);
-    const dsToken6DecimalMock = await hre.ethers.deployContract('MockERC20', [
+    // Set up a mock trust Service
+    const mockTrustService = await hre.ethers.deployContract('MockTrustService', []);
+    const trustServiceAddress = await mockTrustService.getAddress();
+
+    const dsTokenMock = await hre.ethers.deployContract('MockDSToken', [
+        'Token1',
+        'TK1',
+        18,
+        registryServiceAddress,
+        trustServiceAddress,
+    ]);
+    const dsToken6DecimalMock = await hre.ethers.deployContract('MockDSToken', [
         'Token1-6',
         'TK1-6',
         6,
         registryServiceAddress,
+        trustServiceAddress,
     ]);
-    const dsToken0DecimalMock = await hre.ethers.deployContract('MockERC20', [
+    const dsToken0DecimalMock = await hre.ethers.deployContract('MockDSToken', [
         'Token1-0',
         'TK1-0',
         0,
         registryServiceAddress,
+        trustServiceAddress,
     ]);
-    const dsTokenCollateralMock = await hre.ethers.deployContract('MockERC20', [
+    const dsTokenCollateralMock = await hre.ethers.deployContract('MockDSToken', [
         'Token1',
         'TK2',
         6,
         registryServiceAddress,
+        trustServiceAddress,
     ]);
     const usdcMock = await hre.ethers.deployContract('MockERC20', ['USDC', 'USDC', 6, registryServiceAddress]);
     const securitizeNavProviderMock = await hre.ethers.deployContract('MockSecuritizeInternalNavProvider', [
@@ -198,8 +223,17 @@ export const deployRedemptionAllowanceProtocol = async () => {
     const MockRegistryService = await hre.ethers.getContractFactory('MockRegistryService');
     const mockRegistryService = await MockRegistryService.deploy(investorCountry);
     const registryServiceAddress = await mockRegistryService.getAddress();
+    // Set up a mock trust Service
+    const mockTrustService = await hre.ethers.deployContract('MockTrustService', []);
+    const trustServiceAddress = await mockTrustService.getAddress();
 
-    const dsTokenMock = await hre.ethers.deployContract('MockERC20', ['Token1', 'TK1', 18, registryServiceAddress]);
+    const dsTokenMock = await hre.ethers.deployContract('MockDSToken', [
+        'Token1',
+        'TK1',
+        18,
+        registryServiceAddress,
+        trustServiceAddress,
+    ]);
     const usdcMock = await hre.ethers.deployContract('MockERC20', ['USDC', 'USDC', 6, registryServiceAddress]);
     const securitizeNavProviderMock = await hre.ethers.deployContract('MockSecuritizeInternalNavProvider', [
         FIXED_RATE,

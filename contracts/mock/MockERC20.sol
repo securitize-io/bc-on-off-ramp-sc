@@ -42,8 +42,4 @@ contract MockERC20 is ERC20 {
     function decimals() public view override returns (uint8) {
         return tokenDecimals;
     }
-
-    function getDSService(uint256) public view returns (address) {
-        return registryService;
-    }
 }
