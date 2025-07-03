@@ -47,9 +47,7 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                         hre.ethers.ZeroAddress,
                         false,
                     ]),
-                )
-                    .revertedWithCustomError(Redemption, 'ZeroAddress')
-                    .withArgs('navProvider');
+                ).revertedWithCustomError(Redemption, 'NonZeroAddressError');
             });
 
             it('Should get version correctly', async function () {
@@ -123,9 +121,9 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
 
             it('Should fail when trying to set a external collateral redemption provider with zero address', async function () {
                 const { liquidityProvider } = await loadFixture(deployRedemptionProtocol);
-                await expect(liquidityProvider.setExternalCollateralRedemption(hre.ethers.ZeroAddress))
-                    .revertedWithCustomError(liquidityProvider, 'ZeroAddress')
-                    .withArgs('externalCollateralRedemption');
+                await expect(
+                    liquidityProvider.setExternalCollateralRedemption(hre.ethers.ZeroAddress),
+                ).revertedWithCustomError(liquidityProvider, 'NonZeroAddressError');
             });
 
             it('Should fail when trying to set an external collateral redemption provider with different stable coins', async function () {
@@ -367,7 +365,7 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 await redemption.updateNavProvider(await zeroRateNavProviderMock.getAddress());
                 await expect(redemption.redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT)).revertedWithCustomError(
                     redemption,
-                    'RateNotDefined',
+                    'NonZeroNavRateError',
                 );
             });
 
@@ -383,7 +381,7 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 const { redemption } = await loadFixture(deployRedemptionProtocol);
                 await expect(redemption.updateLiquidityProvider(hre.ethers.ZeroAddress)).revertedWithCustomError(
                     redemption,
-                    'ZeroAddress',
+                    'NonZeroAddressError',
                 );
             });
 
@@ -781,9 +779,10 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
             });
             it('Should fail when trying to update nav provider with zero address', async function () {
                 const { redemption } = await loadFixture(deployRedemptionProtocol);
-                await expect(redemption.updateNavProvider(hre.ethers.ZeroAddress))
-                    .revertedWithCustomError(redemption, 'ZeroAddress')
-                    .withArgs('navProvider');
+                await expect(redemption.updateNavProvider(hre.ethers.ZeroAddress)).revertedWithCustomError(
+                    redemption,
+                    'NonZeroAddressError',
+                );
             });
             it('Should fail when trying to update a nav provider with unauthorized wallet', async function () {
                 const [_, unauthorized] = await hre.ethers.getSigners();

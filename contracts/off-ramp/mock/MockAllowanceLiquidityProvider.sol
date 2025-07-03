@@ -48,7 +48,7 @@ contract MockAllowanceLiquidityProvider {
      * @dev The caller account is not authorized to perform an operation.
      */
     error RedemptionUnauthorizedAccount(address account);
-    error ZeroAddress(string parameter);
+    error NonZeroAddressError();
     error MinOutputAmountExceeded(uint256 minOutputAmount, uint256 amount);
     error AvailableLiquidityExceeded(uint256 availableLiquidity, uint256 amount);
 
@@ -59,13 +59,13 @@ contract MockAllowanceLiquidityProvider {
 
     constructor(address _liquidityToken, address _recipient, address _securitizeOffRamp) {
         if (_liquidityToken == address(0)) {
-            revert ZeroAddress("liquidityToken");
+            revert NonZeroAddressError();
         }
         if (_recipient == address(0)) {
-            revert ZeroAddress("recipient");
+            revert NonZeroAddressError();
         }
         if (_securitizeOffRamp == address(0)) {
-            revert ZeroAddress("securitizeOffRamp");
+            revert NonZeroAddressError();
         }
 
         liquidityToken = IERC20(_liquidityToken);
@@ -75,7 +75,7 @@ contract MockAllowanceLiquidityProvider {
 
     function setAllowanceProviderWallet(address _liquidityProviderWallet) external {
         if (_liquidityProviderWallet == address(0)) {
-            revert ZeroAddress("liquidityProviderWallet");
+            revert NonZeroAddressError();
         }
         address oldAddress = liquidityProviderWallet;
         liquidityProviderWallet = _liquidityProviderWallet;

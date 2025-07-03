@@ -19,11 +19,12 @@ pragma solidity ^0.8.22;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ISecuritizeOffRamp} from "../ISecuritizeOffRamp.sol";
+import {Errors} from "../../common/Errors.sol";
 
 /**
  * @title ILiquidityProvider
  */
-interface ILiquidityProvider {
+interface ILiquidityProvider is Errors {
     /*
      * @dev error selector: 0xa17e11d5
      */

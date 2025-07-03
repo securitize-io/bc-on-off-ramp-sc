@@ -53,7 +53,6 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
      * @dev The caller account is not authorized to perform an operation.
      */
     error RedemptionUnauthorizedAccount(address account);
-    error ZeroAddress(string parameter);
     error LiquidityTokenMismatch();
 
     /**
@@ -72,13 +71,13 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
         address _securitizeOffRamp
     ) public onlyProxy initializer {
         if (_recipient == address(0)) {
-            revert ZeroAddress("recipient");
+            revert NonZeroAddressError();
         }
         if (_liquidityToken == address(0)) {
-            revert ZeroAddress("liquidityToken");
+            revert NonZeroAddressError();
         }
         if (_securitizeOffRamp == address(0)) {
-            revert ZeroAddress("securitizeOffRamp");
+            revert NonZeroAddressError();
         }
         __BaseContract_init();
         recipient = _recipient;
@@ -88,7 +87,7 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
 
     function setExternalCollateralRedemption(address externalCollateralRedemption_) external onlyOwner {
         if (externalCollateralRedemption_ == address(0)) {
-            revert ZeroAddress("externalCollateralRedemption");
+            revert NonZeroAddressError();
         }
 
         if (
@@ -106,7 +105,7 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
 
     function setCollateralProvider(address collateralProvider_) external onlyOwner {
         if (collateralProvider_ == address(0)) {
-            revert ZeroAddress("collateralProvider");
+            revert NonZeroAddressError();
         }
         address oldAddress = collateralProvider;
         collateralProvider = collateralProvider_;

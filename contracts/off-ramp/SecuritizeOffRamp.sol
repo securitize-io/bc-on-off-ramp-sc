@@ -120,6 +120,13 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, BaseContract {
         _;
     }
 
+    modifier nonZeroNavRate() {
+        if (navProvider.rate() <= 0) {
+            revert NonZeroNavRateError();
+        }
+        _;
+    }
+
     /**
      * @dev Throws if not called from the proxy
      */
@@ -189,11 +196,8 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, BaseContract {
      * @param assetAmount The amount of asset tokens to redeem
      * @param minOutputAmount The minimum amount of liquidity tokens that must be received (slippage protection)
      */
-    function redeem(uint256 assetAmount, uint256 minOutputAmount) external whenNotPaused {
+    function redeem(uint256 assetAmount, uint256 minOutputAmount) external whenNotPaused nonZeroNavRate {
         uint256 rate = navProvider.rate();
-        if (rate == 0) {
-            revert NonZeroNavRateError();
-        }
 
         if (asset.balanceOf(msg.sender) < assetAmount) {
             revert InsufficientRedeemerBalance(msg.sender, assetAmount, asset.balanceOf(msg.sender));

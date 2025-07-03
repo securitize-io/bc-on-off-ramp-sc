@@ -48,7 +48,6 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
      * @dev The caller account is not authorized to perform an operation.
      */
     error RedemptionUnauthorizedAccount(address account);
-    error ZeroAddress(string parameter);
     error MinOutputAmountExceeded(uint256 minOutputAmount, uint256 amount);
     error AvailableLiquidityExceeded(uint256 availableLiquidity, uint256 amount);
 
@@ -68,13 +67,13 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
         address _securitizeOffRamp
     ) public onlyProxy initializer {
         if (_recipient == address(0)) {
-            revert ZeroAddress("recipient");
+            revert NonZeroAddressError();
         }
         if (_liquidityToken == address(0)) {
-            revert ZeroAddress("liquidityToken");
+            revert NonZeroAddressError();
         }
         if (_securitizeOffRamp == address(0)) {
-            revert ZeroAddress("securitizeOffRamp");
+            revert NonZeroAddressError();
         }
         __BaseContract_init();
         recipient = _recipient;
@@ -84,7 +83,7 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
 
     function setAllowanceProviderWallet(address _liquidityProviderWallet) external onlyOwner {
         if (_liquidityProviderWallet == address(0)) {
-            revert ZeroAddress("liquidityProviderWallet");
+            revert NonZeroAddressError();
         }
         address oldAddress = liquidityProviderWallet;
         liquidityProviderWallet = _liquidityProviderWallet;
