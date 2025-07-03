@@ -196,6 +196,18 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 ).revertedWithCustomError(liquidityProvider, 'RedemptionUnauthorizedAccount');
             });
         });
+
+        describe('Available Liquidity', function () {
+            it('Should return available liquidity', async function () {
+                const { liquidityProvider, dsTokenCollateralMock, collateralProviderAddressMock } =
+                    await loadFixture(deployRedemptionProtocol);
+
+                await dsTokenCollateralMock.mint(collateralProviderAddressMock, 10);
+
+                const availableLiquidity = await liquidityProvider.availableLiquidity();
+                expect(availableLiquidity).to.equal(10);
+            });
+        });
     });
 
     describe('Redemption integration', function () {
