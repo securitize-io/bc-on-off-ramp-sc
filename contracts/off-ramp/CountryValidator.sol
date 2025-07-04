@@ -72,6 +72,7 @@ library CountryValidator {
 
         // Check third character if exists
         if (bytes(country).length == 3) {
+            // Check if third character is uppercase
             if (bytes(country)[2] < 0x41 || bytes(country)[2] > 0x5A) {
                 revert ISecuritizeOffRampErrors.NonUppercaseCountryCode(2, bytes(country)[2]);
             }

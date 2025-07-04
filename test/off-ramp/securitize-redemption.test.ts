@@ -6,9 +6,10 @@ import {
     deployRedemptionProtocol,
     deployRedemptionProtocolWithAssetBurn,
     FIXED_RATE,
-    invalidCountryCode,
+    invalidCountryCode1,
     invalidCountryCode2,
     invalidCountryCode3,
+    invalidCountryCode4,
     investorCountry,
     investorId,
     LIQUIDITY_AMOUNT,
@@ -209,6 +210,12 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 const availableLiquidity = await liquidityProvider.availableLiquidity();
                 expect(availableLiquidity).to.equal(10);
             });
+            it('Should return available liquidity for AllowanceProvider', async function () {
+                const { liquidityProvider } = await loadFixture(deployRedemptionAllowanceProtocol);
+
+                const availableLiquidity = await liquidityProvider.availableLiquidity();
+                expect(availableLiquidity).to.equal(0);
+            });
         });
     });
 
@@ -272,7 +279,7 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
 
             it('Should fail when trying to set a restricted country with invalid code', async function () {
                 const { redemption } = await loadFixture(deployRedemptionProtocol);
-                await expect(redemption.updateCountryRestriction(invalidCountryCode, true)).revertedWithCustomError(
+                await expect(redemption.updateCountryRestriction(invalidCountryCode1, true)).revertedWithCustomError(
                     redemption,
                     'InvalidCountryCodeLength',
                 );
@@ -291,7 +298,7 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 const { redemption } = await loadFixture(deployRedemptionProtocol);
                 const redemptionFromUnauthorized = await redemption.connect(unauthorized);
                 await expect(
-                    redemptionFromUnauthorized.updateCountryRestriction(invalidCountryCode, true),
+                    redemptionFromUnauthorized.updateCountryRestriction(invalidCountryCode1, true),
                 ).revertedWithCustomError(redemptionFromUnauthorized, 'OwnableUnauthorizedAccount');
             });
 
@@ -343,7 +350,7 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 await mockRegistryService.updateInvestor(
                     investorId,
                     '0x',
-                    invalidCountryCode,
+                    invalidCountryCode1,
                     [investor.address],
                     [],
                     [],
@@ -387,6 +394,84 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 await expect(
                     redemptionFromInvestor.redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT),
                 ).to.be.revertedWithCustomError(redemption, 'NonUppercaseCountryCode');
+            });
+
+            const testCases = [
+                { code: '0S', desc: 'first char < 0x41' },
+                { code: 'aS', desc: 'first char > 0x5A' },
+                { code: 'A9', desc: 'second char < 0x41' },
+                { code: 'Ab', desc: 'second char > 0x5A' },
+                { code: 'AB@', desc: 'third char < 0x41' },
+                { code: 'ABz', desc: 'third char > 0x5A' },
+            ];
+
+            testCases.forEach((testCase, index) => {
+                it(`Should fail case ${index + 1}: ${testCase.desc}`, async function () {
+                    const [_, investor] = await hre.ethers.getSigners();
+                    const { redemption, mockRegistryService, dsTokenMock } =
+                        await loadFixture(deployRedemptionProtocol);
+
+                    // Set registry to return country code with lowercase letters
+                    await mockRegistryService.updateInvestor(
+                        investorId,
+                        '0x',
+                        testCase.code,
+                        [investor.address],
+                        [],
+                        [],
+                        [],
+                    );
+
+                    // Set up for redemption
+                    await dsTokenMock.mint(investor, ASSET_AMOUNT);
+                    const dsTokenFromInvestor = await dsTokenMock.connect(investor);
+                    await dsTokenFromInvestor.approve(await redemption.getAddress(), ASSET_AMOUNT);
+
+                    // Redemption should fail with NonUppercaseCountryCode error
+                    const redemptionFromInvestor = await redemption.connect(investor);
+                    await expect(
+                        redemptionFromInvestor.redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT),
+                    ).to.be.revertedWithCustomError(redemption, 'NonUppercaseCountryCode');
+                });
+            });
+            it(`Should work with three uppercase letters`, async function () {
+                const [securitizeWallet, investor] = await hre.ethers.getSigners();
+                const {
+                    redemption,
+                    liquidityProvider,
+                    dsTokenMock,
+                    dsTokenCollateralMock,
+                    usdcMock,
+                    externalRedemptionContractMock,
+                    mockRegistryService,
+                } = await loadFixture(deployRedemptionProtocol);
+
+                await mockRegistryService.updateInvestor(investorId, '0x', 'USA', [investor.address], [], [], []);
+
+                const externalRedemptionAddress = await externalRedemptionContractMock.getAddress();
+
+                // mint assets to investor
+                await dsTokenMock.mint(investor, ASSET_AMOUNT);
+                const dsTokenDecimals = await dsTokenMock.decimals();
+                // calculate collateral/usdc to redeem
+                const collateralToRedeem = (ASSET_AMOUNT * FIXED_RATE) / 10n ** dsTokenDecimals;
+
+                // provide liquidity to external mock contract
+                await usdcMock.mint(externalRedemptionAddress, collateralToRedeem);
+
+                // provide collateral asset to securitize wallet
+                await dsTokenCollateralMock.mint(securitizeWallet, COLLATERAL_TREASURY);
+
+                // allow liquidity provider to take collateral assets from treasury
+                await dsTokenCollateralMock.approve(liquidityProvider, collateralToRedeem);
+
+                // allow securitize redemption contract to take assets from investor wallet
+                const dsTokenFromInvestor = await dsTokenMock.connect(investor);
+                await dsTokenFromInvestor.approve(await redemption.getAddress(), ASSET_AMOUNT);
+
+                // Redemption should succeed
+                const redemptionFromInvestor = await redemption.connect(investor);
+                await expect(redemptionFromInvestor.redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT)).to.not.be.reverted;
             });
         });
 
