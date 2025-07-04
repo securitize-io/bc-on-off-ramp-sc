@@ -12,7 +12,6 @@ npx hardhat deploy-redemption-collateral-protocol \
     --liquidity-token 0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238 \
     --provider-wallet 0xe76B92272667363FD487a71c13b7799ED924C9b8 \
     --external-collateral-redemption 0x8C30865F25f1f46fA36Dfe4cC39e663E751724D9 \
-    --allowance-provider-wallet 0xe76B92272667363FD487a71c13b7799ED924C9b8 \
     --verify
 */
 task('deploy-redemption-collateral-protocol', 'Deploy Redemption Protocol (Collateral implementation)')
@@ -29,7 +28,6 @@ task('deploy-redemption-collateral-protocol', 'Deploy Redemption Protocol (Colla
     .addParam('externalCollateralRedemption', 'External Collateral Redemption SC')
 
     // Verification flag
-    .addOptionalParam('allowanceProviderWallet', 'Allowance provider wallet address')
     .addFlag('verify', 'Verify contracts on Etherscan')
     .setAction(async (args, hre) => {
         console.log('');
@@ -43,7 +41,6 @@ task('deploy-redemption-collateral-protocol', 'Deploy Redemption Protocol (Colla
         console.log(`- Recipient: ${args.recipient}`);
         console.log(`- Provider Wallet: ${args.providerWallet}`);
         console.log(`- External Collateral Redemption: ${args.externalCollateralRedemption}`);
-        console.log(`- Allowance Provider Wallet: ${args.allowanceProviderWallet}`);
         console.log(`- Verify: ${args.verify}`);
 
         const { redemptionAddress } = await hre.run('deploy-offramp', {
@@ -63,7 +60,6 @@ task('deploy-redemption-collateral-protocol', 'Deploy Redemption Protocol (Colla
             liquidity: args.liquidityToken,
             recipient: args.recipient,
             securitizeOffRamp: redemptionAddress,
-            allowanceProviderWallet: args.allowanceProviderWallet,
             collateralToken: await collateralContract.asset(),
             providerWallet: args.providerWallet,
             verify: args.verify,
@@ -75,11 +71,6 @@ task('deploy-redemption-collateral-protocol', 'Deploy Redemption Protocol (Colla
             'CollateralLiquidityProvider',
             liquidityProviderAddress,
         );
-
-        console.log('');
-        consoleGreen('Securitize Redemption Protocol has been deployed successfully');
-        consoleMagenta(`- Redemption Address: ${redemptionAddress}`);
-        consoleMagenta(`- Liquidity Provider Address: ${liquidityProviderAddress}`);
 
         consoleYellow(
             'Proceeding to configure the protocol: setting external collateral redemption, collateral provider, and linking liquidity provider to the redemption contract...',
@@ -102,6 +93,11 @@ task('deploy-redemption-collateral-protocol', 'Deploy Redemption Protocol (Colla
 
         consoleGreen('Securitize Redemption Protocol has been configured successfully');
 
+        console.log('');
+        consoleGreen('Securitize Redemption Protocol has been deployed successfully');
+        consoleMagenta(`- Redemption Address: ${redemptionAddress}`);
+        consoleMagenta(`- Liquidity Provider Address: ${liquidityProviderAddress}`);
+
         return { redemption, liquidityProvider };
     });
 
@@ -111,7 +107,6 @@ task('deploy-collateral-provider', 'Deploy CollateralLiquidityProvider proxy')
     .addParam('liquidity', 'Stable coin to provide liquidity')
     .addParam('recipient', 'Wallet that receives DS Token')
     .addParam('securitizeOffRamp', 'SecuritizeOffRamp proxy address')
-    .addOptionalParam('allowanceProviderWallet', 'Allowance provider wallet address')
     .addOptionalParam('collateralToken', 'Stable coin to provide liquidity')
     .addOptionalParam('providerWallet', 'Wallet that provides liquidity')
     .addFlag('verify', 'Verify contracts on Etherscan')
@@ -129,15 +124,6 @@ task('deploy-collateral-provider', 'Deploy CollateralLiquidityProvider proxy')
             args: [taskArgs.liquidity, taskArgs.recipient, taskArgs.securitizeOffRamp],
             verify: taskArgs.verify,
         });
-
-        if (taskArgs.allowanceProviderWallet) {
-            // Set allowance for the liquidity provider
-            await hre.run('set-allowance', {
-                token: taskArgs.collateralToken,
-                owner: taskArgs.providerWallet,
-                spender: proxyAddress,
-            });
-        }
 
         return { liquidityProviderAddress: proxyAddress, liquidityProviderImpl: implAddress };
     });

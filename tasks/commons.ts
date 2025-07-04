@@ -1,5 +1,7 @@
 import { task } from 'hardhat/config';
 import { consoleCyan, consoleGreen, consoleRed, consoleYellow, delay } from '../utils';
+import { Wallet } from 'ethers';
+import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
 
 // npx hardhat contract-call --network sepolia --contract-name SecuritizeOffRamp --method assetAddress --contract-address 0x123...
 task('contract-call')
@@ -107,36 +109,51 @@ task('verify-contract', 'Verify a proxy implementation contract on Etherscan')
     });
 
 /*
-npx hardhat set-allowance --network sepolia --token 0x123 --owner 0x123 --spender 0x123
+npx hardhat approve --network sepolia --token 0x123 --owner 0x123 --spender 0x123
 */
-task('set-allowance', 'Set allowance for the liquidity provider')
+task('approve', 'Approve tokens for a spender')
     .addParam('token', 'Stable coin to provide liquidity')
     .addParam('owner', 'Wallet that provides liquidity')
     .addParam('spender', 'Address of the liquidity provider')
     .addOptionalParam('amount', 'Address of the liquidity provider')
+    .addOptionalParam('privateKey', 'Private key of the owner wallet')
     .setAction(async (args, hre) => {
         console.log('');
-        consoleCyan('task: set-allowance');
+        consoleCyan('task: approve');
         consoleCyan('Arguments:');
         console.log(`- Token: ${args.token}`);
         console.log(`- Owner: ${args.owner}`);
         console.log(`- Spender: ${args.spender}`);
 
-        const MAX_UINT256 = args.amount ? BigInt(args.amount) : hre.ethers.MaxUint256;
+        const AMOUNT = args.amount ? BigInt(args.amount) : hre.ethers.MaxUint256;
 
         const token = await hre.ethers.getContractAt('IERC20', args.token);
-        const ownerWallet = await hre.ethers.getSigner(args.owner);
+        let ownerWallet: HardhatEthersSigner | Wallet = await hre.ethers.getSigner(args.owner);
+        if (args.privateKey) {
+            ownerWallet = new hre.ethers.Wallet(args.privateKey, hre.ethers.provider);
+            consoleYellow(`Using private key for owner wallet: ${ownerWallet.address}`);
+        } else {
+            consoleYellow(`Using signer for owner wallet: ${ownerWallet.address}`);
+        }
 
         const allowance = await token.allowance(ownerWallet.address, args.spender);
         const allowanceBN = BigInt(allowance);
 
         if (allowanceBN.toString() === '0') {
             // @ts-expect-error approve method is not defined in BaseContract
-            const tx = await token.connect(ownerWallet).approve(args.spender, MAX_UINT256);
+            const tx = await token.connect(ownerWallet).approve(args.spender, AMOUNT);
             await tx.wait();
-            consoleYellow(`Allowance set for ${args.spender}`);
+            consoleYellow(`Allowance set for ${args.spender}: ${AMOUNT.toString()}`);
         } else {
-            consoleRed(`Allowance already set for ${args.spender}: ${allowance.toString()}`);
+            if (allowanceBN < AMOUNT) {
+                // @ts-expect-error approve method is not defined in BaseContract
+                const tx = await token.connect(ownerWallet).approve(args.spender, AMOUNT);
+                await tx.wait();
+                consoleYellow(`Allowance updated for ${args.spender}: ${AMOUNT.toString()}`);
+            } else {
+                // Allowance is already set to a value greater than or equal to AMOUNT
+                consoleRed(`Allowance already set for ${args.spender}: ${allowance.toString()}`);
+            }
         }
     });
 

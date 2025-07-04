@@ -11,7 +11,6 @@ npx hardhat deploy-redemption-allowance-protocol \
     --recipient 0xe76B92272667363FD487a71c13b7799ED924C9b8 \
     --liquidity-token 0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238 \
     --provider-wallet 0xe76B92272667363FD487a71c13b7799ED924C9b8 \
-    --allowance-provider-wallet \
     --verify
 */
 task('deploy-redemption-allowance-protocol', 'Deploy Redemption Protocol (Allowance implementation)')
@@ -28,7 +27,6 @@ task('deploy-redemption-allowance-protocol', 'Deploy Redemption Protocol (Allowa
 
     // Verification flag
     .addFlag('verify', 'Verify contracts on Etherscan')
-    .addFlag('allowanceProviderWallet', 'Set allowance for the liquidity provider wallet')
     .setAction(async (args, hre) => {
         console.log('');
         consoleCyan('task: deploy-redemption-allowance-protocol');
@@ -46,7 +44,6 @@ task('deploy-redemption-allowance-protocol', 'Deploy Redemption Protocol (Allowa
             recipient: args.recipient,
             redemptionAddress,
             verify: args.verify,
-            allowanceProviderWallet: args.allowanceProviderWallet,
             providerWallet: args.providerWallet,
         });
 
@@ -56,6 +53,21 @@ task('deploy-redemption-allowance-protocol', 'Deploy Redemption Protocol (Allowa
             'AllowanceLiquidityProvider',
             liquidityProviderAddress,
         );
+
+        console.log('Setting liquidity provider wallet');
+        // Set liquidity provider wallet
+        const tx = await liquidityProvider.setAllowanceProviderWallet(args.providerWallet);
+        await tx.wait(1);
+
+        console.log('Successfully set liquidity provider wallet');
+
+        console.log('');
+        console.log('Updating liquidity provider on securitize redemption contract');
+        // Set liquidity provider on securitize redemption contract
+        await redemption.updateLiquidityProvider(liquidityProviderAddress);
+        console.log('Successfully updated liquidity provider on securitize redemption contract');
+
+        consoleGreen('Securitize Redemption Protocol has been configured successfully');
 
         console.log('');
         consoleGreen('Securitize Redemption Protocol has been deployed successfully');
@@ -100,7 +112,6 @@ task('deploy-allowance-provider', 'Deploy AllowanceLiquidityProvider proxy')
     .addParam('recipient', 'Wallet that receives DS Token')
     .addParam('redemptionAddress', 'SecuritizeOffRamp proxy address')
     .addFlag('verify', 'Verify contracts on Etherscan')
-    .addFlag('allowanceProviderWallet', 'Set allowance for the liquidity provider wallet')
     .addOptionalParam('providerWallet', 'Wallet that provides liquidity')
     .setAction(async (taskArgs, hre) => {
         console.log('');
@@ -109,7 +120,6 @@ task('deploy-allowance-provider', 'Deploy AllowanceLiquidityProvider proxy')
         console.log(`- Liquidity Token: ${taskArgs.liquidityToken}`);
         console.log(`- Recipient: ${taskArgs.recipient}`);
         console.log(`- Redemption Address: ${taskArgs.redemptionAddress}`);
-        console.log(`- Allowance Provider Wallet: ${taskArgs.allowanceProviderWallet}`);
         console.log(`- Provider Wallet: ${taskArgs.providerWallet}`);
         console.log(`- Verify: ${taskArgs.verify}`);
 
@@ -120,55 +130,5 @@ task('deploy-allowance-provider', 'Deploy AllowanceLiquidityProvider proxy')
             verify: taskArgs.verify,
         });
 
-        if (taskArgs.allowanceProviderWallet) {
-            // Set allowance for the liquidity provider
-            await hre.run('set-allowance', {
-                token: taskArgs.liquidityToken,
-                owner: taskArgs.providerWallet,
-                spender: proxyAddress,
-            });
-        }
-
         return { liquidityProviderAddress: proxyAddress, liquidityProviderImpl: implAddress };
-    });
-
-/*
-npx hardhat config-redemption-allowance-protocol \
-    --network sepolia \
-    --redemption-address 0xC76cb6FF7F5C504A9fadCaF8751C003F3E27eD13 \
-    --liquidity-provider-address 0x2aF15165248b6EE1d7450dEe94D0fCa1d12fF0c3 \
-    --provider-wallet 0xe76B92272667363FD487a71c13b7799ED924C9b8
-*/
-task('config-redemption-allowance-protocol', 'Configure Redemption Protocol (Allowance implementation)')
-    .addParam('redemptionAddress', 'SecuritizeOffRamp proxy address')
-    .addParam('liquidityProviderAddress', 'AllowanceLiquidityProvider proxy address')
-    .addParam('providerWallet', 'Wallet that provides liquidity')
-    .setAction(async (taskArgs, hre) => {
-        console.log('');
-        consoleCyan('task: config-redemption-allowance-protocol');
-        consoleCyan('Arguments:');
-        console.log(`- Redemption Address: ${taskArgs.redemptionAddress}`);
-        console.log(`- Liquidity Provider Address: ${taskArgs.liquidityProviderAddress}`);
-        console.log(`- Provider Wallet: ${taskArgs.providerWallet}`);
-
-        const redemption = await hre.ethers.getContractAt('SecuritizeOffRamp', taskArgs.redemptionAddress);
-        const liquidityProvider = await hre.ethers.getContractAt(
-            'AllowanceLiquidityProvider',
-            taskArgs.liquidityProviderAddress,
-        );
-
-        console.log('Setting liquidity provider wallet');
-        // Set liquidity provider wallet
-        const tx = await liquidityProvider.setAllowanceProviderWallet(taskArgs.providerWallet);
-        await tx.wait(1);
-
-        console.log('Successfully set liquidity provider wallet');
-
-        console.log('');
-        console.log('Updating liquidity provider on securitize redemption contract');
-        // Set liquidity provider on securitize redemption contract
-        await redemption.updateLiquidityProvider(taskArgs.liquidityProviderAddress);
-        console.log('Successfully updated liquidity provider on securitize redemption contract');
-
-        consoleGreen('Securitize Redemption Protocol has been configured successfully');
     });
