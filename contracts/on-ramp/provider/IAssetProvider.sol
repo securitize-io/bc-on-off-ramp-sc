@@ -25,7 +25,6 @@ import {Errors} from "../../common/Errors.sol";
  * @title IAssetProvider
  */
 interface IAssetProvider is Errors {
-
     /**
      * @dev Supplies assets to a recipient
      * @param _buyer Assets recipient

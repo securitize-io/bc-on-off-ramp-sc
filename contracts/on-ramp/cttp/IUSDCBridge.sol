@@ -19,11 +19,11 @@ pragma solidity ^0.8.22;
 
 interface IUSDCBridge {
     /**
-    * @notice Bridge USDC between blockchains
-    * @dev chain Id is not EVM chain id, please refer to https://wormhole.com/docs/build/reference/chain-ids/
-    * @param targetChainId chain id
-    * @param recipient - Target address USDC recipient
-    * @param value - Amount to be bridged
-    */
+     * @notice Bridge USDC between blockchains
+     * @dev chain Id is not EVM chain id, please refer to https://wormhole.com/docs/build/reference/chain-ids/
+     * @param targetChainId chain id
+     * @param recipient - Target address USDC recipient
+     * @param value - Amount to be bridged
+     */
     function sendUSDCCrossChainDeposit(uint16 targetChainId, address recipient, uint256 value) external;
 }
