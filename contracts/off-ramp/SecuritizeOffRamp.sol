@@ -24,7 +24,7 @@ import {BaseContract} from "../common/BaseContract.sol";
 import {IDSRegistryService} from "@securitize/digital_securities/contracts/registry/IDSRegistryService.sol";
 import {IDSServiceConsumer} from "@securitize/digital_securities/contracts/service/IDSServiceConsumer.sol";
 import {ILiquidityProvider} from "./provider/ILiquidityProvider.sol";
-import {ISecuritizeNavProvider} from "./nav/ISecuritizeNavProvider.sol";
+import {ISecuritizeNavProvider} from "@securitize/digital_securities/contracts/nav/ISecuritizeNavProvider.sol";
 import {IFeeManager} from "../fee/IFeeManager.sol";
 import {IDSToken} from "@securitize/digital_securities/contracts/token/IDSToken.sol";
 import {TokenDataStore} from "@securitize/digital_securities/contracts/data-stores/TokenDataStore.sol";

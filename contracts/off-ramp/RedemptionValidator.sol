@@ -7,7 +7,7 @@ pragma solidity ^0.8.22;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ILiquidityProvider} from "./provider/ILiquidityProvider.sol";
 import {ISecuritizeOffRampErrors} from "./ISecuritizeOffRampErrors.sol";
-import {ISecuritizeNavProvider} from "./nav/ISecuritizeNavProvider.sol";
+import {ISecuritizeNavProvider} from "@securitize/digital_securities/contracts/nav/ISecuritizeNavProvider.sol";
 import {Errors} from "../common/Errors.sol";
 
 /**
