@@ -4,12 +4,6 @@ import '@openzeppelin/hardhat-upgrades';
 import 'dotenv/config';
 import './tasks/index';
 
-// TODO: export all tasks from /tasks/index.ts
-import './tasks/commons';
-import './tasks/off-ramp/deploy-redemption-collateral-protocol';
-import './tasks/off-ramp/deploy-redemption-allowance-protocol';
-import './tasks/off-ramp/update-countries-restriction';
-
 const config: HardhatUserConfig = {
     mocha: {
         parallel: false,

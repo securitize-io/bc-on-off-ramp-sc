@@ -677,7 +677,7 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 // Check balances
                 expect(await dsTokenMock.balanceOf(investor)).to.equal(0);
                 expect(await usdcMock.balanceOf(externalRedemptionAddress)).to.equal(0);
-                // FIXME: Check the collateral balance after fee deduction
+                // TODO: Check the collateral balance after fee deduction
                 // expect(await dsTokenCollateralMock.balanceOf(securitizeWallet)).to.equal(
                 //     COLLATERAL_TREASURY - expectedLiquidityAfterFee,
                 // );
@@ -730,7 +730,7 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                     .to.emit(redemption, 'RedemptionCompleted')
                     .withArgs(investor.address, smallAmount, calcAmount, FIXED_RATE);
 
-                // FIXME: Check balances
+                // TODO: Check balances
                 // expect(await dsTokenMock.balanceOf(investor)).to.equal(0);
                 // expect(await usdcMock.balanceOf(externalRedemptionAddress)).to.equal(0);
                 // expect(await dsTokenCollateralMock.balanceOf(securitizeWallet)).to.equal(
