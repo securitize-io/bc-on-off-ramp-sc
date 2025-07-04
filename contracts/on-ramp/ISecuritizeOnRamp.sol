@@ -21,13 +21,23 @@ import {IOnOffRamp} from "../common/IOnOffRamp.sol";
 
 interface ISecuritizeOnRamp is IOnOffRamp {
 
-    error InvalidEIP712Signature();
+    error InvalidEIP712SignatureError();
     error IncorrectParamLength();
     error TransactionTooOldError();
     error OnlySecuritizeOnRampError();
     error InvestorSubscriptionDisabledError();
     error SameValueError();
     error MinSubscriptionAmountError();
+
+    /**
+     * @dev Tx type - EIP712
+     */
+    struct ExecutePreApprovedTransaction {
+        string senderInvestor;
+        address destination;
+        bytes data;
+        uint256 nonce;
+    }
 
     /**
      * @dev Emitted for a new subscription agreement
@@ -120,6 +130,7 @@ interface ISecuritizeOnRamp is IOnOffRamp {
     /**
      * @dev It does a swap between a Stable Coin ERC-20 token and DSToken.
      * @param _investorId investor sender (blockchainId). BlockchainId should be created by main-api
+     * @param _investorWallet: investor wallet
      * @param _investorCountry: investor country
      * @param _investorAttributeIds attributes to set.
      * @param _investorAttributeValues values to set.
@@ -131,6 +142,7 @@ interface ISecuritizeOnRamp is IOnOffRamp {
      */
     function subscribe(
         string memory _investorId,
+        address _investorWallet,
         string memory _investorCountry,
         uint8[] memory _investorAttributeIds,
         uint256[] memory _investorAttributeValues,
@@ -151,18 +163,11 @@ interface ISecuritizeOnRamp is IOnOffRamp {
     /**
      * @dev Validates off-chain EIP-712 message signature and executes encoded transaction data.
      * @param signature - eip712 signature
-     * @param senderInvestor investor id created by registryService
-     * @param destination address
-     * @param data encoded transaction data. For example issue token
-     * @param params array. params[0] = value, params[1] = gasLimit
+     * @param txData - tx data
      */
     function executePreApprovedTransaction(
         bytes memory signature,
-        string memory senderInvestor,
-        address destination,
-        address executor,
-        bytes memory data,
-        uint256[] memory params
+        ExecutePreApprovedTransaction calldata txData
     ) external;
 
     /**

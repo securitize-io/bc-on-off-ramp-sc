@@ -54,6 +54,11 @@ contract MintingAssetProvider is IAssetProvider, BaseContract {
         _;
     }
 
+    /**
+     * @dev Proxy Initializer.
+     * @param _asset securitize rwa
+     * @param _securitizeOnRamp The address of the securitize on ramp contract.
+     **/
     function initialize(
         address _asset,
         address _securitizeOnRamp

@@ -19,19 +19,10 @@ Securitize on ramp protocol allows investor to purchase digital securities.
     - The platform backend generates and signs the request after validating all parameters.
 - **Security**: Ensures access control via signature validation.
 
-### 2. `swapFor`
-
-- **Description**: Investors specify the amount of RWA tokens they wish to acquire.
-- **Parameters**: Desired token amount and slippage tolerance.
-- **Mechanism**:
-    - The contract calculates the stablecoin cost based on the current NAV (Net Asset Value) rate.
-    - Stablecoins are deducted from the investor’s balance accordingly.
-- **Use Case**: Token-targeted purchases with slippage control.
-
 ### 3. `swap`
 
-- **Description**: Investors specify the amount of stablecoins they want to use to purchase RWA tokens.
-- **Parameters**: Stablecoin amount and slippage tolerance.
+- **Description**: Investors specify the amount of liquidity they want to use to purchase RWA tokens.
+- **Parameters**: token amount and slippage tolerance.
 - **Mechanism**:
     - The contract computes the equivalent number of tokens to issue using the current NAV rate.
 - **Use Case**: Budget-constrained purchases with token output calculated.
@@ -62,7 +53,17 @@ npm run compile
 ```
 
 ### Deploy
- TODO
+
+#### Fee Manager
+```sh
+npx hardhat deploy-mbps-fee-manager --network arbitrum --mbps 2000 --collector {feeCollectorAddress}
+```
+
+#### On Ramp
+
+```sh
+npx hardhat deploy-on-ramp --network arbitrum --token {dsToken} --liquidity {liquidityToken} --nav {navProvider} --fee {feeManager} --custodian {custodian} --type ALLOWANCE --provider {allowanceProviderWallet}
+```
 
 ### Test
 

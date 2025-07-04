@@ -54,9 +54,16 @@ contract AllowanceAssetProvider is IAllowanceAssetProvider, BaseContract {
         _;
     }
 
+    /**
+     * @dev Proxy Initializer.
+     * @param _asset securitize rwa
+     * @param _securitizeOnRamp The address of the securitize on ramp contract.
+     * @param _assetProviderWallet asset supplier address
+     **/
     function initialize(
         address _asset,
-        address _securitizeOnRamp
+        address _securitizeOnRamp,
+        address _assetProviderWallet
     ) public onlyProxy initializer {
         if (_asset == address(0)) {
             revert NonZeroAddressError();
@@ -67,6 +74,7 @@ contract AllowanceAssetProvider is IAllowanceAssetProvider, BaseContract {
         __BaseContract_init();
         asset = IDSToken(_asset);
         securitizeOnRamp = ISecuritizeOnRamp(_securitizeOnRamp);
+        assetProviderWallet = _assetProviderWallet;
     }
 
     function setAllowanceProviderWallet(address _assetProviderWallet) external onlyOwner {

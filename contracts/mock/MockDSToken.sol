@@ -23,13 +23,14 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 /// @title Test token contract
 contract MockDSToken is ERC20 {
     /*
-     *  Storage
+     *  Constants
      */
-    mapping(address => uint256) public balances;
+    uint256 public constant REGISTRY_SERVICE = 4;
+    uint256 public constant TRUST_SERVICE = 1;
+
     address public registryService;
     address public trustService;
     uint8 public tokenDecimals;
-    uint256 public constant REGISTRY_SERVICE = 4;
 
     constructor(
         string memory _name,
@@ -43,6 +44,31 @@ contract MockDSToken is ERC20 {
         trustService = _trustService;
     }
 
+    function decimals() public view override returns (uint8) {
+        return tokenDecimals;
+    }
+
+    /*
+     * Public functions
+     */
+    /// @dev Issues new tokens.
+    /// @param _to Address of token receiver.
+    /// @param _value Number of tokens to issue.
+    function issueTokens(address _to, uint256 _value) public returns (bool) {
+        _mint(_to, _value);
+        return true;
+    }
+
+    function getDSService(uint256 _service) public view returns (address) {
+        if (_service == 1) {
+            return trustService;
+        }
+        if (_service == 4) {
+            return registryService;
+        }
+        revert("DS Service not implemented");
+    }
+
     function mint(address _to, uint256 _amount) external returns (bool) {
         _mint(_to, _amount);
         return true;
@@ -51,13 +77,5 @@ contract MockDSToken is ERC20 {
     function burn(address _from, uint256 _amount, string memory) external returns (bool) {
         _burn(_from, _amount);
         return true;
-    }
-
-    function getDSService(uint256) public view returns (address) {
-        return registryService;
-    }
-
-    function decimals() public view override returns (uint8) {
-        return tokenDecimals;
     }
 }

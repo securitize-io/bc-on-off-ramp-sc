@@ -17,13 +17,18 @@
  */
 pragma solidity ^0.8.22;
 
-interface IUSDCBridge {
-    /**
-    * @notice Bridge USDC between blockchains
-    * @dev chain Id is not EVM chain id, please refer to https://wormhole.com/docs/build/reference/chain-ids/
-    * @param targetChainId chain id
-    * @param recipient - Target address USDC recipient
-    * @param value - Amount to be bridged
-    */
-    function sendUSDCCrossChainDeposit(uint16 targetChainId, address recipient, uint256 value) external;
+import {IUSDCBridge} from "../on-ramp/cttp/IUSDCBridge.sol";
+import {MockERC20} from "./MockERC20.sol";
+
+contract MockUSDCBridge is IUSDCBridge {
+
+    MockERC20 public usdc;
+
+    constructor(address _usdc) {
+        usdc = MockERC20(_usdc);
+    }
+
+    function sendUSDCCrossChainDeposit(uint16 /*targetChainId*/, address /*recipient*/, uint256 value) external override {
+        usdc.burn(msg.sender, value);
+    }
 }

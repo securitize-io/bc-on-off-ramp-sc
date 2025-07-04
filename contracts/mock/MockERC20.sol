@@ -21,21 +21,18 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract MockERC20 is ERC20 {
     uint8 private tokenDecimals;
-    uint256 public constant REGISTRY_SERVICE = 4;
-    address public registryService;
 
-    constructor(
-        string memory _name,
-        string memory _symbol,
-        uint8 _decimals,
-        address _registryService
-    ) ERC20(_name, _symbol) {
-        registryService = _registryService;
+    constructor(string memory _name, string memory _symbol, uint8 _decimals) ERC20(_name, _symbol) {
         tokenDecimals = _decimals;
     }
 
     function mint(address _to, uint256 _amount) external returns (bool) {
         _mint(_to, _amount);
+        return true;
+    }
+
+    function burn(address _to, uint256 _amount) external returns (bool) {
+        _burn(_to, _amount);
         return true;
     }
 

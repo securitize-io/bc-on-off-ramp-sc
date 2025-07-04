@@ -24,6 +24,7 @@ uint256 constant TRUST_SERVICE = 1;
 contract MockTrustService {
     uint8 public constant MASTER = 1;
     uint8 public constant ISSUER = 2;
+    uint8 public constant EXCHANGE = 4;
 
     mapping(address => uint8) internal roles;
 

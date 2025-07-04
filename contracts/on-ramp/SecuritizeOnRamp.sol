@@ -32,14 +32,14 @@ import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/crypt
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract {
+
     using Address for address;
     using ECDSA for bytes32;
 
     string public constant NAME = "SecuritizeOnRamp";
     string public constant VERSION = "1";
 
-    // keccak256("ExecutePreApprovedTransaction(string memory _senderInvestor, address _destination,address _executor,bytes _data, uint256[] memory _params)")
-    bytes32 constant TXTYPE_HASH = 0xee963d66f92bd81c2e9b743fdab1cc81cd81a67f7626663992ce230ad0c71b51;
+    bytes32 constant TXTYPE_HASH = keccak256("ExecutePreApprovedTransaction(string senderInvestor,address destination,bytes data,uint256 nonce)");
 
     mapping(string => uint256) internal noncePerInvestor;
 
@@ -50,13 +50,13 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
     ISecuritizeNavProvider public navProvider;
     IFeeManager public feeManager;
     address public custodianWallet;
-    IUSDCBridge public USDCBridge;
-    uint16 public bridgeChainId;
 
     // adhoc configuration variables
     uint256 public minSubscriptionAmount;
     bool public investorSubscriptionEnabled;
     bool public twoStepTransfer;
+    IUSDCBridge public USDCBridge;
+    uint16 public bridgeChainId;
 
     function initialize(
         address _dsToken,
@@ -111,12 +111,13 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
         _;
     }
 
-    function nonceByInvestor(string memory _investorId) public view override returns (uint256) {
+    function nonceByInvestor(string memory _investorId) override public view returns (uint256) {
         return noncePerInvestor[_investorId];
     }
 
     function subscribe(
         string memory _investorId,
+        address _investorWallet,
         string memory _investorCountry,
         uint8[] memory _investorAttributeIds,
         uint256[] memory _investorAttributeValues,
@@ -125,19 +126,11 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
         uint256 _liquidityAmount,
         uint256 _blockLimit,
         bytes32 _agreementHash
-    )
-        public
-        override
-        whenNotPaused
-        onlySecuritizeOnRamp
-        nonZeroNavRate
-        validateMinSubscriptionAmount(_liquidityAmount)
-    {
+    ) public override whenNotPaused onlySecuritizeOnRamp nonZeroNavRate validateMinSubscriptionAmount(_liquidityAmount) {
         if (_blockLimit < block.number) {
             revert TransactionTooOldError();
         }
 
-        // TODO: could be better to call a private function?
         uint256 dsTokenAmount = calculateDsTokenAmount(_liquidityAmount);
         if (dsTokenAmount < _minOutAmount) {
             revert SlippageControlError();
@@ -145,98 +138,71 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
 
         _registerInvestor(
             _investorId,
-            _msgSender(),
+            _investorWallet,
             _investorCountry,
             _investorAttributeIds,
             _investorAttributeValues,
             _investorAttributeExpirations
         );
 
-        _executeLiquidityTransfer(_msgSender(), _liquidityAmount);
-        _executeAssetTransfer(dsTokenAmount);
+        _executeLiquidityTransfer(_investorWallet, _liquidityAmount);
+        _executeAssetTransfer(_investorWallet, dsTokenAmount);
 
-        emit DocumentSigned(_msgSender(), _agreementHash);
-        emit Swap(_msgSender(), dsTokenAmount, _liquidityAmount, _msgSender());
+        emit DocumentSigned(_investorWallet, _agreementHash);
+        emit Swap(_msgSender(), dsTokenAmount, _liquidityAmount, _investorWallet);
     }
 
     function swap(
         uint256 _liquidityAmount,
         uint256 _minOutAmount
-    )
-        public
-        override
-        whenNotPaused
-        investorExists
-        nonZeroNavRate
-        validateInvestorSubscription
-        validateMinSubscriptionAmount(_liquidityAmount)
-    {
+    ) public override whenNotPaused investorExists nonZeroNavRate validateInvestorSubscription validateMinSubscriptionAmount(_liquidityAmount) {
+
         uint256 dsTokenAmount = calculateDsTokenAmount(_liquidityAmount); // calculate dsToken using liquidityAmount - fee
         if (dsTokenAmount < _minOutAmount) {
             revert SlippageControlError();
         }
 
         _executeLiquidityTransfer(_msgSender(), _liquidityAmount);
-        _executeAssetTransfer(dsTokenAmount);
+        _executeAssetTransfer(_msgSender(), dsTokenAmount);
 
         emit Swap(_msgSender(), dsTokenAmount, _liquidityAmount, _msgSender());
     }
 
     function executePreApprovedTransaction(
         bytes memory signature,
-        string memory senderInvestor,
-        address destination,
-        address executor,
-        bytes memory data,
-        uint256[] memory params
+        ExecutePreApprovedTransaction calldata txData
     ) public override whenNotPaused {
-        if (params.length != 2) {
-            revert IncorrectParamLength();
-        }
-        doExecuteByInvestor(signature, senderInvestor, destination, data, executor, params);
-    }
-
-    function doExecuteByInvestor(
-        bytes memory signature,
-        string memory _senderInvestorId,
-        address _destination,
-        bytes memory _data,
-        address _executor,
-        uint256[] memory _params
-    ) internal {
-        bytes32 structHash = keccak256(
-            abi.encode(
-                // TODO: what about add chainId?
-                TXTYPE_HASH,
-                keccak256(bytes(_senderInvestorId)),
-                _destination,
-                _executor,
-                noncePerInvestor[_senderInvestorId],
-                keccak256(_data),
-                keccak256(abi.encodePacked(_params)) // flatten array
-            )
-        );
-
-        bytes32 digest = _hashTypedDataV4(structHash);
+        bytes32 digest = hashTx(txData);
         address signer = ECDSA.recover(digest, signature);
 
-        // Check that the recovered address is an issuer
+        // Check recovered address role
         IDSTrustService trustService = IDSTrustService(dsToken.getDSService(dsToken.TRUST_SERVICE()));
         uint256 signerRole = trustService.getRole(signer);
-        if (signerRole != trustService.ISSUER() && signerRole != trustService.MASTER()) {
-            revert InvalidEIP712Signature();
+        if (signerRole != trustService.EXCHANGE() && signerRole != trustService.ISSUER()) {
+            revert InvalidEIP712SignatureError();
         }
-        noncePerInvestor[_senderInvestorId] = noncePerInvestor[_senderInvestorId] + 1;
-        Address.functionCall(_destination, _data);
+        noncePerInvestor[txData.senderInvestor] = noncePerInvestor[txData.senderInvestor] + 1;
+        Address.functionCall(txData.destination, txData.data);
     }
 
-    function calculateDsTokenAmount(uint256 _liquidityAmount) public view override returns (uint256) {
+    /// @dev Computes the digest to sign (EIP-712)
+    function hashTx(ExecutePreApprovedTransaction calldata txData) private view returns (bytes32) {
+        bytes32 structHash = keccak256(abi.encode(
+            TXTYPE_HASH,
+            keccak256(bytes(txData.senderInvestor)),
+            txData.destination,
+            keccak256(txData.data),
+            txData.nonce
+        ));
+
+        return _hashTypedDataV4(structHash);
+    }
+
+    function calculateDsTokenAmount(uint256 _liquidityAmount) public override view returns (uint256) {
         uint256 fee = feeManager.getFee(_liquidityAmount);
         uint256 liquidityAmountExcludingFee = _liquidityAmount - fee;
         uint256 currentNavRate = navProvider.rate();
-        return
-            (liquidityAmountExcludingFee * 10 ** IERC20Metadata(address(assetProvider.asset())).decimals()) /
-            currentNavRate;
+        return liquidityAmountExcludingFee * 10 ** IERC20Metadata(address(assetProvider.asset())).decimals() / currentNavRate;
     }
 
     function updateAssetProvider(address _assetProvider) external override onlyOwner {
@@ -286,29 +252,30 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
     }
 
     function _executeLiquidityTransfer(address from, uint256 amount) private {
-        if (liquidityToken.balanceOf(_msgSender()) < amount) {
+        if (liquidityToken.balanceOf(from) < amount) {
             revert InsufficientERC20BalanceError();
         }
 
-        uint256 fee = feeManager.getFee(amount);
-        uint256 amountExcludingFee = amount - fee;
         liquidityToken.transferFrom(from, address(this), amount);
+        uint256 fee = feeManager.getFee(amount);
         liquidityToken.transfer(feeManager.feeCollector(), fee);
 
-        if (bridgeChainId != 0 && address(USDCBridge) != address(0)) {
+        uint256 amountExcludingFee = amount - fee;
+        bool bridgeTransfer = bridgeChainId != 0 && address(USDCBridge) != address(0);
+        if (bridgeTransfer) {
             liquidityToken.approve(address(USDCBridge), amountExcludingFee);
             USDCBridge.sendUSDCCrossChainDeposit(bridgeChainId, custodianWallet, amountExcludingFee);
         } else {
-            liquidityToken.transferFrom(from, custodianWallet, amountExcludingFee);
+            liquidityToken.transfer(custodianWallet, amountExcludingFee);
         }
     }
 
-    function _executeAssetTransfer(uint256 amount) private {
+    function _executeAssetTransfer(address to, uint256 amount) private {
         if (twoStepTransfer) {
             assetProvider.supplyTo(address(this), amount);
-            IERC20Metadata(address(dsToken)).transfer(_msgSender(), amount);
+            IERC20Metadata(address(dsToken)).transfer(to, amount);
         } else {
-            assetProvider.supplyTo(_msgSender(), amount);
+            assetProvider.supplyTo(to, amount);
         }
     }
 
@@ -324,14 +291,6 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
 
         address[] memory investorWallets = new address[](1);
         investorWallets[0] = _newInvestorWallet;
-        registryService.updateInvestor(
-            _senderInvestorId,
-            "",
-            _investorCountry,
-            investorWallets,
-            _investorAttributeIds,
-            _investorAttributeValues,
-            _investorAttributeExpirations
-        );
+        registryService.updateInvestor(_senderInvestorId, "", _investorCountry, investorWallets, _investorAttributeIds, _investorAttributeValues, _investorAttributeExpirations);
     }
 }
