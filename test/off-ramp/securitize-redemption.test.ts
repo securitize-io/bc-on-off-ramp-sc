@@ -9,7 +9,6 @@ import {
     invalidCountryCode1,
     invalidCountryCode2,
     invalidCountryCode3,
-    invalidCountryCode4,
     investorCountry,
     investorId,
     LIQUIDITY_AMOUNT,
@@ -641,9 +640,6 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 const fee = 1000;
                 await mockFeeManager.setRedemptionFee(fee);
 
-                const calcAmount = await redemption.calculateLiquidityTokenAmountWithoutFee(ASSET_AMOUNT);
-                const expectedFee = await mockFeeManager.getFee(calcAmount);
-
                 // mint assets to investor
                 await dsTokenMock.mint(investor, ASSET_AMOUNT);
                 const dsTokenDecimals = await dsTokenMock.decimals();
@@ -710,7 +706,6 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 const collateralToRedeem = (ASSET_AMOUNT * FIXED_RATE) / 10n ** dsTokenDecimals;
 
                 const calcAmount = await redemption.calculateLiquidityTokenAmountWithoutFee(smallAmount);
-                const expectedFee = await mockFeeManager.getFee(calcAmount);
 
                 // Provide liquidity to external mock contract
                 await usdcMock.mint(externalRedemptionAddress, collateralToRedeem);

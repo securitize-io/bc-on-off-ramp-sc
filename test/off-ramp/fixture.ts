@@ -11,7 +11,6 @@ export const restrictedCountry = 'BR';
 export const invalidCountryCode1 = 'A';
 export const invalidCountryCode2 = 'AAAA';
 export const invalidCountryCode3 = 'ar';
-export const invalidCountryCode4 = '!R';
 export const FEE_COLLECTOR = hre.ethers.Wallet.createRandom().address;
 
 export const deployRedemptionProtocol = async () => {
