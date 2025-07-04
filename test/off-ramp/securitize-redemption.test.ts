@@ -8,7 +8,9 @@ import {
     FIXED_RATE,
     invalidCountryCode,
     invalidCountryCode2,
+    invalidCountryCode3,
     investorCountry,
+    investorId,
     LIQUIDITY_AMOUNT,
     MIN_OUTPUT_AMOUNT,
     restrictedCountry,
@@ -319,7 +321,7 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 const { redemption, mockRegistryService, dsTokenMock } = await loadFixture(deployRedemptionProtocol);
 
                 // Set registry to return empty country code
-                await mockRegistryService.setInvalidCountryMode(true, '');
+                await mockRegistryService.updateInvestor(investorId, '0x', '', [investor.address], [], [], []);
 
                 // Set up for redemption
                 await dsTokenMock.mint(investor, ASSET_AMOUNT);
@@ -337,8 +339,16 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 const [_, investor] = await hre.ethers.getSigners();
                 const { redemption, mockRegistryService, dsTokenMock } = await loadFixture(deployRedemptionProtocol);
 
-                // Set registry to return country code with invalid length
-                await mockRegistryService.setInvalidCountryMode(true, 'A');
+                // Set registry to return empty country code
+                await mockRegistryService.updateInvestor(
+                    investorId,
+                    '0x',
+                    invalidCountryCode,
+                    [investor.address],
+                    [],
+                    [],
+                    [],
+                );
 
                 // Set up for redemption
                 await dsTokenMock.mint(investor, ASSET_AMOUNT);
@@ -357,7 +367,15 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 const { redemption, mockRegistryService, dsTokenMock } = await loadFixture(deployRedemptionProtocol);
 
                 // Set registry to return country code with lowercase letters
-                await mockRegistryService.setInvalidCountryMode(true, 'us');
+                await mockRegistryService.updateInvestor(
+                    investorId,
+                    '0x',
+                    invalidCountryCode3,
+                    [investor.address],
+                    [],
+                    [],
+                    [],
+                );
 
                 // Set up for redemption
                 await dsTokenMock.mint(investor, ASSET_AMOUNT);
@@ -439,16 +457,16 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 const externalRedemptionAddress = await externalRedemptionContractMock.getAddress();
 
                 // mint assets to investor
-                await dsTokenMock.mint(investor, ASSET_AMOUNT);
+                await dsTokenMock.mint(investor, ASSET_AMOUNT * 2n);
                 const dsTokenDecimals = await dsTokenMock.decimals();
                 // calculate collateral/usdc to redeem
                 const collateralToRedeem = (ASSET_AMOUNT * FIXED_RATE) / 10n ** dsTokenDecimals;
 
                 // provide liquidity to external mock contract
-                await usdcMock.mint(externalRedemptionAddress, collateralToRedeem);
+                await usdcMock.mint(externalRedemptionAddress, collateralToRedeem * 2n);
 
                 // provide collateral asset to securitize wallet
-                await dsTokenCollateralMock.mint(securitizeWallet, COLLATERAL_TREASURY);
+                await dsTokenCollateralMock.mint(securitizeWallet, COLLATERAL_TREASURY * 2n);
 
                 // allow liquidity provider to take collateral assets from treasury
                 await dsTokenCollateralMock.approve(liquidityProvider, collateralToRedeem);
@@ -462,7 +480,7 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 await redemptionFromInvestor.redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT);
 
                 await redemption.updateCountryRestriction(investorCountry, true);
-                await expect(redemption.redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT)).revertedWithCustomError(
+                await expect(redemptionFromInvestor.redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT)).revertedWithCustomError(
                     redemption,
                     'RestrictedCountry',
                 );

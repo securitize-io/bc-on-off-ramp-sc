@@ -10,6 +10,7 @@ export const investorCountry = 'AR';
 export const restrictedCountry = 'BR';
 export const invalidCountryCode = 'A';
 export const invalidCountryCode2 = 'AAAA';
+export const invalidCountryCode3 = 'ar';
 export const FEE_COLLECTOR = hre.ethers.Wallet.createRandom().address;
 
 export const deployRedemptionProtocol = async () => {
