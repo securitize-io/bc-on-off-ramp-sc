@@ -25,12 +25,11 @@ import {Errors} from "../common/Errors.sol";
  * @dev Interface for managing fees in the on/off ramp protocol
  */
 interface IFeeManager is Errors {
-
     event FeeCollectorUpdated(address oldCollector, address newCollector);
 
     /**
-    * @notice the fee collector address
-    */
+     * @notice the fee collector address
+     */
     function feeCollector() external view returns (address);
 
     /**

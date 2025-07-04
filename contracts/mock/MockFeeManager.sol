@@ -20,7 +20,6 @@ pragma solidity 0.8.22;
 import "@securitize/digital_securities/contracts/nav/ISecuritizeNavProvider.sol";
 
 contract MockFeeManager {
-
     address public feeCollector;
 
     constructor(address _feeCollector) {
