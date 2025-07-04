@@ -29,7 +29,7 @@ contract MbpsFeeManager is IFeeManager, BaseContract {
     uint256 public constant FEE_DENOMINATOR = 100_000;
 
     /**
-     * @notice Fee expressed in mbps (1 mbps = 0.001%)
+     * @notice Fee expressed in mbps (1000 mbps = 1%)
      */
     uint256 public fee;
 
