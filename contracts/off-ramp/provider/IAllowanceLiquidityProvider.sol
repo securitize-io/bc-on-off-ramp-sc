@@ -15,32 +15,24 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+pragma solidity ^0.8.22;
 
-pragma solidity 0.8.22;
-
-import {Errors} from "../common/Errors.sol";
+import {ILiquidityProvider} from "./ILiquidityProvider.sol";
 
 /**
- * @title IFeeManager
- * @dev Interface for managing fees in the on/off ramp protocol
+ * @title ICollateralLiquidityProvider
  */
-interface IFeeManager is Errors {
-    event FeeCollectorUpdated(address oldCollector, address newCollector);
+interface IAllowanceLiquidityProvider is ILiquidityProvider {
+    /**
+     * @dev Emitted when owner updates collateral Provider address.
+     * @param oldProvider Old allowance liquidity provider address
+     * @param newProvider New allowance liquidity provider address
+     */
+    event AllowanceLiquidityProviderWalletUpdated(address oldProvider, address newProvider);
 
     /**
-     * @notice the fee collector address
+     * @dev Set collateral provider wallet.
+     * @param _liquidityProviderWallet The address of the wallet that provides collateral asset.
      */
-    function feeCollector() external view returns (address);
-
-    /**
-     * @dev Returns the computed fee
-     * @param amount Amount to calculate fees
-     */
-    function getFee(uint256 amount) external view returns (uint256);
-
-    /**
-     * @dev Sets the fee collector address
-     * @param _feeCollector Address to collect fees
-     */
-    function setFeeCollector(address _feeCollector) external;
+    function setAllowanceProviderWallet(address _liquidityProviderWallet) external;
 }

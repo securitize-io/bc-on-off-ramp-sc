@@ -37,10 +37,7 @@ contract MbpsFeeManager is IFeeManager, BaseContract {
 
     event FeeUpdated(uint256 oldFee, uint256 newFee);
 
-    function initialize(
-        uint256 _fee,
-        address _feeCollector
-    ) public onlyProxy initializer {
+    function initialize(uint256 _fee, address _feeCollector) public onlyProxy initializer {
         __BaseContract_init();
         fee = _fee;
         feeCollector = _feeCollector;

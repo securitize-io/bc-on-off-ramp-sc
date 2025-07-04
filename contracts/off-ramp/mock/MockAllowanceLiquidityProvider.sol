@@ -15,25 +15,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-pragma solidity 0.8.22;
+pragma solidity ^0.8.22;
 
-import {ISecuritizeNavProvider} from "@securitize/digital_securities/contracts/nav/ISecuritizeNavProvider.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ISecuritizeOffRamp} from "../ISecuritizeOffRamp.sol";
 
-contract MockSecuritizeInternalNavProvider is ISecuritizeNavProvider {
-    /**
-     * @dev rate: NAV rate expressed with 6 decimals
-     */
-    uint256 public rate;
+contract MockAllowanceLiquidityProvider {
+    IERC20 public liquidityToken;
+    address public recipient;
+    ISecuritizeOffRamp public securitizeOffRamp;
 
-    constructor(uint256 _rate) {
-        rate = _rate;
-    }
-
-    function setRate(uint256 _rate) external override {
-        rate = _rate;
-    }
-
-    function initialize(uint256 _rate) public override {
-        rate = _rate;
+    constructor(address _liquidityToken, address _recipient, address _securitizeOffRamp) {
+        liquidityToken = IERC20(_liquidityToken);
+        recipient = _recipient;
+        securitizeOffRamp = ISecuritizeOffRamp(_securitizeOffRamp);
     }
 }

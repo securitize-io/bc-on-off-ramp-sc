@@ -9,6 +9,7 @@
 This protocol allows investor to subscribe/buy Securitize RWA
 
 #### On Ramp
+
 Securitize on ramp protocol allows investor to purchase digital securities.
 
 ### 1. `subscribe`
@@ -28,6 +29,7 @@ Securitize on ramp protocol allows investor to purchase digital securities.
 - **Use Case**: Budget-constrained purchases with token output calculated.
 
 #### Off Ramp
+
 Securitize off ramp protocol allows investor to redeem their digital securities by stable coins
 
 Project was thought to have several implementations in order to supply stable coins (ILiquidityProvider).
@@ -55,6 +57,7 @@ npm run compile
 ### Deploy
 
 #### Fee Manager
+
 ```sh
 npx hardhat deploy-mbps-fee-manager --network arbitrum --mbps 2000 --collector {feeCollectorAddress}
 ```
@@ -63,6 +66,20 @@ npx hardhat deploy-mbps-fee-manager --network arbitrum --mbps 2000 --collector {
 
 ```sh
 npx hardhat deploy-on-ramp --network arbitrum --token {dsToken} --liquidity {liquidityToken} --nav {navProvider} --fee {feeManager} --custodian {custodian} --type ALLOWANCE --provider {allowanceProviderWallet}
+```
+
+#### Off Ramp
+
+##### Allowance Implementation
+
+```sh
+npx hardhat deploy-redemption-allowance-protocol --network arbitrum --asset {dsToken} --nav-provider {navProvider} --fee-manager {feeManager} --asset-burn false --recipient {recipientWallet} --liquidity-token {liquidityToken} --provider-wallet {providerWallet}
+```
+
+##### Collateral Implementation
+
+```sh
+npx hardhat deploy-redemption-collateral-protocol --network arbitrum --asset {dsToken} --nav-provider {navProvider} --fee-manager {feeManager} --asset-burn false --recipient {recipientWallet} --liquidity-token {liquidityToken} --provider-wallet {providerWallet} --external-collateral-redemption {externalCollateralRedemption}
 ```
 
 ### Test

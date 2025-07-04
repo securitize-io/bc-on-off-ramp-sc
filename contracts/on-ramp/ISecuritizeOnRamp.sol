@@ -20,7 +20,6 @@ pragma solidity ^0.8.22;
 import {IOnOffRamp} from "../common/IOnOffRamp.sol";
 
 interface ISecuritizeOnRamp is IOnOffRamp {
-
     error InvalidEIP712SignatureError();
     error IncorrectParamLength();
     error TransactionTooOldError();
@@ -46,12 +45,7 @@ interface ISecuritizeOnRamp is IOnOffRamp {
      * @param _liquidityValue stable coin amount
      * @param _newWalletTo wallet recipient
      */
-    event Swap(
-        address indexed _from,
-        uint256 _dsTokenValue,
-        uint256 _liquidityValue,
-        address indexed _newWalletTo
-    );
+    event Swap(address indexed _from, uint256 _dsTokenValue, uint256 _liquidityValue, address indexed _newWalletTo);
 
     /**
      * @dev Emitted when an existing investor buy assets
@@ -60,22 +54,14 @@ interface ISecuritizeOnRamp is IOnOffRamp {
      * @param _dsTokenAmount asset amount
      * @param _navRate nav rate
      */
-    event Buy(
-        address indexed _from,
-        uint256 _liquidityAmount,
-        uint256 _dsTokenAmount,
-        uint256 _navRate
-    );
+    event Buy(address indexed _from, uint256 _liquidityAmount, uint256 _dsTokenAmount, uint256 _navRate);
 
     /**
      * @dev Emitted for a new subscription agreement
      * @param _from investor
      * @param _agreementHash Document hash
      */
-    event DocumentSigned (
-        address indexed _from,
-        bytes32 _agreementHash
-    );
+    event DocumentSigned(address indexed _from, bytes32 _agreementHash);
 
     /**
      * @dev Emitted when the asset provider is updated
@@ -112,13 +98,13 @@ interface ISecuritizeOnRamp is IOnOffRamp {
     event BridgeParamsUpdated(uint16 chainId, address bridge);
 
     /**
-    * @notice initialize function
-    * @param _dsToken securitize asset
-    * @param _liquidity stable coin to purchase assets
-    * @param _navProvider securitize nav provider
-    * @param _feeManager on ramp fee manager
-    * @param _custodianWallet stable coin recipient wallet
-    */
+     * @notice initialize function
+     * @param _dsToken securitize asset
+     * @param _liquidity stable coin to purchase assets
+     * @param _navProvider securitize nav provider
+     * @param _feeManager on ramp fee manager
+     * @param _custodianWallet stable coin recipient wallet
+     */
     function initialize(
         address _dsToken,
         address _liquidity,

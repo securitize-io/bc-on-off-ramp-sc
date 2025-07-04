@@ -21,14 +21,17 @@ import {IUSDCBridge} from "../on-ramp/cttp/IUSDCBridge.sol";
 import {MockERC20} from "./MockERC20.sol";
 
 contract MockUSDCBridge is IUSDCBridge {
-
     MockERC20 public usdc;
 
     constructor(address _usdc) {
         usdc = MockERC20(_usdc);
     }
 
-    function sendUSDCCrossChainDeposit(uint16 /*targetChainId*/, address /*recipient*/, uint256 value) external override {
+    function sendUSDCCrossChainDeposit(
+        uint16 /*targetChainId*/,
+        address /*recipient*/,
+        uint256 value
+    ) external override {
         usdc.burn(msg.sender, value);
     }
 }

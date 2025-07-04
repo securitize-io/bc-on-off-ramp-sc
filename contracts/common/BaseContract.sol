@@ -36,7 +36,6 @@ abstract contract BaseContract is UUPSUpgradeable, PausableUpgradeable, OwnableU
      */
     function _authorizeUpgrade(address) internal override onlyOwner {}
 
-
     function pause() external onlyOwner {
         _pause();
     }

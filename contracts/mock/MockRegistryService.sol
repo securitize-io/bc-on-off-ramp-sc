@@ -22,19 +22,24 @@ pragma solidity ^0.8.22;
 uint256 constant REGISTRY_SERVICE = 4;
 
 contract MockRegistryService {
-
+    mapping(address => string) private addressToInvestorId;
+    mapping(string => string) private investorIdToCountry;
     address public wallet;
+    string internal investorCountry;
 
     function updateInvestor(
-        string calldata /*_id*/,
+        string calldata _id,
         string calldata /*_collisionHash*/,
-        string memory /*_country*/,
+        string memory _country,
         address[] memory _wallets,
         uint8[] memory /*_attributeIds*/,
         uint256[] memory /*_attributeValues*/,
         uint256[] memory /*_attributeExpirations*/
     ) public returns (bool) {
         wallet = _wallets[0];
+        addressToInvestorId[_wallets[0]] = _id;
+        investorCountry = _country;
+        investorIdToCountry[_id] = _country;
         return true;
     }
 
@@ -44,5 +49,19 @@ contract MockRegistryService {
 
     function isWallet(address _wallet) public view returns (bool) {
         return wallet == _wallet;
+    }
+
+    function getInvestor(address _wallet) public view returns (string memory) {
+        string memory investorId = addressToInvestorId[_wallet];
+        return investorId;
+    }
+
+    function getCountry(string memory id) public view returns (string memory) {
+        return investorIdToCountry[id];
+    }
+
+    function setCountry(string calldata _id, string memory _country) public virtual returns (bool) {
+        investorIdToCountry[_id] = _country;
+        return true;
     }
 }

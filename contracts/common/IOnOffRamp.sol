@@ -17,10 +17,9 @@
  */
 pragma solidity ^0.8.22;
 
-import {Errors} from "../common/Errors.sol";
+import {Errors} from "./Errors.sol";
 
 interface IOnOffRamp is Errors {
-
     /**
      * @dev Emitted when the twoStepTransfer is updated
      * @param newValue New value

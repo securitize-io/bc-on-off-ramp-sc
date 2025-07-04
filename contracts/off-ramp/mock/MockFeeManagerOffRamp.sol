@@ -15,16 +15,27 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-pragma solidity 0.8.22;
+pragma solidity ^0.8.22;
 
-contract MockFeeManager {
+contract MockFeeManagerOffRamp {
+    uint256 public constant FEE_DENOMINATOR = 100_000;
+    uint256 public redemptionFee;
     address public feeCollector;
 
-    constructor(address _feeCollector) {
+    event RedemptionFeeUpdated(uint256 oldFee, uint256 newFee);
+
+    constructor(uint256 _initialFee, address _feeCollector) {
+        redemptionFee = _initialFee;
         feeCollector = _feeCollector;
     }
 
-    function getFee(uint256 amount) external pure returns (uint256) {
-        return (amount * 2000 + 100_000 - 1) / 100_000;
+    function getFee(uint256 amount) external view returns (uint256) {
+        return (amount * redemptionFee + FEE_DENOMINATOR - 1) / FEE_DENOMINATOR;
+    }
+
+    function setRedemptionFee(uint256 _redemptionFee) external {
+        uint256 oldFee = redemptionFee;
+        redemptionFee = _redemptionFee;
+        emit RedemptionFeeUpdated(oldFee, _redemptionFee);
     }
 }

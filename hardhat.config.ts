@@ -35,7 +35,17 @@ const config: HardhatUserConfig = {
             url: process.env.OPTIMISM_RPC_URL ?? '',
             accounts: [process.env.DEPLOYER_PRIV_KEY!].filter((x) => x),
         },
-    }
+    },
+    etherscan: {
+        apiKey: {
+            mainnet: process.env.API_KEY_ETHERSCAN || '',
+            sepolia: process.env.API_KEY_ETHERSCAN || '',
+            arbitrumOne: process.env.API_KEY_ARBISCAN || '',
+            arbitrumSepolia: process.env.API_KEY_ARBISCAN || '',
+            optimisticEthereum: process.env.API_KEY_OPTIMISTIC || '',
+            optimisticSepolia: process.env.API_KEY_OPTIMISTIC || '',
+        },
+    },
 };
 
 export default config;
