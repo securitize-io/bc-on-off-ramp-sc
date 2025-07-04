@@ -3,7 +3,6 @@ import {
     COLLATERAL_TREASURY,
     deployRedemptionProtocolWithMultipleTokens,
     FIXED_RATE,
-    investorCountry,
     MIN_OUTPUT_AMOUNT,
 } from './fixture';
 import { loadFixture } from '@nomicfoundation/hardhat-network-helpers';
@@ -81,17 +80,11 @@ describe('Securitize Redemption Multiple Decimals', function () {
         );
     });
     it('Should revert when initializing with asset with excessive decimals', async function () {
-        // Set up a mock Registry Service
-        const MockRegistryService = await hre.ethers.getContractFactory('MockRegistryService');
-        const mockRegistryService = await MockRegistryService.deploy(investorCountry);
-        const registryServiceAddress = await mockRegistryService.getAddress();
-
         // Deploy token with excessive decimals (19, which exceeds max of 18)
         const excessiveDecimalsToken = await hre.ethers.deployContract('MockERC20', [
             'Excessive Decimals Token',
             'EXCSS',
             19,
-            registryServiceAddress,
         ]);
 
         // Deploy NAV provider
@@ -118,17 +111,11 @@ describe('Securitize Redemption Multiple Decimals', function () {
     it('Should revert when updating liquidity provider with token having excessive decimals', async function () {
         const { contractsWith18DecimalsDsTokenMock } = await loadFixture(deployRedemptionProtocolWithMultipleTokens);
 
-        // Set up a mock Registry Service for the excessive decimals token
-        const MockRegistryService = await hre.ethers.getContractFactory('MockRegistryService');
-        const mockRegistryService = await MockRegistryService.deploy(investorCountry);
-        const registryServiceAddress = await mockRegistryService.getAddress();
-
         // Deploy token with excessive decimals (19)
         const excessiveDecimalsToken = await hre.ethers.deployContract('MockERC20', [
             'Excessive LP Token',
             'EXCLP',
             19,
-            registryServiceAddress,
         ]);
 
         // Deploy liquidity provider with excessive decimals token but DON'T initialize it yet

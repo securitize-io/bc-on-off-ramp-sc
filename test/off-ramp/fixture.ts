@@ -5,6 +5,7 @@ export const ASSET_AMOUNT = 15n * 10n ** 18n;
 export const COLLATERAL_TREASURY = 100000000000000000000n;
 export const LIQUIDITY_AMOUNT = 50000000n;
 export const MIN_OUTPUT_AMOUNT = 0n; // Default minimum output amount for testing
+export const investorId = 'investorId';
 export const investorCountry = 'AR';
 export const restrictedCountry = 'BR';
 export const invalidCountryCode = 'A';
@@ -12,10 +13,14 @@ export const invalidCountryCode2 = 'AAAA';
 export const FEE_COLLECTOR = hre.ethers.Wallet.createRandom().address;
 
 export const deployRedemptionProtocol = async () => {
+    const [securitizeWallet, investor] = await hre.ethers.getSigners();
+
     // Set up a mock Registry Service
     const MockRegistryService = await hre.ethers.getContractFactory('MockRegistryService');
     const mockRegistryService = await MockRegistryService.deploy();
     const registryServiceAddress = await mockRegistryService.getAddress();
+
+    await mockRegistryService.updateInvestor(investorId, '0x', investorCountry, [investor.address], [], [], []);
 
     // Set up a mock trust Service
     const mockTrustService = await hre.ethers.deployContract('MockTrustService', []);
@@ -83,7 +88,6 @@ export const deployRedemptionProtocol = async () => {
     await newExternalRedemptionContractDaiMock.updateLiquidityProvider(mockDaiAllowanceLiquidityProvider.getAddress());
 
     const mockFeeManager = await hre.ethers.deployContract('MockFeeManagerOffRamp', [0, FEE_COLLECTOR]); // Initialize with 0 fee and zero address for feeCollector
-    const [securitizeWallet] = await hre.ethers.getSigners();
 
     const contracts = await hre.run('deploy-redemption-collateral-protocol', {
         asset: await dsTokenMock.getAddress(),
@@ -113,10 +117,14 @@ export const deployRedemptionProtocol = async () => {
 };
 
 export const deployRedemptionProtocolWithMultipleTokens = async () => {
+    const [securitizeWallet, investor] = await hre.ethers.getSigners();
+
     // Set up a mock Registry Service
     const MockRegistryService = await hre.ethers.getContractFactory('MockRegistryService');
     const mockRegistryService = await MockRegistryService.deploy();
     const registryServiceAddress = await mockRegistryService.getAddress();
+
+    await mockRegistryService.updateInvestor(investorId, '0x', investorCountry, [investor.address], [], [], []);
 
     // Set up a mock trust Service
     const mockTrustService = await hre.ethers.deployContract('MockTrustService', []);
@@ -169,8 +177,6 @@ export const deployRedemptionProtocolWithMultipleTokens = async () => {
 
     const mockFeeManager = await hre.ethers.deployContract('MockFeeManagerOffRamp', [0, FEE_COLLECTOR]); // Initialize with 0 fee and zero address for feeCollector
 
-    const [securitizeWallet] = await hre.ethers.getSigners();
-
     const contractsWith18DecimalsDsToken = await hre.run('deploy-redemption-collateral-protocol', {
         asset: await dsTokenMock.getAddress(),
         navProvider: await securitizeNavProviderMock.getAddress(),
@@ -220,9 +226,14 @@ export const deployRedemptionProtocolWithMultipleTokens = async () => {
 
 export const deployRedemptionAllowanceProtocol = async () => {
     // Set up a mock Registry Service
+    const [securitizeWallet, investor] = await hre.ethers.getSigners();
+
+    // Set up a mock Registry Service
     const MockRegistryService = await hre.ethers.getContractFactory('MockRegistryService');
-    const mockRegistryService = await MockRegistryService.deploy(investorCountry);
+    const mockRegistryService = await MockRegistryService.deploy();
     const registryServiceAddress = await mockRegistryService.getAddress();
+
+    await mockRegistryService.updateInvestor(investorId, '0x', investorCountry, [investor.address], [], [], []);
     // Set up a mock trust Service
     const mockTrustService = await hre.ethers.deployContract('MockTrustService', []);
     const trustServiceAddress = await mockTrustService.getAddress();
@@ -239,8 +250,6 @@ export const deployRedemptionAllowanceProtocol = async () => {
         FIXED_RATE,
     ]);
     const mockFeeManager = await hre.ethers.deployContract('MockFeeManagerOffRamp', [0, FEE_COLLECTOR]); // Initialize with 0 fee and zero address for feeCollector
-
-    const [securitizeWallet] = await hre.ethers.getSigners();
 
     const contracts = await hre.run('deploy-redemption-allowance-protocol', {
         asset: await dsTokenMock.getAddress(),
@@ -270,9 +279,14 @@ export const deployRedemptionAllowanceProtocol = async () => {
 
 export const deployRedemptionProtocolWithAssetBurn = async () => {
     // Set up a mock Registry Service
+    const [securitizeWallet, investor] = await hre.ethers.getSigners();
+
+    // Set up a mock Registry Service
     const MockRegistryService = await hre.ethers.getContractFactory('MockRegistryService');
-    const mockRegistryService = await MockRegistryService.deploy(investorCountry);
+    const mockRegistryService = await MockRegistryService.deploy();
     const registryServiceAddress = await mockRegistryService.getAddress();
+
+    await mockRegistryService.updateInvestor(investorId, '0x', investorCountry, [investor.address], [], [], []);
 
     // Set up a mock trust Service
     const mockTrustService = await hre.ethers.deployContract('MockTrustService', []);
@@ -340,7 +354,6 @@ export const deployRedemptionProtocolWithAssetBurn = async () => {
     await newExternalRedemptionContractDaiMock.updateLiquidityProvider(mockDaiAllowanceLiquidityProvider.getAddress());
 
     const mockFeeManager = await hre.ethers.deployContract('MockFeeManagerOffRamp', [0, FEE_COLLECTOR]); // Initialize with 0 fee and zero address for feeCollector
-    const [securitizeWallet] = await hre.ethers.getSigners();
 
     const contracts = await hre.run('deploy-redemption-collateral-protocol', {
         asset: await dsTokenMock.getAddress(),
