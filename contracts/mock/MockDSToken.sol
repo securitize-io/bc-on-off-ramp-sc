@@ -32,6 +32,11 @@ contract MockDSToken is ERC20 {
     address public trustService;
     uint8 public tokenDecimals;
 
+    /*
+     *  Errors
+     */
+    error DSServiceNotImplemented(uint256 service);
+
     constructor(
         string memory _name,
         string memory _symbol,
@@ -66,7 +71,7 @@ contract MockDSToken is ERC20 {
         if (_service == 4) {
             return registryService;
         }
-        revert("DS Service not implemented");
+        revert DSServiceNotImplemented(_service);
     }
 
     function mint(address _to, uint256 _amount) external returns (bool) {

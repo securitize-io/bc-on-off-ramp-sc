@@ -18,7 +18,6 @@
 pragma solidity 0.8.22;
 
 import {IDSToken} from "@securitize/digital_securities/contracts/token/IDSToken.sol";
-import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {BaseContract} from "../../common/BaseContract.sol";
 import {IAssetProvider} from "./IAssetProvider.sol";
 import {ISecuritizeOnRamp} from "../ISecuritizeOnRamp.sol";
@@ -59,10 +58,7 @@ contract MintingAssetProvider is IAssetProvider, BaseContract {
      * @param _asset securitize rwa
      * @param _securitizeOnRamp The address of the securitize on ramp contract.
      **/
-    function initialize(
-        address _asset,
-        address _securitizeOnRamp
-    ) public onlyProxy initializer {
+    function initialize(address _asset, address _securitizeOnRamp) public onlyProxy initializer {
         if (_asset == address(0)) {
             revert NonZeroAddressError();
         }

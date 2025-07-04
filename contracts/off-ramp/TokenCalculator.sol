@@ -6,7 +6,6 @@
 pragma solidity ^0.8.22;
 
 import {IFeeManager} from "../fee/IFeeManager.sol";
-import {Errors} from "../common/Errors.sol";
 
 /**
  * @title TokenCalculator

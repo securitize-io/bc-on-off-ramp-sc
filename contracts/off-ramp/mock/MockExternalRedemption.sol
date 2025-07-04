@@ -20,7 +20,6 @@ pragma solidity ^0.8.22;
 import {IDSToken} from "@securitize/digital_securities/contracts/token/IDSToken.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ILiquidityProvider} from "../provider/ILiquidityProvider.sol";
-import {ISecuritizeNavProvider} from "@securitize/digital_securities/contracts/nav/ISecuritizeNavProvider.sol";
 
 contract MockExternalRedemption {
     IDSToken public asset;

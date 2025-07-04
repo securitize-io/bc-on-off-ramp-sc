@@ -17,7 +17,7 @@
  */
 pragma solidity 0.8.22;
 
-import "@securitize/digital_securities/contracts/nav/ISecuritizeNavProvider.sol";
+import {ISecuritizeNavProvider} from "@securitize/digital_securities/contracts/nav/ISecuritizeNavProvider.sol";
 
 contract MockSecuritizeInternalNavProvider is ISecuritizeNavProvider {
     /**

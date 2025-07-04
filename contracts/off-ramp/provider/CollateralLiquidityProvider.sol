@@ -23,8 +23,6 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ISecuritizeOffRamp} from "../ISecuritizeOffRamp.sol";
 import {ILiquidityProvider} from "./ILiquidityProvider.sol";
 
-import "hardhat/console.sol";
-
 contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContract {
     /**
      * @dev liquidity asset.
@@ -115,12 +113,6 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
     }
 
     function availableLiquidity() external view returns (uint256) {
-        console.log("availableLiquidity called");
-        console.log("collateralProvider: ", collateralProvider);
-
-        uint256 bal = IERC20(externalCollateralRedemption.asset()).balanceOf(collateralProvider);
-        console.log("balance: ", bal);
-
         return IERC20(externalCollateralRedemption.asset()).balanceOf(collateralProvider);
     }
 
