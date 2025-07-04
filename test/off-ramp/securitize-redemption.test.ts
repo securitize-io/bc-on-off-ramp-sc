@@ -229,7 +229,7 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
             it('Should set new liquidity provider', async function () {
                 const { redemption, liquidityProvider } = await loadFixture(deployRedemptionProtocol);
                 const liquidityProviderAddress = await liquidityProvider.getAddress();
-                expect(await redemption.updateLiquidityProvider(liquidityProviderAddress))
+                await expect(redemption.updateLiquidityProvider(liquidityProviderAddress))
                     .emit(redemption, 'LiquidityProviderUpdated')
                     .withArgs(liquidityProviderAddress, liquidityProviderAddress);
                 expect(await redemption.liquidityProvider()).to.equal(liquidityProviderAddress);
