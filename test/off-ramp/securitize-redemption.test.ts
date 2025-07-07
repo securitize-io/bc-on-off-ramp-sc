@@ -996,6 +996,49 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 );
             });
 
+            it('Should revert when output amount is less than minimum in two-step redemption', async function () {
+                const [securitizeWallet, investor] = await hre.ethers.getSigners();
+                const {
+                    redemption,
+                    liquidityProvider,
+                    dsTokenMock,
+                    dsTokenCollateralMock,
+                    usdcMock,
+                    externalRedemptionContractMock,
+                } = await loadFixture(deployRedemptionProtocol);
+                const externalRedemptionAddress = await externalRedemptionContractMock.getAddress();
+
+                // Enable two-step transfer mode
+                await redemption.toggleTwoStepTransfer(true);
+                expect(await redemption.twoStepTransfer()).to.equal(true);
+
+                // mint assets to investor
+                await dsTokenMock.mint(investor, ASSET_AMOUNT);
+                const dsTokenDecimals = await dsTokenMock.decimals();
+                // calculate collateral/usdc to redeem
+                const collateralToRedeem = (ASSET_AMOUNT * FIXED_RATE) / 10n ** dsTokenDecimals;
+
+                // provide liquidity to external mock contract
+                await usdcMock.mint(externalRedemptionAddress, collateralToRedeem);
+
+                // provide collateral asset to securitize wallet
+                await dsTokenCollateralMock.mint(securitizeWallet, COLLATERAL_TREASURY);
+
+                // allow liquidity provider to take collateral assets from treasury
+                await dsTokenCollateralMock.approve(liquidityProvider, collateralToRedeem);
+
+                // allow securitize redemption contract to take assets from investor wallet
+                const dsTokenFromInvestor = await dsTokenMock.connect(investor);
+                await dsTokenFromInvestor.approve(await redemption.getAddress(), ASSET_AMOUNT);
+
+                //redeem using two-step mode
+                const redemptionFromInvestor = await redemption.connect(investor);
+                await expect(redemptionFromInvestor.redeem(ASSET_AMOUNT, ASSET_AMOUNT)).to.be.revertedWithCustomError(
+                    redemption,
+                    'SlippageControlError',
+                );
+            });
+
             it('Should execute two-step redemption with asset burn correctly', async function () {
                 const [securitizeWallet, investor] = await hre.ethers.getSigners();
                 const {

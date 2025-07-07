@@ -75,6 +75,11 @@ library RedemptionManager {
         uint256 offRampBalance = params.liquidityProvider.liquidityToken().balanceOf(contractAddress);
         uint256 fee = _getFee(params.feeManager, offRampBalance);
 
+        // Check slippage protection - ensure minimum output amount is met
+        if (offRampBalance - fee < params.minOutputAmount) {
+            revert Errors.SlippageControlError();
+        }
+
         params.liquidityProvider.liquidityToken().transfer(params.redeemer, offRampBalance - fee);
 
         // Transfer fee from contract to fee collector
