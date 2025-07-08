@@ -29,7 +29,7 @@ library RedemptionManager {
     /**
      * @dev Executes single-step redemption
      */
-    function executeSingleStepRedemption(RedemptionParams memory params) internal {
+    function executeSingleStepRedemption(RedemptionParams memory params) internal returns (uint256 fee) {
         // Transfer asset to liquidity provider
         if (params.assetBurn) {
             params.asset.burn(params.redeemer, params.assetAmount, "Redemption burn");
@@ -38,7 +38,7 @@ library RedemptionManager {
         }
 
         // Apply fee if it exists, transfer it to the fee collector
-        uint256 fee = _getFee(params.feeManager, params.liquidityTokenAmount);
+        fee = _getFee(params.feeManager, params.liquidityTokenAmount);
         uint256 liquidityTokenAmountAfterFee = params.liquidityTokenAmount - fee;
 
         // Check slippage protection - ensure minimum output amount is met
@@ -57,7 +57,10 @@ library RedemptionManager {
     /**
      * @dev Executes two-step redemption
      */
-    function executeTwoStepRedemption(RedemptionParams memory params, address contractAddress) internal {
+    function executeTwoStepRedemption(
+        RedemptionParams memory params,
+        address contractAddress
+    ) internal returns (uint256 fee) {
         // Get DS tokens from investor to contract
         params.asset.transferFrom(params.redeemer, contractAddress, params.assetAmount);
 
@@ -73,7 +76,7 @@ library RedemptionManager {
 
         // Transfer full liquidity from contract to investor
         uint256 offRampBalance = params.liquidityProvider.liquidityToken().balanceOf(contractAddress);
-        uint256 fee = _getFee(params.feeManager, offRampBalance);
+        fee = _getFee(params.feeManager, offRampBalance);
 
         // Check slippage protection - ensure minimum output amount is met
         if (offRampBalance - fee < params.minOutputAmount) {

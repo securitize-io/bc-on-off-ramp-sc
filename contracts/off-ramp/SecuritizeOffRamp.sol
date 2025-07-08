@@ -94,8 +94,17 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, BaseContract {
      * @param amount The amount being redeemed
      * @param liquidity The liquidity provided
      * @param rate The rate value
+     * @param fee The fee applied to the redemption
+     * @param liquidityToken The address of the liquidity token used for redemption
      */
-    event RedemptionCompleted(address indexed redeemer, uint256 amount, uint256 liquidity, uint256 rate);
+    event RedemptionCompleted(
+        address indexed redeemer,
+        uint256 amount,
+        uint256 liquidity,
+        uint256 rate,
+        uint256 fee,
+        address indexed liquidityToken
+    );
 
     /**
      * @dev Emitted when a country restriction status is updated
@@ -204,14 +213,23 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, BaseContract {
             assetBurn: assetBurn
         });
 
+        uint256 fee;
+
         // Execute redemption based on mode
         if (twoStepTransfer) {
-            RedemptionManager.executeTwoStepRedemption(params, address(this));
+            fee = RedemptionManager.executeTwoStepRedemption(params, address(this));
         } else {
-            RedemptionManager.executeSingleStepRedemption(params);
+            fee = RedemptionManager.executeSingleStepRedemption(params);
         }
 
-        emit RedemptionCompleted(msg.sender, assetAmount, liquidityTokenAmount, rate);
+        emit RedemptionCompleted(
+            msg.sender,
+            assetAmount,
+            liquidityTokenAmount,
+            rate,
+            fee,
+            address(liquidityProvider.liquidityToken())
+        );
     }
 
     /**
