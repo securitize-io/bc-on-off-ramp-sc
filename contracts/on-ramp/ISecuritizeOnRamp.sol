@@ -44,8 +44,19 @@ interface ISecuritizeOnRamp is IOnOffRamp {
      * @param _dsTokenValue asset amount
      * @param _liquidityValue stable coin amount
      * @param _newWalletTo wallet recipient
+     * @param _rate nav token rate
+     * @param _fee fee amount
+     * @param _liquidityToken the liquidity token
      */
-    event Swap(address indexed _from, uint256 _dsTokenValue, uint256 _liquidityValue, address indexed _newWalletTo);
+    event Swap(
+        address indexed _from,
+        uint256 _dsTokenValue,
+        uint256 _liquidityValue,
+        address indexed _newWalletTo,
+        uint256 _rate,
+        uint256 _fee,
+        address indexed _liquidityToken
+    );
 
     /**
      * @dev Emitted when an existing investor buy assets
@@ -165,9 +176,11 @@ interface ISecuritizeOnRamp is IOnOffRamp {
     /**
      * @dev Calculates the DSToken amount using current NAV rate.
      * @param _liquidityAmount the amount of stable coins
-     * @return dsTokenAmount The calculated amount of DSToken
+     * @return dsTokenAmount
+     * @return rate
+     * @return fee
      */
-    function calculateDsTokenAmount(uint256 _liquidityAmount) external returns (uint256);
+    function calculateDsTokenAmount(uint256 _liquidityAmount) external returns (uint256 dsTokenAmount, uint256 rate, uint256 fee);
 
     /**
      * @dev Update the asset provider

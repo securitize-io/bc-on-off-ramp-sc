@@ -138,7 +138,7 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
             revert TransactionTooOldError();
         }
 
-        uint256 dsTokenAmount = calculateDsTokenAmount(_liquidityAmount);
+        (uint256 dsTokenAmount, uint256 rate, uint256 fee) = calculateDsTokenAmount(_liquidityAmount);
         if (dsTokenAmount < _minOutAmount) {
             revert SlippageControlError();
         }
@@ -156,7 +156,7 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
         _executeAssetTransfer(_investorWallet, dsTokenAmount);
 
         emit DocumentSigned(_investorWallet, _agreementHash);
-        emit Swap(_msgSender(), dsTokenAmount, _liquidityAmount, _investorWallet);
+        emit Swap(_msgSender(), dsTokenAmount, _liquidityAmount, _investorWallet, rate, fee, address(liquidityToken));
     }
 
     function swap(
@@ -171,7 +171,7 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
         validateInvestorSubscription
         validateMinSubscriptionAmount(_liquidityAmount)
     {
-        uint256 dsTokenAmount = calculateDsTokenAmount(_liquidityAmount); // calculate dsToken using liquidityAmount - fee
+        (uint256 dsTokenAmount, uint256 rate, uint256 fee) = calculateDsTokenAmount(_liquidityAmount); // calculate dsToken using liquidityAmount - fee
         if (dsTokenAmount < _minOutAmount) {
             revert SlippageControlError();
         }
@@ -179,7 +179,7 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
         _executeLiquidityTransfer(_msgSender(), _liquidityAmount);
         _executeAssetTransfer(_msgSender(), dsTokenAmount);
 
-        emit Swap(_msgSender(), dsTokenAmount, _liquidityAmount, _msgSender());
+        emit Swap(_msgSender(), dsTokenAmount, _liquidityAmount, _msgSender(), rate, fee, address(liquidityToken));
     }
 
     function executePreApprovedTransaction(
@@ -214,13 +214,13 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
         return _hashTypedDataV4(structHash);
     }
 
-    function calculateDsTokenAmount(uint256 _liquidityAmount) public view override returns (uint256) {
-        uint256 fee = feeManager.getFee(_liquidityAmount);
+    function calculateDsTokenAmount(uint256 _liquidityAmount) public view override returns (uint256 dsTokenAmount, uint256 rate, uint256 fee) {
+        fee = feeManager.getFee(_liquidityAmount);
         uint256 liquidityAmountExcludingFee = _liquidityAmount - fee;
-        uint256 currentNavRate = navProvider.rate();
-        return
+        rate = navProvider.rate();
+        dsTokenAmount =
             (liquidityAmountExcludingFee * 10 ** IERC20Metadata(address(assetProvider.asset())).decimals()) /
-            currentNavRate;
+            rate;
     }
 
     function updateAssetProvider(address _assetProvider) external override onlyOwner {
