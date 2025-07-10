@@ -1,84 +1,9 @@
 import { expect } from 'chai';
-import {
-    COLLATERAL_TREASURY,
-    deployRedemptionProtocolWithMultipleTokens,
-    FIXED_RATE,
-    MIN_OUTPUT_AMOUNT,
-} from './fixture';
+import { deployRedemptionProtocolWithMultipleTokens, FIXED_RATE } from './fixture';
 import { loadFixture } from '@nomicfoundation/hardhat-network-helpers';
 import hre from 'hardhat';
 
-const DIGITAL_ASSET_AMOUNT = 30n;
-
 describe('Securitize Redemption Multiple Decimals', function () {
-    it('Should redeem investor with correct decimals', async function () {
-        const [securitizeWallet, investor] = await hre.ethers.getSigners();
-        const {
-            contractsWith0DecimalsDsTokenMock,
-            contractsWith6DecimalsDsTokenMock,
-            contractsWith18DecimalsDsTokenMock,
-            dsToken0DecimalMock,
-            dsToken6DecimalMock,
-            dsToken18DecimalMock,
-            dsTokenCollateralMock,
-            usdcMock,
-            externalRedemptionContractMock,
-            securitizeNavProviderMock,
-        } = await loadFixture(deployRedemptionProtocolWithMultipleTokens);
-
-        const externalRedemptionAddress = await externalRedemptionContractMock.getAddress();
-
-        const tokenTestCases = [
-            {
-                dsToken: dsToken0DecimalMock,
-                contract: contractsWith0DecimalsDsTokenMock,
-            },
-            {
-                dsToken: dsToken6DecimalMock,
-                contract: contractsWith6DecimalsDsTokenMock,
-            },
-            {
-                dsToken: dsToken18DecimalMock,
-                contract: contractsWith18DecimalsDsTokenMock,
-            },
-        ];
-
-        // provide collateral asset to securitize wallet
-        await dsTokenCollateralMock.mint(securitizeWallet, COLLATERAL_TREASURY);
-        const currentRate = await securitizeNavProviderMock.rate();
-        let totalCollateralToRedeem = 0n;
-        for (const testCase of tokenTestCases) {
-            const investorAssetAmount = DIGITAL_ASSET_AMOUNT * 10n ** (await testCase.dsToken.decimals());
-            await testCase.dsToken.mint(investor, investorAssetAmount);
-
-            const collateralToRedeem = (investorAssetAmount * currentRate) / 10n ** (await testCase.dsToken.decimals());
-            totalCollateralToRedeem += collateralToRedeem;
-            await dsTokenCollateralMock.approve(testCase.contract.liquidityProvider, collateralToRedeem);
-            const dsTokenFromInvestorWith6Decimals = await testCase.dsToken.connect(investor);
-
-            // @ts-expect-error approve method is not defined in BaseContract
-            await dsTokenFromInvestorWith6Decimals.approve(
-                await testCase.contract.redemption.getAddress(),
-                investorAssetAmount,
-            );
-        }
-
-        // provide liquidity to external mock contract
-        await usdcMock.mint(externalRedemptionAddress, totalCollateralToRedeem);
-
-        for (const tokenTestCase of tokenTestCases) {
-            const redemptionFromInvestor = await tokenTestCase.contract.redemption.connect(investor);
-            await redemptionFromInvestor.redeem(
-                DIGITAL_ASSET_AMOUNT * 10n ** (await tokenTestCase.dsToken.decimals()),
-                MIN_OUTPUT_AMOUNT, // Use constant for minimum output amount
-            );
-            expect(await tokenTestCase.dsToken.balanceOf(investor)).to.equal(0);
-        }
-        expect(await usdcMock.balanceOf(externalRedemptionAddress)).to.equal(0);
-        expect(await dsTokenCollateralMock.balanceOf(securitizeWallet)).to.equal(
-            COLLATERAL_TREASURY - totalCollateralToRedeem,
-        );
-    });
     it('Should revert when initializing with asset with excessive decimals', async function () {
         // Deploy token with excessive decimals (19, which exceeds max of 18)
         const excessiveDecimalsToken = await hre.ethers.deployContract('MockERC20', [

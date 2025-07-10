@@ -99,6 +99,7 @@ export const deployRedemptionProtocol = async () => {
         recipient: securitizeWallet.address,
         providerWallet: securitizeWallet.address,
         externalCollateralRedemption: await externalRedemptionContractMock.getAddress(),
+        verboseLogs: false,
     });
 
     return {
@@ -187,6 +188,7 @@ export const deployRedemptionProtocolWithMultipleTokens = async () => {
         recipient: securitizeWallet.address,
         providerWallet: securitizeWallet.address,
         externalCollateralRedemption: await externalRedemptionContractMock.getAddress(),
+        verboseLogs: false,
     });
 
     const contractsWith6DecimalsDsToken = await hre.run('deploy-redemption-collateral-protocol', {
@@ -198,6 +200,7 @@ export const deployRedemptionProtocolWithMultipleTokens = async () => {
         recipient: securitizeWallet.address,
         providerWallet: securitizeWallet.address,
         externalCollateralRedemption: await externalRedemptionContractMock.getAddress(),
+        verboseLogs: false,
     });
 
     const contractsWith0DecimalsDsToken = await hre.run('deploy-redemption-collateral-protocol', {
@@ -209,6 +212,7 @@ export const deployRedemptionProtocolWithMultipleTokens = async () => {
         recipient: securitizeWallet.address,
         providerWallet: securitizeWallet.address,
         externalCollateralRedemption: await externalRedemptionContractMock.getAddress(),
+        verboseLogs: false,
     });
     return {
         dsToken18DecimalMock: dsTokenMock,
@@ -260,6 +264,7 @@ export const deployRedemptionAllowanceProtocol = async () => {
         recipient: securitizeWallet.address,
         liquidityToken: await usdcMock.getAddress(),
         providerWallet: securitizeWallet.address,
+        verboseLogs: false,
     });
 
     return {
@@ -359,6 +364,7 @@ export const deployRedemptionProtocolWithAssetBurn = async () => {
         recipient: securitizeWallet.address,
         providerWallet: securitizeWallet.address,
         externalCollateralRedemption: await externalRedemptionContractMock.getAddress(),
+        verboseLogs: false,
     });
 
     return {
