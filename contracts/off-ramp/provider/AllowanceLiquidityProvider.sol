@@ -48,7 +48,6 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
      * @dev The caller account is not authorized to perform an operation.
      */
     error RedemptionUnauthorizedAccount(address account);
-    error MinOutputAmountExceeded(uint256 minOutputAmount, uint256 amount);
     error AvailableLiquidityExceeded(uint256 availableLiquidity, uint256 amount);
 
     /**
@@ -103,12 +102,23 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
             );
     }
 
-    function supplyTo(address redeemer, uint256 amount, uint256) public whenNotPaused onlySecuritizeRedemption {
+    function supplyTo(
+        address redeemer,
+        uint256 amount,
+        // Ignore minOutputAmount, // It will be checked in the OffRamp contract
+        uint256
+    ) public whenNotPaused onlySecuritizeRedemption returns (uint256) {
         if (amount > _availableLiquidity()) {
             revert InsufficientLiquidity(amount, _availableLiquidity());
         }
 
         // transfer liquidity token from liquidity provider wallet to redeemer
         liquidityToken.transferFrom(liquidityProviderWallet, redeemer, amount);
+
+        return amount;
+    }
+
+    function calculateLiquidityTokenAmount(uint256 amount) external pure returns (uint256 amountToSupply) {
+        return amount;
     }
 }

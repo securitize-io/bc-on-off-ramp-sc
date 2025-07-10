@@ -39,19 +39,22 @@ library RedemptionManager {
 
         // Apply fee if it exists, transfer it to the fee collector
         fee = _getFee(params.feeManager, params.liquidityTokenAmount);
-        uint256 liquidityTokenAmountAfterFee = params.liquidityTokenAmount - fee;
-
-        // Check slippage protection - ensure minimum output amount is met
-        if (liquidityTokenAmountAfterFee < params.minOutputAmount) {
-            revert Errors.SlippageControlError();
-        }
 
         // Supply liquidity tokens to the fee collector
         if (fee > 0) {
             params.liquidityProvider.supplyTo(IFeeManager(params.feeManager).feeCollector(), fee, 0);
         }
+
         // Supply liquidity tokens to the redeemer
-        params.liquidityProvider.supplyTo(params.redeemer, liquidityTokenAmountAfterFee, params.minOutputAmount);
+        uint256 suppliedAmount = params.liquidityProvider.supplyTo(
+            params.redeemer,
+            params.liquidityTokenAmount - fee,
+            params.minOutputAmount
+        );
+
+        if (suppliedAmount < params.minOutputAmount) {
+            revert Errors.SlippageControlError();
+        }
     }
 
     /**
@@ -72,18 +75,23 @@ library RedemptionManager {
         }
 
         // Get liquidity from provider to contract
-        params.liquidityProvider.supplyTo(contractAddress, params.liquidityTokenAmount, params.minOutputAmount);
+        uint256 suppliedAmount = params.liquidityProvider.supplyTo(
+            contractAddress,
+            params.liquidityTokenAmount,
+            params.minOutputAmount
+        );
 
-        // Transfer full liquidity from contract to investor
-        uint256 offRampBalance = params.liquidityProvider.liquidityToken().balanceOf(contractAddress);
-        fee = _getFee(params.feeManager, offRampBalance);
+        // Calculate fee based on supplied amount
+        fee = _getFee(params.feeManager, suppliedAmount);
 
+        uint256 userSuppliedAmount = suppliedAmount - fee;
         // Check slippage protection - ensure minimum output amount is met
-        if (offRampBalance - fee < params.minOutputAmount) {
+        if (userSuppliedAmount < params.minOutputAmount) {
             revert Errors.SlippageControlError();
         }
 
-        params.liquidityProvider.liquidityToken().transfer(params.redeemer, offRampBalance - fee);
+        // Transfer liquidity tokens from contract to redeemer
+        params.liquidityProvider.liquidityToken().transfer(params.redeemer, userSuppliedAmount);
 
         // Transfer fee from contract to fee collector
         if (fee > 0) {

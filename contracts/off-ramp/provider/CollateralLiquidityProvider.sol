@@ -124,7 +124,7 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
         address redeemer,
         uint256 amount,
         uint256 minOutputAmount
-    ) public whenNotPaused onlySecuritizeRedemption {
+    ) public whenNotPaused onlySecuritizeRedemption returns (uint256 amountToSupply) {
         if (amount > _availableLiquidity()) {
             revert InsufficientLiquidity(amount, _availableLiquidity());
         }
@@ -139,11 +139,13 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
         externalCollateralRedemption.redeem(amount, minOutputAmount);
 
         // Discount the fee charged by the external collateral redemption
-        uint256 assetsAfterExternalCollateralRedemptionFee = externalCollateralRedemption.calculateLiquidityTokenAmount(
-            amount
-        );
+        amountToSupply = externalCollateralRedemption.calculateLiquidityTokenAmount(amount);
 
         // Supply redeemer
-        liquidityToken.transfer(redeemer, assetsAfterExternalCollateralRedemptionFee);
+        liquidityToken.transfer(redeemer, amountToSupply);
+    }
+
+    function calculateLiquidityTokenAmount(uint256 amount) external view returns (uint256 amountToSupply) {
+        amountToSupply = externalCollateralRedemption.calculateLiquidityTokenAmount(amount);
     }
 }
