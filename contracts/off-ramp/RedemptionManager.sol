@@ -29,7 +29,9 @@ library RedemptionManager {
     /**
      * @dev Executes single-step redemption
      */
-    function executeSingleStepRedemption(RedemptionParams memory params) internal returns (uint256 fee) {
+    function executeSingleStepRedemption(
+        RedemptionParams memory params
+    ) internal returns (uint256 fee, uint256 suppliedAmount) {
         // Transfer asset to liquidity provider
         if (params.assetBurn) {
             params.asset.burn(params.redeemer, params.assetAmount, "Redemption burn");
@@ -46,7 +48,7 @@ library RedemptionManager {
         }
 
         // Supply liquidity tokens to the redeemer
-        uint256 suppliedAmount = params.liquidityProvider.supplyTo(
+        suppliedAmount = params.liquidityProvider.supplyTo(
             params.redeemer,
             params.liquidityTokenAmount - fee,
             params.minOutputAmount
@@ -63,7 +65,7 @@ library RedemptionManager {
     function executeTwoStepRedemption(
         RedemptionParams memory params,
         address contractAddress
-    ) internal returns (uint256 fee) {
+    ) internal returns (uint256 fee, uint256 userSuppliedAmount) {
         // Get DS tokens from investor to contract
         params.asset.transferFrom(params.redeemer, contractAddress, params.assetAmount);
 
@@ -84,7 +86,7 @@ library RedemptionManager {
         // Calculate fee based on supplied amount
         fee = _getFee(params.feeManager, suppliedAmount);
 
-        uint256 userSuppliedAmount = suppliedAmount - fee;
+        userSuppliedAmount = suppliedAmount - fee;
         // Check slippage protection - ensure minimum output amount is met
         if (userSuppliedAmount < params.minOutputAmount) {
             revert Errors.SlippageControlError();
