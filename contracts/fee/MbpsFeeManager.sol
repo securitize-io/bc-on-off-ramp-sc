@@ -54,7 +54,7 @@ contract MbpsFeeManager is IFeeManager, BaseContract {
      * @dev Sets the fee percentage
      * @param _fee Fee percentage in basis points (1/100th of a percent)
      */
-    function setRedemptionFee(uint256 _fee) external onlyOwner {
+    function setFee(uint256 _fee) external onlyOwner {
         uint256 oldFee = fee;
         fee = _fee;
         emit FeeUpdated(oldFee, _fee);
