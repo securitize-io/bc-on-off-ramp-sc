@@ -213,3 +213,101 @@ task('balance', 'Check the balance of a token for a given address')
         const balance = await token.balanceOf(taskArgs.address);
         consoleGreen(`Balance of ${taskArgs.address} for token ${taskArgs.token}: ${balance.toString()}`);
     });
+
+task('upgrade-proxy', 'Upgrade a UUPS proxy to a new implementation')
+    .addParam('proxyAddress', 'The address of the proxy contract')
+    .addParam('contractName', 'The new contract implementation name')
+    .addFlag('verify', 'Should we attempt to verify the new implementation')
+    .addVariadicPositionalParam('args', 'The initializer arguments (if needed)', [])
+    .setAction(async (taskArgs, hre) => {
+        await hre.run('compile');
+        console.log('');
+        consoleCyan('task: upgrade-proxy');
+        consoleGreen(`Upgrading proxy at ${taskArgs.proxyAddress} to ${taskArgs.contractName}...`);
+
+        const Contract = await hre.ethers.getContractFactory(taskArgs.contractName);
+        const argsTypes = taskArgs.args.map((arg: string) => {
+            if (arg === 'true' || arg === 'false') {
+                return arg === 'true';
+            } else {
+                return arg;
+            }
+        });
+
+        const upgraded = await hre.upgrades.upgradeProxy(
+            taskArgs.proxyAddress,
+            Contract,
+            argsTypes.length > 0 ? { call: { fn: 'initialize', args: argsTypes } } : {},
+        );
+        await upgraded.waitForDeployment();
+        const newImplAddress = await hre.upgrades.erc1967.getImplementationAddress(taskArgs.proxyAddress);
+
+        console.log(`Proxy upgraded at: ${taskArgs.proxyAddress}`);
+        console.log(`New implementation at:`);
+        consoleYellow(`${newImplAddress}`);
+
+        if (taskArgs.verify) {
+            await hre.run('verify-contract', {
+                address: newImplAddress,
+                contractName: taskArgs.contractName,
+                args: [],
+            });
+        }
+
+        return { proxyAddress: taskArgs.proxyAddress, newImplAddress };
+    });
+
+// Agregar a hardhat.config.js
+task('upgrade-proxy-2', 'Upgradea un proxy a nueva implementación')
+    .addParam('proxy', 'Dirección del proxy')
+    .addParam('new', 'Nombre del nuevo contrato')
+    .addOptionalParam('kind', 'Tipo de proxy (transparent, uups, beacon)', 'transparent')
+    .addOptionalParam('call', 'Función a llamar después del upgrade')
+    .addFlag('validate', 'Validar upgrade antes de ejecutar')
+    .addFlag('verify', 'Verificar contratos en Etherscan')
+    .setAction(async (taskArgs, hre) => {
+        const { ethers, upgrades } = hre;
+
+        console.log('🚀 Upgrading proxy...');
+        console.log('Proxy:', taskArgs.proxy);
+        console.log('Nueva implementación:', taskArgs.new);
+
+        try {
+            // 1. Obtener factory del nuevo contrato
+            const NewImplementation = await ethers.getContractFactory(taskArgs.new);
+
+            // 2. Validar si se solicita
+            if (taskArgs.validate) {
+                console.log('🔍 Validando...');
+                await upgrades.validateUpgrade(taskArgs.proxy, NewImplementation);
+                console.log('✅ Validación exitosa');
+            }
+
+            // 3. Preparar opciones
+            const options = {
+                kind: taskArgs.kind,
+                ...(taskArgs.call && { call: taskArgs.call }),
+            };
+
+            // 4. Ejecutar upgrade
+            console.log('⚡ Ejecutando upgrade...');
+            const upgraded = await upgrades.upgradeProxy(taskArgs.proxy, NewImplementation, options);
+
+            // 5. Obtener nueva implementación
+            const newImplAddress = await upgrades.erc1967.getImplementationAddress(taskArgs.proxy);
+
+            console.log('✅ Upgrade completado!');
+            console.log('Proxy:', upgraded.address);
+            console.log('Nueva implementación:', newImplAddress);
+
+            // 6. Verificar si se solicita
+            if (taskArgs.verify) {
+                console.log('🔍 Verificando...');
+                await hre.run('verify:verify', { address: taskArgs.proxy });
+                console.log('✅ Verificado');
+            }
+        } catch (error) {
+            console.error('❌ Error:', error.message);
+            throw error;
+        }
+    });

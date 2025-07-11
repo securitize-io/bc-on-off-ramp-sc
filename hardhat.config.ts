@@ -35,6 +35,10 @@ const config: HardhatUserConfig = {
             url: process.env.OPTIMISM_RPC_URL ?? '',
             accounts: [process.env.DEPLOYER_PRIV_KEY!].filter((x) => x),
         },
+        avaxtest: {
+            url: process.env.AVAX_TESTNET_RPC_URL ?? '',
+            accounts: [process.env.DEPLOYER_PRIV_KEY!].filter((x) => x),
+        },
     },
     etherscan: {
         apiKey: {
@@ -44,6 +48,8 @@ const config: HardhatUserConfig = {
             arbitrumSepolia: process.env.API_KEY_ARBISCAN || '',
             optimisticEthereum: process.env.API_KEY_OPTIMISTIC || '',
             optimisticSepolia: process.env.API_KEY_OPTIMISTIC || '',
+            avalanche: process.env.API_KEY_AVALANCHE || '',
+            avalancheFujiTestnet: process.env.API_KEY_AVALANCHE || '',
         },
     },
 };
