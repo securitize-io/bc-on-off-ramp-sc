@@ -40,22 +40,22 @@ interface ISecuritizeOnRamp is IOnOffRamp {
 
     /**
      * @dev Emitted for a new subscription agreement
-     * @param _from investor
-     * @param _dsTokenValue asset amount
-     * @param _liquidityValue stable coin amount
-     * @param _newWalletTo wallet recipient
-     * @param _rate nav token rate
-     * @param _fee fee amount
-     * @param _liquidityToken the liquidity token
+     * @param from investor
+     * @param dsTokenValue asset amount
+     * @param liquidityValue stable coin amount
+     * @param newWalletTo wallet recipient
+     * @param rate nav token rate
+     * @param fee fee amount
+     * @param liquidityToken the liquidity token
      */
     event Swap(
-        address indexed _from,
-        uint256 _dsTokenValue,
-        uint256 _liquidityValue,
-        address indexed _newWalletTo,
-        uint256 _rate,
-        uint256 _fee,
-        address indexed _liquidityToken
+        address indexed from,
+        uint256 dsTokenValue,
+        uint256 liquidityValue,
+        address indexed newWalletTo,
+        uint256 rate,
+        uint256 fee,
+        address indexed liquidityToken
     );
 
     /**
@@ -180,7 +180,9 @@ interface ISecuritizeOnRamp is IOnOffRamp {
      * @return rate
      * @return fee
      */
-    function calculateDsTokenAmount(uint256 _liquidityAmount) external returns (uint256 dsTokenAmount, uint256 rate, uint256 fee);
+    function calculateDsTokenAmount(
+        uint256 _liquidityAmount
+    ) external returns (uint256 dsTokenAmount, uint256 rate, uint256 fee);
 
     /**
      * @dev Update the asset provider
