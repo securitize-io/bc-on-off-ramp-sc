@@ -70,13 +70,7 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
         address _recipient,
         address _securitizeOffRamp
     ) public onlyProxy initializer {
-        if (_recipient == address(0)) {
-            revert NonZeroAddressError();
-        }
-        if (_liquidityToken == address(0)) {
-            revert NonZeroAddressError();
-        }
-        if (_securitizeOffRamp == address(0)) {
+        if (_recipient == address(0) || _liquidityToken == address(0) || _securitizeOffRamp == address(0)) {
             revert NonZeroAddressError();
         }
         __BaseContract_init();
