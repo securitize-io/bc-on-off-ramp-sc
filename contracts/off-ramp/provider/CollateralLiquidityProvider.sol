@@ -79,6 +79,10 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
         securitizeOffRamp = ISecuritizeOffRamp(_securitizeOffRamp);
     }
 
+    constructor() {
+        _disableInitializers();
+    }
+
     function setExternalCollateralRedemption(address externalCollateralRedemption_) external onlyOwner {
         if (externalCollateralRedemption_ == address(0)) {
             revert NonZeroAddressError();

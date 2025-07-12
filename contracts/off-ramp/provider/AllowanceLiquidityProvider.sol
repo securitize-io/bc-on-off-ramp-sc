@@ -87,6 +87,10 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
         securitizeOffRamp = ISecuritizeOffRamp(_securitizeOffRamp);
     }
 
+    constructor() {
+        _disableInitializers();
+    }
+
     function setAllowanceProviderWallet(address _liquidityProviderWallet) external onlyOwner {
         if (_liquidityProviderWallet == address(0)) {
             revert NonZeroAddressError();

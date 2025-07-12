@@ -170,6 +170,10 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, BaseContract {
         assetAddress = _asset;
     }
 
+    constructor() {
+        _disableInitializers();
+    }
+
     /**
      * @dev Redeems asset tokens for liquidity tokens
      * @param assetAmount The amount of asset tokens to redeem
