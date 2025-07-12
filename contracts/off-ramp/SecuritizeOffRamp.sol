@@ -170,6 +170,7 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, BaseContract {
         assetAddress = _asset;
     }
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
     }

@@ -87,6 +87,7 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
         securitizeOffRamp = ISecuritizeOffRamp(_securitizeOffRamp);
     }
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
     }

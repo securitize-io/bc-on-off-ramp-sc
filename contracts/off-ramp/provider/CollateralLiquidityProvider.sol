@@ -79,6 +79,7 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
         securitizeOffRamp = ISecuritizeOffRamp(_securitizeOffRamp);
     }
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
     }
