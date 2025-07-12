@@ -6,6 +6,7 @@
 pragma solidity ^0.8.22;
 
 import {IDSToken} from "@securitize/digital_securities/contracts/token/IDSToken.sol";
+import {TokenCalculator} from "./TokenCalculator.sol";
 import {ILiquidityProvider} from "./provider/ILiquidityProvider.sol";
 import {IFeeManager} from "../fee/IFeeManager.sol";
 import {Errors} from "../common/Errors.sol";
@@ -40,7 +41,7 @@ library RedemptionManager {
         }
 
         // Apply fee if it exists, transfer it to the fee collector
-        fee = _getFee(params.feeManager, params.liquidityTokenAmount);
+        fee = TokenCalculator.calculateFee(params.feeManager, params.liquidityTokenAmount);
 
         // Supply liquidity tokens to the fee collector
         if (fee > 0) {
@@ -84,7 +85,7 @@ library RedemptionManager {
         );
 
         // Calculate fee based on supplied amount
-        fee = _getFee(params.feeManager, suppliedAmount);
+        fee = TokenCalculator.calculateFee(params.feeManager, suppliedAmount);
 
         userSuppliedAmount = suppliedAmount - fee;
         // Check slippage protection - ensure minimum output amount is met
@@ -99,13 +100,5 @@ library RedemptionManager {
         if (fee > 0) {
             params.liquidityProvider.liquidityToken().transfer(IFeeManager(params.feeManager).feeCollector(), fee);
         }
-    }
-
-    /**
-     * @dev Calculates the fee amount
-     */
-    function _getFee(address feeManager, uint256 amount) private view returns (uint256) {
-        IFeeManager feeManagerInstance = IFeeManager(feeManager);
-        return feeManagerInstance.getFee(amount);
     }
 }
