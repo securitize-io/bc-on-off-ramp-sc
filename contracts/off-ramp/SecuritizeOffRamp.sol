@@ -91,16 +91,16 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, BaseContract {
     /**
      * @dev Emitted when redemption is completed.
      * @param redeemer Initiator of redemption transaction
-     * @param amount The amount being redeemed
-     * @param liquidity The liquidity provided
+     * @param dsTokenValue The amount being redeemed
+     * @param liquidityValue The liquidity provided
      * @param rate The rate value
      * @param fee The fee applied to the redemption
      * @param liquidityToken The address of the liquidity token used for redemption
      */
     event RedemptionCompleted(
         address indexed redeemer,
-        uint256 amount,
-        uint256 liquidity,
+        uint256 dsTokenValue,
+        uint256 liquidityValue,
         uint256 rate,
         uint256 fee,
         address indexed liquidityToken
@@ -214,18 +214,19 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, BaseContract {
         });
 
         uint256 fee;
+        uint256 suppliedAmount;
 
         // Execute redemption based on mode
         if (twoStepTransfer) {
-            fee = RedemptionManager.executeTwoStepRedemption(params, address(this));
+            (fee, suppliedAmount) = RedemptionManager.executeTwoStepRedemption(params, address(this));
         } else {
-            fee = RedemptionManager.executeSingleStepRedemption(params);
+            (fee, suppliedAmount) = RedemptionManager.executeSingleStepRedemption(params);
         }
 
         emit RedemptionCompleted(
             msg.sender,
             assetAmount,
-            liquidityTokenAmount,
+            suppliedAmount,
             rate,
             fee,
             address(liquidityProvider.liquidityToken())
