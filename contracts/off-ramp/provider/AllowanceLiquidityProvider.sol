@@ -60,6 +60,13 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
         _;
     }
 
+    modifier addressNonZero(address _address) {
+        if (_address == address(0)) {
+            revert NonZeroAddressError();
+        }
+        _;
+    }
+
     function initialize(
         address _liquidityToken,
         address _recipient,
@@ -89,7 +96,7 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
         emit AllowanceLiquidityProviderWalletUpdated(oldAddress, liquidityProviderWallet);
     }
 
-    function availableLiquidity() external view returns (uint256) {
+    function availableLiquidity() external view addressNonZero(liquidityProviderWallet) returns (uint256) {
         return _availableLiquidity();
     }
 
@@ -105,7 +112,7 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
     function supplyTo(
         address redeemer,
         uint256 amount
-    ) public whenNotPaused onlySecuritizeRedemption returns (uint256) {
+    ) public whenNotPaused onlySecuritizeRedemption addressNonZero(liquidityProviderWallet) returns (uint256) {
         if (amount > _availableLiquidity()) {
             revert InsufficientLiquidity(amount, _availableLiquidity());
         }
