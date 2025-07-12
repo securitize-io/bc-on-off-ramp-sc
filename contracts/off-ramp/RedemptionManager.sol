@@ -29,7 +29,9 @@ library RedemptionManager {
     /**
      * @dev Executes single-step redemption
      */
-    function executeSingleStepRedemption(RedemptionParams memory params) internal returns (uint256 fee) {
+    function executeSingleStepRedemption(
+        RedemptionParams memory params
+    ) internal returns (uint256 fee, uint256 liquidityTokenAmountAfterFee) {
         // Transfer asset to liquidity provider
         if (params.assetBurn) {
             params.asset.burn(params.redeemer, params.assetAmount, "Redemption burn");
@@ -39,7 +41,7 @@ library RedemptionManager {
 
         // Apply fee if it exists, transfer it to the fee collector
         fee = _getFee(params.feeManager, params.liquidityTokenAmount);
-        uint256 liquidityTokenAmountAfterFee = params.liquidityTokenAmount - fee;
+        liquidityTokenAmountAfterFee = params.liquidityTokenAmount - fee;
 
         // Check slippage protection - ensure minimum output amount is met
         if (liquidityTokenAmountAfterFee < params.minOutputAmount) {
@@ -60,7 +62,7 @@ library RedemptionManager {
     function executeTwoStepRedemption(
         RedemptionParams memory params,
         address contractAddress
-    ) internal returns (uint256 fee) {
+    ) internal returns (uint256 fee, uint256 userSuppliedAmount) {
         // Get DS tokens from investor to contract
         params.asset.transferFrom(params.redeemer, contractAddress, params.assetAmount);
 
@@ -78,12 +80,14 @@ library RedemptionManager {
         uint256 offRampBalance = params.liquidityProvider.liquidityToken().balanceOf(contractAddress);
         fee = _getFee(params.feeManager, offRampBalance);
 
+        userSuppliedAmount = offRampBalance - fee;
+
         // Check slippage protection - ensure minimum output amount is met
-        if (offRampBalance - fee < params.minOutputAmount) {
+        if (userSuppliedAmount < params.minOutputAmount) {
             revert Errors.SlippageControlError();
         }
 
-        params.liquidityProvider.liquidityToken().transfer(params.redeemer, offRampBalance - fee);
+        params.liquidityProvider.liquidityToken().transfer(params.redeemer, userSuppliedAmount);
 
         // Transfer fee from contract to fee collector
         if (fee > 0) {
