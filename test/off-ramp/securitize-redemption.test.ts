@@ -183,9 +183,10 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 const { liquidityProvider } = await loadFixture(deployRedemptionProtocol);
                 await liquidityProvider.pause();
                 expect(await liquidityProvider.paused()).to.equal(true);
-                await expect(
-                    liquidityProvider.supplyTo(investor, ASSET_AMOUNT, MIN_OUTPUT_AMOUNT),
-                ).revertedWithCustomError(liquidityProvider, 'EnforcedPause');
+                await expect(liquidityProvider.supplyTo(investor, ASSET_AMOUNT)).revertedWithCustomError(
+                    liquidityProvider,
+                    'EnforcedPause',
+                );
             });
         });
 
@@ -193,9 +194,10 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
             it('Should fail if contract is called by other contract than Securitize Redemption', async function () {
                 const [_, investor] = await hre.ethers.getSigners();
                 const { liquidityProvider } = await loadFixture(deployRedemptionProtocol);
-                await expect(
-                    liquidityProvider.supplyTo(investor, ASSET_AMOUNT, MIN_OUTPUT_AMOUNT),
-                ).revertedWithCustomError(liquidityProvider, 'RedemptionUnauthorizedAccount');
+                await expect(liquidityProvider.supplyTo(investor, ASSET_AMOUNT)).revertedWithCustomError(
+                    liquidityProvider,
+                    'RedemptionUnauthorizedAccount',
+                );
             });
         });
 
