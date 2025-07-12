@@ -104,9 +104,7 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
 
     function supplyTo(
         address redeemer,
-        uint256 amount,
-        // Ignore minOutputAmount, // It will be checked in the OffRamp contract
-        uint256
+        uint256 amount
     ) public whenNotPaused onlySecuritizeRedemption returns (uint256) {
         if (amount > _availableLiquidity()) {
             revert InsufficientLiquidity(amount, _availableLiquidity());

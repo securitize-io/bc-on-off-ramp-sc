@@ -43,11 +43,7 @@ interface ILiquidityProvider is Errors {
      * @param _redeemer Receiver of liquidity
      * @param _amount Amount of liquidity to transfer
      */
-    function supplyTo(
-        address _redeemer,
-        uint256 _amount,
-        uint256 _minOutputAmount
-    ) external returns (uint256 amountToSupply);
+    function supplyTo(address _redeemer, uint256 _amount) external returns (uint256 amountToSupply);
 
     function calculateLiquidityTokenAmount(uint256 amount) external view returns (uint256 amountToSupply);
 

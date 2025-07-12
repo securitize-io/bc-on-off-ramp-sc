@@ -45,15 +45,11 @@ library RedemptionManager {
 
         // Supply liquidity tokens to the fee collector
         if (fee > 0) {
-            params.liquidityProvider.supplyTo(IFeeManager(params.feeManager).feeCollector(), fee, 0);
+            params.liquidityProvider.supplyTo(IFeeManager(params.feeManager).feeCollector(), fee);
         }
 
         // Supply liquidity tokens to the redeemer
-        suppliedAmount = params.liquidityProvider.supplyTo(
-            params.redeemer,
-            params.liquidityTokenAmount - fee,
-            params.minOutputAmount
-        );
+        suppliedAmount = params.liquidityProvider.supplyTo(params.redeemer, params.liquidityTokenAmount - fee);
 
         if (suppliedAmount < params.minOutputAmount) {
             revert Errors.SlippageControlError();
@@ -78,11 +74,7 @@ library RedemptionManager {
         }
 
         // Get liquidity from provider to contract
-        uint256 suppliedAmount = params.liquidityProvider.supplyTo(
-            contractAddress,
-            params.liquidityTokenAmount,
-            params.minOutputAmount
-        );
+        uint256 suppliedAmount = params.liquidityProvider.supplyTo(contractAddress, params.liquidityTokenAmount);
 
         // Calculate fee based on supplied amount
         fee = TokenCalculator.calculateFee(params.feeManager, suppliedAmount);

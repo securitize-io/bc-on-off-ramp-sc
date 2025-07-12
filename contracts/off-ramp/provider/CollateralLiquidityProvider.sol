@@ -122,8 +122,7 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
 
     function supplyTo(
         address redeemer,
-        uint256 amount,
-        uint256 minOutputAmount
+        uint256 amount
     ) public whenNotPaused onlySecuritizeRedemption returns (uint256 amountToSupply) {
         if (amount > _availableLiquidity()) {
             revert InsufficientLiquidity(amount, _availableLiquidity());
@@ -136,7 +135,7 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
         IERC20(externalCollateralRedemption.asset()).approve(address(externalCollateralRedemption), amount);
 
         // Get liquidity
-        externalCollateralRedemption.redeem(amount, minOutputAmount);
+        externalCollateralRedemption.redeem(amount, 0);
 
         // Discount the fee charged by the external collateral redemption
         amountToSupply = externalCollateralRedemption.calculateLiquidityTokenAmount(amount);
