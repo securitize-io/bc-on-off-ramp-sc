@@ -207,7 +207,7 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
                 keccak256(bytes(txData.senderInvestor)),
                 txData.destination,
                 keccak256(txData.data),
-                txData.nonce
+                noncePerInvestor[txData.senderInvestor]
             )
         );
 
