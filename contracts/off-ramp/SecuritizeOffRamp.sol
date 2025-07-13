@@ -189,10 +189,10 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, BaseContract {
         uint256 rate = navProvider.rate();
 
         // Validate redemption requirements (gas-optimized)
-        RedemptionValidator.validateRedemption(msg.sender, assetAmount, asset);
+        RedemptionValidator.validateRedemption(_msgSender(), assetAmount, asset);
 
         // Validate country restrictions
-        CountryValidator.validateCountryRestriction(msg.sender, dsServiceConsumer, restrictedCountries);
+        CountryValidator.validateCountryRestriction(_msgSender(), dsServiceConsumer, restrictedCountries);
 
         uint256 liquidityTokenAmount = TokenCalculator.calculateLiquidityTokenAmountWithoutFee(
             assetAmount,
@@ -209,7 +209,7 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, BaseContract {
             assetAmount: assetAmount,
             liquidityTokenAmount: liquidityTokenAmount,
             minOutputAmount: minOutputAmount,
-            redeemer: msg.sender,
+            redeemer: _msgSender(),
             assetBurn: assetBurn
         });
 
@@ -224,7 +224,7 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, BaseContract {
         }
 
         emit RedemptionCompleted(
-            msg.sender,
+            _msgSender(),
             assetAmount,
             liquidityValue,
             rate,
