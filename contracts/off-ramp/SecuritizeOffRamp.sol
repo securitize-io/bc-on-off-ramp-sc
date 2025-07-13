@@ -144,6 +144,11 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, BaseContract {
         _;
     }
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
     /**
      * @dev Throws if not called from the proxy
      */

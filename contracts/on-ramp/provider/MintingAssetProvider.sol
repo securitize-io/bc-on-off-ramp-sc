@@ -53,6 +53,11 @@ contract MintingAssetProvider is IAssetProvider, BaseContract {
         _;
     }
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
     /**
      * @dev Proxy Initializer.
      * @param _asset securitize rwa

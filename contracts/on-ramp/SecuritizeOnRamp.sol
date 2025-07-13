@@ -58,6 +58,11 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
     IUSDCBridge public USDCBridge;
     uint16 public bridgeChainId;
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
     function initialize(
         address _dsToken,
         address _liquidity,

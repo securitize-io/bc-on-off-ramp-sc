@@ -37,6 +37,11 @@ contract MbpsFeeManager is IFeeManager, BaseContract {
 
     event FeeUpdated(uint256 oldFee, uint256 newFee);
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
     function initialize(uint256 _fee, address _feeCollector) public onlyProxy initializer {
         __BaseContract_init();
         fee = _fee;
