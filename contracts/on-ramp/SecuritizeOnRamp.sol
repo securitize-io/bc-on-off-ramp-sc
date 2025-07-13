@@ -111,7 +111,7 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
         _;
     }
 
-    function nonceByInvestor(string memory _investorId) public view override returns (uint256) {
+    function nonceByInvestor(string memory _investorId) public view returns (uint256) {
         return noncePerInvestor[_investorId];
     }
 
@@ -128,7 +128,6 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
         bytes32 _agreementHash
     )
         public
-        override
         whenNotPaused
         onlySecuritizeOnRamp
         nonZeroNavRate
@@ -164,7 +163,6 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
         uint256 _minOutAmount
     )
         public
-        override
         whenNotPaused
         investorExists
         nonZeroNavRate
@@ -185,7 +183,7 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
     function executePreApprovedTransaction(
         bytes memory signature,
         ExecutePreApprovedTransaction calldata txData
-    ) public override whenNotPaused {
+    ) public whenNotPaused {
         bytes32 digest = hashTx(txData);
         address signer = ECDSA.recover(digest, signature);
 
@@ -214,7 +212,7 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
         return _hashTypedDataV4(structHash);
     }
 
-    function calculateDsTokenAmount(uint256 _liquidityAmount) public view override returns (uint256 dsTokenAmount, uint256 rate, uint256 fee) {
+    function calculateDsTokenAmount(uint256 _liquidityAmount) public view returns (uint256 dsTokenAmount, uint256 rate, uint256 fee) {
         fee = feeManager.getFee(_liquidityAmount);
         uint256 liquidityAmountExcludingFee = _liquidityAmount - fee;
         rate = navProvider.rate();
@@ -223,7 +221,7 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
             rate;
     }
 
-    function updateAssetProvider(address _assetProvider) external override onlyOwner {
+    function updateAssetProvider(address _assetProvider) external onlyOwner {
         if (_assetProvider == address(0)) {
             revert NonZeroAddressError();
         }
@@ -232,7 +230,7 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
         emit AssetProviderUpdated(oldProvider, _assetProvider);
     }
 
-    function updateNavProvider(address _navProvider) external override onlyOwner {
+    function updateNavProvider(address _navProvider) external onlyOwner {
         if (_navProvider == address(0)) {
             revert NonZeroAddressError();
         }
@@ -241,19 +239,19 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
         emit NavProviderUpdated(oldProvider, _navProvider);
     }
 
-    function updateMinSubscriptionAmount(uint256 _minSubscriptionAmount) external override onlyOwner {
+    function updateMinSubscriptionAmount(uint256 _minSubscriptionAmount) external onlyOwner {
         uint256 oldValue = minSubscriptionAmount;
         minSubscriptionAmount = _minSubscriptionAmount;
         emit MinSubscriptionAmountUpdated(oldValue, minSubscriptionAmount);
     }
 
-    function updateBridgeParams(uint16 _chainId, address _bridge) external override onlyOwner {
+    function updateBridgeParams(uint16 _chainId, address _bridge) external onlyOwner {
         bridgeChainId = _chainId;
         USDCBridge = IUSDCBridge(_bridge);
         emit BridgeParamsUpdated(_chainId, _bridge);
     }
 
-    function toggleInvestorSubscription(bool _investorSubscription) external override onlyOwner {
+    function toggleInvestorSubscription(bool _investorSubscription) external onlyOwner {
         if (_investorSubscription == investorSubscriptionEnabled) {
             revert SameValueError();
         }
@@ -261,7 +259,7 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
         emit InvestorSubscriptionUpdated(investorSubscriptionEnabled);
     }
 
-    function toggleTwoStepTransfer(bool _twoStepTransfer) external override onlyOwner {
+    function toggleTwoStepTransfer(bool _twoStepTransfer) external onlyOwner {
         if (_twoStepTransfer == twoStepTransfer) {
             revert SameValueError();
         }
