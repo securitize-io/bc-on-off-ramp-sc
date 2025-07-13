@@ -40,7 +40,7 @@ interface IAssetProvider is Errors {
 
     /**
      * @dev The securitize on ramp contract.
-     * @return The address of the securitize on ramo contract.
+     * @return The address of the securitize on ramp contract.
      */
     function securitizeOnRamp() external view returns (ISecuritizeOnRamp);
 }

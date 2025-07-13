@@ -22,6 +22,9 @@ import {BaseContract} from "../../common/BaseContract.sol";
 import {IAllowanceAssetProvider} from "./IAllowanceAssetProvider.sol";
 import {ISecuritizeOnRamp} from "../ISecuritizeOnRamp.sol";
 
+/**
+ * @title AllowanceAssetProvider
+ */
 contract AllowanceAssetProvider is IAllowanceAssetProvider, BaseContract {
     /**
      * @dev asset.
