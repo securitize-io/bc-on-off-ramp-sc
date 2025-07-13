@@ -31,7 +31,7 @@ contract MbpsFeeManager is IFeeManager, BaseContract {
     /**
      * @notice Fee expressed in mbps (1000 mbps = 1%)
      */
-    uint256 public fee;
+    uint256 public feePercentageMBPS;
 
     address public feeCollector;
 
@@ -42,9 +42,9 @@ contract MbpsFeeManager is IFeeManager, BaseContract {
         _disableInitializers();
     }
 
-    function initialize(uint256 _fee, address _feeCollector) public onlyProxy initializer {
+    function initialize(uint256 _feePercentageMBPS, address _feeCollector) public onlyProxy initializer {
         __BaseContract_init();
-        fee = _fee;
+        feePercentageMBPS = _feePercentageMBPS;
         feeCollector = _feeCollector;
     }
 
@@ -52,16 +52,16 @@ contract MbpsFeeManager is IFeeManager, BaseContract {
      * @dev Returns the computed fee
      */
     function getFee(uint256 amount) external view returns (uint256) {
-        return (amount * fee + FEE_DENOMINATOR - 1) / FEE_DENOMINATOR; // Round up to avoid zero fees
+        return (amount * feePercentageMBPS + FEE_DENOMINATOR - 1) / FEE_DENOMINATOR; // Round up to avoid zero fees
     }
 
     /**
      * @dev Sets the fee percentage
      * @param _fee Fee percentage in mbps (1 mbps = 0.001)
      */
-    function setFee(uint256 _fee) external onlyOwner {
-        uint256 oldFee = fee;
-        fee = _fee;
+    function setFeePercentageMBPS(uint256 _fee) external onlyOwner {
+        uint256 oldFee = feePercentageMBPS;
+        feePercentageMBPS = _fee;
         emit FeeUpdated(oldFee, _fee);
     }
 
