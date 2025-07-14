@@ -123,7 +123,7 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, BaseContract {
     /**
      * @dev Throws if the given address is the zero address
      */
-    modifier addressNonZero(address _address, string memory parameter) {
+    modifier addressNonZero(address _address) {
         if (_address == address(0)) {
             revert NonZeroAddressError();
         }
@@ -157,14 +157,7 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, BaseContract {
         address _navProvider,
         address _feeManager,
         bool _assetBurn
-    )
-        public
-        onlyProxy
-        initializer
-        addressNonZero(_asset, "asset")
-        addressNonZero(_navProvider, "navProvider")
-        addressNonZero(_feeManager, "feeManager")
-    {
+    ) public onlyProxy initializer addressNonZero(_asset) addressNonZero(_navProvider) addressNonZero(_feeManager) {
         __BaseContract_init();
 
         uint256 _assetDecimals = TokenDataStore(_asset).decimals();
@@ -247,9 +240,7 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, BaseContract {
         emit TwoStepTransferUpdated(twoStepTransfer_);
     }
 
-    function updateLiquidityProvider(
-        address _liquidityProvider
-    ) external onlyOwner addressNonZero(_liquidityProvider, "liquidityProvider") {
+    function updateLiquidityProvider(address _liquidityProvider) external onlyOwner addressNonZero(_liquidityProvider) {
         address oldProvider = address(liquidityProvider);
         liquidityProvider = ILiquidityProvider(_liquidityProvider);
 
@@ -263,7 +254,7 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, BaseContract {
         emit LiquidityProviderUpdated(oldProvider, address(liquidityProvider));
     }
 
-    function updateNavProvider(address _navProvider) external onlyOwner addressNonZero(_navProvider, "navProvider") {
+    function updateNavProvider(address _navProvider) external onlyOwner addressNonZero(_navProvider) {
         address oldProvider = address(navProvider);
         navProvider = ISecuritizeNavProvider(_navProvider);
         emit NavProviderUpdated(oldProvider, address(navProvider));
