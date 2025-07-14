@@ -59,15 +59,6 @@ interface ISecuritizeOnRamp is IOnOffRamp {
     );
 
     /**
-     * @dev Emitted when an existing investor buy assets
-     * @param _from investor
-     * @param _liquidityAmount stable coin amount
-     * @param _dsTokenAmount asset amount
-     * @param _navRate nav rate
-     */
-    event Buy(address indexed _from, uint256 _liquidityAmount, uint256 _dsTokenAmount, uint256 _navRate);
-
-    /**
      * @dev Emitted for a new subscription agreement
      * @param _from investor
      * @param _agreementHash Document hash
@@ -171,7 +162,7 @@ interface ISecuritizeOnRamp is IOnOffRamp {
      * @dev Returns nonce per investor
      * @param _investorId investor (blockchainId).
      */
-    function nonceByInvestor(string memory _investorId) external returns (uint256);
+    function nonceByInvestor(string memory _investorId) external view returns (uint256);
 
     /**
      * @dev Calculates the DSToken amount using current NAV rate.
@@ -182,7 +173,7 @@ interface ISecuritizeOnRamp is IOnOffRamp {
      */
     function calculateDsTokenAmount(
         uint256 _liquidityAmount
-    ) external returns (uint256 dsTokenAmount, uint256 rate, uint256 fee);
+    ) external view returns (uint256 dsTokenAmount, uint256 rate, uint256 fee);
 
     /**
      * @dev Update the asset provider
@@ -203,7 +194,7 @@ interface ISecuritizeOnRamp is IOnOffRamp {
     function updateMinSubscriptionAmount(uint256 _minSubscriptionAmount) external;
 
     /**
-     * @notice This method enable/disable headless methods (swap/swapFor)
+     * @notice This method enable/disable headless method (swap)
      * @dev Update the investor subscription feature
      * @param _investorSubscription new value
      */

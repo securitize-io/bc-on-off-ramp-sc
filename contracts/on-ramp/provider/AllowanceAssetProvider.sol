@@ -22,6 +22,9 @@ import {BaseContract} from "../../common/BaseContract.sol";
 import {IAllowanceAssetProvider} from "./IAllowanceAssetProvider.sol";
 import {ISecuritizeOnRamp} from "../ISecuritizeOnRamp.sol";
 
+/**
+ * @title AllowanceAssetProvider
+ */
 contract AllowanceAssetProvider is IAllowanceAssetProvider, BaseContract {
     /**
      * @dev asset.
@@ -51,6 +54,11 @@ contract AllowanceAssetProvider is IAllowanceAssetProvider, BaseContract {
             revert UnauthorizedAccount(_msgSender());
         }
         _;
+    }
+
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
     }
 
     /**

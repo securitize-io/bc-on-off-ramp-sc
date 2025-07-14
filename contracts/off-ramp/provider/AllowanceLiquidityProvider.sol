@@ -61,6 +61,11 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
         _;
     }
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
     function initialize(
         address _liquidityToken,
         address _recipient,

@@ -23,7 +23,7 @@ import {IAssetProvider} from "./IAssetProvider.sol";
 import {ISecuritizeOnRamp} from "../ISecuritizeOnRamp.sol";
 
 /**
- * @title IAssetProvider
+ * @title MintingAssetProvider
  * @notice this contract requires to has ISSUER role in order to mint tokens
  */
 contract MintingAssetProvider is IAssetProvider, BaseContract {
@@ -51,6 +51,11 @@ contract MintingAssetProvider is IAssetProvider, BaseContract {
             revert UnauthorizedAccount(_msgSender());
         }
         _;
+    }
+
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
     }
 
     /**

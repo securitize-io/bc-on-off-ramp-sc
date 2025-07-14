@@ -266,6 +266,49 @@ describe('On-Ramp Unit Tests', function () {
                     );
                 });
 
+                it('Should not allow replay attack', async function () {
+                    // Setup initial balances and approvals for multiple transactions
+                    await usdcMock.mint(unknownWallet, 2e6); // Mint 2M USDC for two transactions
+                    await dsTokenMock.issueTokens(assetProviderWallet, 2e6); // Issue 2e6 DS tokens
+                    const liquidityFromInvestor = usdcMock.connect(unknownWallet) as Contract;
+                    await liquidityFromInvestor.approve(onRamp, 2e6); // Approve 2 USDC
+                    const dsTokenFromAssetProviderWallet = dsTokenMock.connect(assetProviderWallet) as Contract;
+                    await dsTokenFromAssetProviderWallet.approve(assetProvider, 2e6); // Approve 2e6 DS tokens
+                    const [calculatedDSTokenAmount, rate, fee] = await onRamp.calculateDsTokenAmount(1e6);
+                    // Create first transaction with nonce 0
+                    const subscribeParams = [
+                        '1',
+                        await unknownWallet.getAddress(),
+                        'US',
+                        [],
+                        [],
+                        [],
+                        980000,
+                        1e6,
+                        blockNumber + 10,
+                        HASH,
+                    ];
+                    const txData = await buildTypedData(onRamp, subscribeParams);
+                    const signature = await eip712OnRamp(eip712Signer, await onRamp.getAddress(), txData);
+                    // Verify initial nonce is 0
+                    expect(await onRamp.nonceByInvestor('1')).to.equal(0);
+                    // Execute first transaction successfully
+                    await expect(onRamp.executePreApprovedTransaction(signature, txData))
+                      .emit(onRamp, 'Swap')
+                      .withArgs(onRamp, calculatedDSTokenAmount, 1e6, unknownWallet, rate ,fee, usdcMock);
+                    // Verify nonce is now 1 after first transaction
+                    expect(await onRamp.nonceByInvestor('1')).to.equal(1);
+                    // Verify first transaction effects
+                    expect(await dsTokenMock.balanceOf(unknownWallet)).to.equal(calculatedDSTokenAmount);
+                    expect(await usdcMock.balanceOf(unknownWallet)).to.equal(1e6); // 1e6 remaining
+                    // Execution fail because nonce is 1 now
+                    await expect(onRamp.executePreApprovedTransaction(signature, txData)).revertedWithCustomError(
+                      onRamp,
+                      'InvalidEIP712SignatureError',
+                    );
+                    expect(await onRamp.nonceByInvestor('1')).to.equal(1);
+                });
+
                 it('Should fail - slippage error', async function () {
                     const subscribeParams = [
                         '1',

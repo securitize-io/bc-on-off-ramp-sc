@@ -28,7 +28,7 @@ abstract contract BaseContract is UUPSUpgradeable, PausableUpgradeable, OwnableU
     function __BaseContract_init() internal onlyInitializing {
         __UUPSUpgradeable_init();
         __Pausable_init();
-        __Ownable_init(msg.sender);
+        __Ownable_init(_msgSender());
     }
 
     /**

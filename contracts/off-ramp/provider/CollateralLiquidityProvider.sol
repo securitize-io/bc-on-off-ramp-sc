@@ -65,6 +65,11 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
         _;
     }
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
     function initialize(
         address _liquidityToken,
         address _recipient,
