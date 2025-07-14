@@ -48,7 +48,6 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
      * @dev The caller account is not authorized to perform an operation.
      */
     error RedemptionUnauthorizedAccount(address account);
-    error MinOutputAmountExceeded(uint256 minOutputAmount, uint256 amount);
     error AvailableLiquidityExceeded(uint256 availableLiquidity, uint256 amount);
 
     /**
@@ -57,6 +56,16 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
     modifier onlySecuritizeRedemption() {
         if (address(securitizeOffRamp) != _msgSender()) {
             revert RedemptionUnauthorizedAccount(_msgSender());
+        }
+        _;
+    }
+
+    /**
+     * @dev Throws if the given address is the zero address
+     */
+    modifier addressNonZero(address _address) {
+        if (_address == address(0)) {
+            revert NonZeroAddressError();
         }
         _;
     }
@@ -95,7 +104,7 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
         emit AllowanceLiquidityProviderWalletUpdated(oldAddress, liquidityProviderWallet);
     }
 
-    function availableLiquidity() external view returns (uint256) {
+    function availableLiquidity() external view addressNonZero(liquidityProviderWallet) returns (uint256) {
         return _availableLiquidity();
     }
 
@@ -108,7 +117,11 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
             );
     }
 
-    function supplyTo(address redeemer, uint256 amount, uint256) public whenNotPaused onlySecuritizeRedemption {
+    function supplyTo(
+        address redeemer,
+        uint256 amount,
+        uint256
+    ) public whenNotPaused onlySecuritizeRedemption addressNonZero(liquidityProviderWallet) {
         if (amount > _availableLiquidity()) {
             revert InsufficientLiquidity(amount, _availableLiquidity());
         }
