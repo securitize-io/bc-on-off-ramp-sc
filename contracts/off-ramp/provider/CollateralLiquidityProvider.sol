@@ -22,6 +22,7 @@ import {BaseContract} from "../../common/BaseContract.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ISecuritizeOffRamp} from "../ISecuritizeOffRamp.sol";
 import {ILiquidityProvider} from "./ILiquidityProvider.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContract {
     /**
@@ -131,7 +132,13 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
     }
 
     function _availableLiquidity() private view returns (uint256) {
-        return IERC20(externalCollateralRedemption.asset()).balanceOf(collateralProvider);
+        return
+            Math.min(
+                externalCollateralRedemption.availableLiquidity(),
+                _calculateLiquidityTokenAmount(
+                    IERC20(externalCollateralRedemption.asset()).balanceOf(collateralProvider)
+                )
+            );
     }
 
     function supplyTo(
@@ -164,7 +171,19 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
         liquidityToken.transfer(redeemer, amountToSupply);
     }
 
-    function calculateLiquidityTokenAmount(uint256 amount) external view returns (uint256 amountToSupply) {
+    /**
+     * @dev Calculates the amount of liquidity tokens
+     * @param amount The amount of asset tokens to redeem
+     * @return amountToSupply The amount of liquidity tokens to supply
+     */
+    function calculateLiquidityTokenAmount(
+        uint256 amount
+    ) external view addressNonZero(address(externalCollateralRedemption)) returns (uint256 amountToSupply) {
+        return _calculateLiquidityTokenAmount(amount);
+    }
+
+    function _calculateLiquidityTokenAmount(uint256 amount) private view returns (uint256 amountToSupply) {
+        // Ensure the external collateral redemption is set
         amountToSupply = externalCollateralRedemption.calculateLiquidityTokenAmount(amount);
     }
 }

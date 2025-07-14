@@ -271,6 +271,10 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, BaseContract {
         return amountToSupply - fee;
     }
 
+    function availableLiquidity() external view returns (uint256) {
+        return liquidityProvider.availableLiquidity();
+    }
+
     function normalizeAmountByDecimals(uint256 assetAmount) public view returns (uint256) {
         uint256 rate = navProvider.rate();
         if (rate == 0) {

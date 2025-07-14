@@ -85,4 +85,10 @@ interface ISecuritizeOffRamp is IOnOffRamp, ISecuritizeOffRampErrors {
      * @return The amount of liquidity tokens.
      */
     function calculateLiquidityTokenAmount(uint256 _amount) external view returns (uint256);
+
+    /**
+     * @dev The available liquidity that can be supplied
+     * @return The available liquidity amount
+     */
+    function availableLiquidity() external view returns (uint256);
 }
