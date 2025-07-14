@@ -60,16 +60,6 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
         _;
     }
 
-    /**
-     * @dev Throws if the given address is the zero address
-     */
-    modifier addressNonZero(address _address) {
-        if (_address == address(0)) {
-            revert NonZeroAddressError();
-        }
-        _;
-    }
-
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -78,21 +68,22 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
     function initialize(
         address _liquidityToken,
         address _recipient,
-        address _securitizeOffRamp
+        address _securitizeOffRamp,
+        address _liquidityProviderWallet
     ) public onlyProxy initializer {
-        if (_recipient == address(0)) {
-            revert NonZeroAddressError();
-        }
-        if (_liquidityToken == address(0)) {
-            revert NonZeroAddressError();
-        }
-        if (_securitizeOffRamp == address(0)) {
+        if (
+            _recipient == address(0) ||
+            _liquidityToken == address(0) ||
+            _securitizeOffRamp == address(0) ||
+            _liquidityProviderWallet == address(0)
+        ) {
             revert NonZeroAddressError();
         }
         __BaseContract_init();
         recipient = _recipient;
         liquidityToken = IERC20(_liquidityToken);
         securitizeOffRamp = ISecuritizeOffRamp(_securitizeOffRamp);
+        liquidityProviderWallet = _liquidityProviderWallet;
     }
 
     function setAllowanceProviderWallet(address _liquidityProviderWallet) external onlyOwner {
@@ -104,7 +95,7 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
         emit AllowanceLiquidityProviderWalletUpdated(oldAddress, liquidityProviderWallet);
     }
 
-    function availableLiquidity() external view addressNonZero(liquidityProviderWallet) returns (uint256) {
+    function availableLiquidity() external view returns (uint256) {
         return _availableLiquidity();
     }
 
@@ -120,7 +111,7 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
     function supplyTo(
         address redeemer,
         uint256 amount
-    ) public whenNotPaused onlySecuritizeRedemption addressNonZero(liquidityProviderWallet) returns (uint256) {
+    ) public whenNotPaused onlySecuritizeRedemption returns (uint256) {
         if (amount > _availableLiquidity()) {
             revert InsufficientLiquidity(amount, _availableLiquidity());
         }

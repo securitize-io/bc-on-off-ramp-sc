@@ -31,14 +31,6 @@ interface ILiquidityProvider is Errors {
     error InsufficientLiquidity(uint256 requested, uint256 available);
 
     /**
-     * @dev Proxy Initializer.
-     * @param _liquidityToken liquidity token that the asset is being redeemed for.
-     * @param _recipient wallet address that receives digital assets..
-     * @param _securitizeOffRamp The address of the securitize redemption contract.
-     **/
-    function initialize(address _liquidityToken, address _recipient, address _securitizeOffRamp) external;
-
-    /**
      * @dev Supplies liquidity to a recipient
      * @param _redeemer Receiver of liquidity
      * @param _amount Amount of liquidity to transfer

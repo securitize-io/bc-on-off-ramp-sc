@@ -55,4 +55,8 @@ contract MockExternalRedemption {
         uint256 amountToSupply = amount - fee_;
         return amountToSupply;
     }
+
+    function availableLiquidity() external view returns (uint256) {
+        return liquidityToken.balanceOf(address(this));
+    }
 }

@@ -92,6 +92,8 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                         await usdcMock.getAddress(),
                         securitizeWallet,
                         await redemption.getAddress(),
+                        await redemption.getAddress(),
+                        await redemption.getAddress(),
                     ),
                 ).revertedWithCustomError(liquidityProvider, 'InvalidInitialization');
             });
@@ -203,19 +205,32 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
 
         describe('Available Liquidity', function () {
             it('Should return available liquidity', async function () {
-                const { liquidityProvider, dsTokenCollateralMock, collateralProviderAddressMock } =
-                    await loadFixture(deployRedemptionProtocol);
+                const {
+                    liquidityProvider,
+                    dsTokenCollateralMock,
+                    collateralProviderAddressMock,
+                    usdcMock,
+                    externalRedemptionContractMock,
+                } = await loadFixture(deployRedemptionProtocol);
 
                 await dsTokenCollateralMock.mint(collateralProviderAddressMock, 10);
+
+                await usdcMock.mint(await externalRedemptionContractMock.getAddress(), 12);
+                await usdcMock.approve(liquidityProvider, 12);
 
                 const availableLiquidity = await liquidityProvider.availableLiquidity();
                 expect(availableLiquidity).to.equal(10);
             });
             it('Should return available liquidity for AllowanceProvider', async function () {
-                const { liquidityProvider } = await loadFixture(deployRedemptionAllowanceProtocol);
+                const { liquidityProvider, usdcMock } = await loadFixture(deployRedemptionAllowanceProtocol);
+
+                const liquidityProviderWallet = await liquidityProvider.liquidityProviderWallet();
+
+                await usdcMock.mint(liquidityProviderWallet, 12);
+                await usdcMock.approve(liquidityProvider, 12);
 
                 const availableLiquidity = await liquidityProvider.availableLiquidity();
-                expect(availableLiquidity).to.equal(0);
+                expect(availableLiquidity).to.equal(12);
             });
         });
     });
@@ -644,6 +659,7 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                     externalRedemptionContractMock,
                     mockFeeManager,
                 } = await loadFixture(deployRedemptionProtocol);
+
                 const externalRedemptionAddress = await externalRedemptionContractMock.getAddress();
 
                 // Set a fee of 10% (10000 basis points) on the mock fee manager
@@ -652,7 +668,6 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
 
                 const liquidityTokenAmount = await redemption.calculateLiquidityTokenAmountBeforeFee(ASSET_AMOUNT);
                 const expectedFee = await mockFeeManager.getFee(liquidityTokenAmount);
-
                 // mint assets to investor
                 await dsTokenMock.mint(investor, ASSET_AMOUNT);
                 const dsTokenDecimals = await dsTokenMock.decimals();

@@ -66,16 +66,6 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
         _;
     }
 
-    /**
-     * @dev Throws if the given address is the zero address
-     */
-    modifier addressNonZero(address _address) {
-        if (_address == address(0)) {
-            revert NonZeroAddressError();
-        }
-        _;
-    }
-
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -84,15 +74,25 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
     function initialize(
         address _liquidityToken,
         address _recipient,
-        address _securitizeOffRamp
+        address _securitizeOffRamp,
+        address _externalCollateralRedemption,
+        address _collateralProvider
     ) public onlyProxy initializer {
-        if (_recipient == address(0) || _liquidityToken == address(0) || _securitizeOffRamp == address(0)) {
+        if (
+            _recipient == address(0) ||
+            _liquidityToken == address(0) ||
+            _securitizeOffRamp == address(0) ||
+            _externalCollateralRedemption == address(0) ||
+            _collateralProvider == address(0)
+        ) {
             revert NonZeroAddressError();
         }
         __BaseContract_init();
         recipient = _recipient;
         liquidityToken = IERC20(_liquidityToken);
         securitizeOffRamp = ISecuritizeOffRamp(_securitizeOffRamp);
+        externalCollateralRedemption = ISecuritizeOffRamp(_externalCollateralRedemption);
+        collateralProvider = _collateralProvider;
     }
 
     function setExternalCollateralRedemption(address externalCollateralRedemption_) external onlyOwner {
@@ -122,12 +122,7 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
         emit CollateralProviderUpdated(oldAddress, address(collateralProvider));
     }
 
-    function availableLiquidity()
-        external
-        view
-        addressNonZero(address(externalCollateralRedemption))
-        returns (uint256)
-    {
+    function availableLiquidity() external view returns (uint256) {
         return _availableLiquidity();
     }
 
@@ -144,13 +139,7 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
     function supplyTo(
         address redeemer,
         uint256 amount
-    )
-        public
-        whenNotPaused
-        onlySecuritizeRedemption
-        addressNonZero(address(externalCollateralRedemption))
-        returns (uint256 amountToSupply)
-    {
+    ) public whenNotPaused onlySecuritizeRedemption returns (uint256 amountToSupply) {
         if (amount > _availableLiquidity()) {
             revert InsufficientLiquidity(amount, _availableLiquidity());
         }
@@ -176,9 +165,7 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
      * @param amount The amount of asset tokens to redeem
      * @return amountToSupply The amount of liquidity tokens to supply
      */
-    function calculateLiquidityTokenAmount(
-        uint256 amount
-    ) external view addressNonZero(address(externalCollateralRedemption)) returns (uint256 amountToSupply) {
+    function calculateLiquidityTokenAmount(uint256 amount) external view returns (uint256 amountToSupply) {
         return _calculateLiquidityTokenAmount(amount);
     }
 

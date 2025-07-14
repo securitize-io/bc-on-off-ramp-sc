@@ -35,6 +35,22 @@ interface ICollateralLiquidityProvider is ILiquidityProvider {
     );
 
     /**
+     * @dev Proxy Initializer.
+     * @param _liquidityToken liquidity token that the asset is being redeemed for.
+     * @param _recipient wallet address that receives digital assets..
+     * @param _securitizeOffRamp The address of the securitize redemption contract.
+     * @param _externalCollateralRedemption The address of the external collateral redemption smart contract.
+     * @param _collateralProvider The address of the wallet that provides collateral asset.
+     **/
+    function initialize(
+        address _liquidityToken,
+        address _recipient,
+        address _securitizeOffRamp,
+        address _externalCollateralRedemption,
+        address _collateralProvider
+    ) external;
+
+    /**
      * @dev Emitted when owner updates collateral Provider address.
      * @param oldCollateralProvider Old external collateral Provider address
      * @param newCollateralProvider New external collateral Provider address

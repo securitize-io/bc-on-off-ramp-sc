@@ -126,6 +126,8 @@ describe('Securitize Redemption Multiple Decimals', function () {
                 await excessiveDecimalsToken.getAddress(),
                 await contractsWith18DecimalsDsTokenMock.redemption.getAddress(),
                 await contractsWith18DecimalsDsTokenMock.redemption.getAddress(),
+                await contractsWith18DecimalsDsTokenMock.redemption.getAddress(),
+                await contractsWith18DecimalsDsTokenMock.redemption.getAddress(),
             ],
             { kind: 'uups' },
         );
