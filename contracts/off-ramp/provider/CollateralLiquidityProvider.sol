@@ -65,6 +65,16 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
         _;
     }
 
+    /**
+     * @dev Throws if the given address is the zero address
+     */
+    modifier addressNonZero(address _address) {
+        if (_address == address(0)) {
+            revert NonZeroAddressError();
+        }
+        _;
+    }
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -111,8 +121,13 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
         emit CollateralProviderUpdated(oldAddress, address(collateralProvider));
     }
 
-    function availableLiquidity() external view returns (uint256) {
-        return IERC20(externalCollateralRedemption.asset()).balanceOf(collateralProvider);
+    function availableLiquidity()
+        external
+        view
+        addressNonZero(address(externalCollateralRedemption))
+        returns (uint256)
+    {
+        return _availableLiquidity();
     }
 
     function _availableLiquidity() private view returns (uint256) {
@@ -122,7 +137,13 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
     function supplyTo(
         address redeemer,
         uint256 amount
-    ) public whenNotPaused onlySecuritizeRedemption returns (uint256 amountToSupply) {
+    )
+        public
+        whenNotPaused
+        onlySecuritizeRedemption
+        addressNonZero(address(externalCollateralRedemption))
+        returns (uint256 amountToSupply)
+    {
         if (amount > _availableLiquidity()) {
             revert InsufficientLiquidity(amount, _availableLiquidity());
         }
