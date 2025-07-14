@@ -39,7 +39,6 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, BaseContract {
     /**
      * @dev Cached token decimals for gas optimization
      */
-    uint256 private liquidityDecimals;
     uint256 private assetDecimals;
 
     /**
@@ -192,12 +191,7 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, BaseContract {
         // Validate country restrictions
         CountryValidator.validateCountryRestriction(_msgSender(), dsServiceConsumer, restrictedCountries);
 
-        uint256 liquidityTokenAmount = TokenCalculator.calculateLiquidityTokenAmountWithoutFee(
-            assetAmount,
-            rate,
-            liquidityDecimals,
-            assetDecimals
-        );
+        uint256 liquidityTokenAmount = TokenCalculator.normalizeAmountByDecimals(assetAmount, rate, assetDecimals);
 
         // Prepare redemption parameters
         RedemptionManager.RedemptionParams memory params = RedemptionManager.RedemptionParams({
@@ -245,11 +239,10 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, BaseContract {
         liquidityProvider = ILiquidityProvider(_liquidityProvider);
 
         // Cache liquidity decimals to save gas in calculateLiquidityTokenAmount
-        uint256 _liquidityDecimals = ERC20(address(liquidityProvider.liquidityToken())).decimals();
-        if (_liquidityDecimals > 18) {
-            revert ExcessiveDecimals(_liquidityDecimals, 18);
+        uint256 liquidityDecimals = ERC20(address(liquidityProvider.liquidityToken())).decimals();
+        if (liquidityDecimals > 18) {
+            revert ExcessiveDecimals(liquidityDecimals, 18);
         }
-        liquidityDecimals = _liquidityDecimals;
 
         emit LiquidityProviderUpdated(oldProvider, address(liquidityProvider));
     }
@@ -270,31 +263,20 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, BaseContract {
         if (rate == 0) {
             revert NonZeroNavRateError();
         }
-        uint256 liquidityTokenAmountWithoutFee = TokenCalculator.calculateLiquidityTokenAmountWithoutFee(
-            assetAmount,
-            rate,
-            liquidityDecimals,
-            assetDecimals
-        );
+        uint256 normalizeAmount = TokenCalculator.normalizeAmountByDecimals(assetAmount, rate, assetDecimals);
 
-        uint256 amountToSupply = liquidityProvider.calculateLiquidityTokenAmount(liquidityTokenAmountWithoutFee);
+        uint256 amountToSupply = liquidityProvider.calculateLiquidityTokenAmount(normalizeAmount);
         uint256 fee = TokenCalculator.calculateFee(feeManager, amountToSupply);
 
         return amountToSupply - fee;
     }
 
-    function calculateLiquidityTokenAmountWithoutFee(uint256 assetAmount) public view returns (uint256) {
+    function normalizeAmountByDecimals(uint256 assetAmount) public view returns (uint256) {
         uint256 rate = navProvider.rate();
         if (rate == 0) {
             revert NonZeroNavRateError();
         }
-        return
-            TokenCalculator.calculateLiquidityTokenAmountWithoutFee(
-                assetAmount,
-                rate,
-                liquidityDecimals,
-                assetDecimals
-            );
+        return TokenCalculator.normalizeAmountByDecimals(assetAmount, rate, assetDecimals);
     }
 
     /**

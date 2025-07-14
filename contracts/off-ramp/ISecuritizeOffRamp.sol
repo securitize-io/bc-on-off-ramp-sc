@@ -77,7 +77,7 @@ interface ISecuritizeOffRamp is IOnOffRamp, ISecuritizeOffRampErrors {
      * @param _amount The amount of asset tokens to redeem.
      * @return The amount of liquidity tokens.
      */
-    function calculateLiquidityTokenAmountWithoutFee(uint256 _amount) external view returns (uint256);
+    function normalizeAmountByDecimals(uint256 _amount) external view returns (uint256);
 
     /**
      * @dev Calculates the amount of liquidity tokens to receive in redemption process
