@@ -119,14 +119,19 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
 
     function supplyTo(
         address redeemer,
-        uint256 amount,
-        uint256
-    ) public whenNotPaused onlySecuritizeRedemption addressNonZero(liquidityProviderWallet) {
+        uint256 amount
+    ) public whenNotPaused onlySecuritizeRedemption addressNonZero(liquidityProviderWallet) returns (uint256) {
         if (amount > _availableLiquidity()) {
             revert InsufficientLiquidity(amount, _availableLiquidity());
         }
 
         // transfer liquidity token from liquidity provider wallet to redeemer
         liquidityToken.transferFrom(liquidityProviderWallet, redeemer, amount);
+
+        return amount;
+    }
+
+    function calculateLiquidityTokenAmount(uint256 amount) external pure returns (uint256 amountToSupply) {
+        return amount;
     }
 }

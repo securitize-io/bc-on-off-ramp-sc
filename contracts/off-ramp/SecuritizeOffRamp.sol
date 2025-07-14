@@ -270,14 +270,17 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, BaseContract {
         if (rate == 0) {
             revert NonZeroNavRateError();
         }
-        return
-            TokenCalculator.calculateLiquidityTokenAmountWithFee(
-                assetAmount,
-                rate,
-                liquidityDecimals,
-                assetDecimals,
-                feeManager
-            );
+        uint256 liquidityTokenAmountWithoutFee = TokenCalculator.calculateLiquidityTokenAmountWithoutFee(
+            assetAmount,
+            rate,
+            liquidityDecimals,
+            assetDecimals
+        );
+
+        uint256 amountToSupply = liquidityProvider.calculateLiquidityTokenAmount(liquidityTokenAmountWithoutFee);
+        uint256 fee = TokenCalculator.calculateFee(feeManager, amountToSupply);
+
+        return amountToSupply - fee;
     }
 
     function calculateLiquidityTokenAmountWithoutFee(uint256 assetAmount) public view returns (uint256) {

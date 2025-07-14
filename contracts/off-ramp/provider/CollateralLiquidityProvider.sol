@@ -75,13 +75,7 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
         address _recipient,
         address _securitizeOffRamp
     ) public onlyProxy initializer {
-        if (_recipient == address(0)) {
-            revert NonZeroAddressError();
-        }
-        if (_liquidityToken == address(0)) {
-            revert NonZeroAddressError();
-        }
-        if (_securitizeOffRamp == address(0)) {
+        if (_recipient == address(0) || _liquidityToken == address(0) || _securitizeOffRamp == address(0)) {
             revert NonZeroAddressError();
         }
         __BaseContract_init();
@@ -127,9 +121,8 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
 
     function supplyTo(
         address redeemer,
-        uint256 amount,
-        uint256 minOutputAmount
-    ) public whenNotPaused onlySecuritizeRedemption {
+        uint256 amount
+    ) public whenNotPaused onlySecuritizeRedemption returns (uint256 amountToSupply) {
         if (amount > _availableLiquidity()) {
             revert InsufficientLiquidity(amount, _availableLiquidity());
         }
@@ -141,14 +134,16 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
         IERC20(externalCollateralRedemption.asset()).approve(address(externalCollateralRedemption), amount);
 
         // Get liquidity
-        externalCollateralRedemption.redeem(amount, minOutputAmount);
+        externalCollateralRedemption.redeem(amount, 0);
 
         // Discount the fee charged by the external collateral redemption
-        uint256 assetsAfterExternalCollateralRedemptionFee = externalCollateralRedemption.calculateLiquidityTokenAmount(
-            amount
-        );
+        amountToSupply = externalCollateralRedemption.calculateLiquidityTokenAmount(amount);
 
         // Supply redeemer
-        liquidityToken.transfer(redeemer, assetsAfterExternalCollateralRedemptionFee);
+        liquidityToken.transfer(redeemer, amountToSupply);
+    }
+
+    function calculateLiquidityTokenAmount(uint256 amount) external view returns (uint256 amountToSupply) {
+        amountToSupply = externalCollateralRedemption.calculateLiquidityTokenAmount(amount);
     }
 }

@@ -25,23 +25,34 @@ contract MockExternalRedemption {
     IDSToken public asset;
     ILiquidityProvider public liquidityProvider;
     IERC20 private liquidityToken;
+    uint256 public constant FEE_DENOMINATOR = 100_000;
+    uint256 public fee;
 
-    constructor(address _mockAsset, address _liquidityToken, address) {
+    constructor(address _mockAsset, address _liquidityToken, uint256 _fee) {
         asset = IDSToken(_mockAsset);
         liquidityToken = IERC20(_liquidityToken);
+        fee = _fee;
+    }
+
+    function _getFee(uint256 amount) private view returns (uint256) {
+        if (fee == 0) return 0;
+        return (amount * fee + FEE_DENOMINATOR - 1) / FEE_DENOMINATOR;
     }
 
     // rate 1:1 without fees
     function redeem(uint256 amount, uint256) external {
-        IERC20(liquidityToken).transfer(msg.sender, amount);
+        uint256 fee_ = _getFee(amount);
         IDSToken(asset).transferFrom(msg.sender, address(this), amount);
+        IERC20(liquidityToken).transfer(msg.sender, amount - fee_);
     }
 
     function updateLiquidityProvider(address _liquidityProvider) external {
         liquidityProvider = ILiquidityProvider(_liquidityProvider);
     }
 
-    function calculateLiquidityTokenAmount(uint256 _amount) public pure returns (uint256) {
-        return _amount;
+    function calculateLiquidityTokenAmount(uint256 amount) external view returns (uint256) {
+        uint256 fee_ = _getFee(amount);
+        uint256 amountToSupply = amount - fee_;
+        return amountToSupply;
     }
 }
