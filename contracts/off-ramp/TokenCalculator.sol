@@ -19,7 +19,11 @@ library TokenCalculator {
      * @param decimals The number of decimals for the token
      * @return The normalized token amount
      */
-    function normalizeAmountByDecimals(uint256 amount, uint256 rate, uint256 decimals) internal pure returns (uint256) {
+    function calculateLiquidityTokenAmountBeforeFee(
+        uint256 amount,
+        uint256 rate,
+        uint256 decimals
+    ) internal pure returns (uint256) {
         return (amount * rate) / (10 ** decimals);
     }
 

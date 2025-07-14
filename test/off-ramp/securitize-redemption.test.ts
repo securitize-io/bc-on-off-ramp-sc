@@ -650,7 +650,7 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 const fee = 10000;
                 await mockFeeManager.setRedemptionFee(fee);
 
-                const liquidityTokenAmount = await redemption.normalizeAmountByDecimals(ASSET_AMOUNT);
+                const liquidityTokenAmount = await redemption.calculateLiquidityTokenAmountBeforeFee(ASSET_AMOUNT);
                 const expectedFee = await mockFeeManager.getFee(liquidityTokenAmount);
 
                 // mint assets to investor
@@ -723,13 +723,13 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 await dsTokenMock.mint(investor, smallAmount);
                 const dsTokenDecimals = await dsTokenMock.decimals();
 
-                const liquidityTokenAmount = await redemption.normalizeAmountByDecimals(smallAmount);
+                const liquidityTokenAmount = await redemption.calculateLiquidityTokenAmountBeforeFee(smallAmount);
                 const expectedFee = await mockFeeManager.getFee(liquidityTokenAmount);
 
                 // Calculate collateral/usdc to redeem
                 const collateralToRedeem = (ASSET_AMOUNT * FIXED_RATE) / 10n ** dsTokenDecimals;
 
-                const calcAmount = await redemption.normalizeAmountByDecimals(smallAmount);
+                const calcAmount = await redemption.calculateLiquidityTokenAmountBeforeFee(smallAmount);
 
                 // Provide liquidity to external mock contract
                 await usdcMock.mint(externalRedemptionAddress, collateralToRedeem);
@@ -790,7 +790,7 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 //redeem
                 const redemptionFromInvestor = await redemption.connect(investor);
 
-                const liquidityTokenAmount = await redemption.normalizeAmountByDecimals(ASSET_AMOUNT);
+                const liquidityTokenAmount = await redemption.calculateLiquidityTokenAmountBeforeFee(ASSET_AMOUNT);
 
                 const fee = 1000;
                 await mockFeeManager.setRedemptionFee(fee);
@@ -1038,7 +1038,7 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 const initialRedemptionUsdcBalance = await usdcMock.balanceOf(redemptionAddress);
                 const recipientAddress = await liquidityProvider.recipient();
 
-                const liquidityTokenAmount = await redemption.normalizeAmountByDecimals(ASSET_AMOUNT);
+                const liquidityTokenAmount = await redemption.calculateLiquidityTokenAmountBeforeFee(ASSET_AMOUNT);
                 const expectedFee = await mockFeeManager.getFee(liquidityTokenAmount);
 
                 const expectedLiquidityValue = await redemption.calculateLiquidityTokenAmount(ASSET_AMOUNT);
@@ -1164,7 +1164,7 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 const recipientAddress = await liquidityProvider.recipient();
                 const initialRecipientBalance = await dsTokenMock.balanceOf(recipientAddress);
 
-                const liquidityTokenAmount = await redemption.normalizeAmountByDecimals(ASSET_AMOUNT);
+                const liquidityTokenAmount = await redemption.calculateLiquidityTokenAmountBeforeFee(ASSET_AMOUNT);
                 const expectedFee = await mockFeeManager.getFee(liquidityTokenAmount);
 
                 const expectedLiquidityValue = await redemption.calculateLiquidityTokenAmount(ASSET_AMOUNT);
@@ -1241,7 +1241,7 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 const expectedFeeAmount = await mockFeeManager.getFee(collateralToRedeem);
                 const expectedLiquidityAfterFee = collateralToRedeem - expectedFeeAmount;
 
-                const liquidityTokenAmount = await redemption.normalizeAmountByDecimals(ASSET_AMOUNT);
+                const liquidityTokenAmount = await redemption.calculateLiquidityTokenAmountBeforeFee(ASSET_AMOUNT);
                 const expectedFee = await mockFeeManager.getFee(liquidityTokenAmount);
 
                 const expectedLiquidityValue = await redemption.calculateLiquidityTokenAmount(ASSET_AMOUNT);
