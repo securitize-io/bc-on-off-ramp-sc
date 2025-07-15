@@ -224,15 +224,9 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
         uint8 liquidityTokenDecimals = IERC20Metadata(address(liquidityToken)).decimals();
         uint8 assetDecimals = IERC20Metadata(address(assetProvider.asset())).decimals();
 
-        rate = navProvider.rate();
+        rate = navProvider.rate(); // assumed to be in `assetDecimals`
 
-        if (liquidityTokenDecimals > assetDecimals) {
-            uint256 scaleFactor = 10 ** (liquidityTokenDecimals - assetDecimals);
-            dsTokenAmount = (liquidityAmountExcludingFee / scaleFactor) * (10 ** assetDecimals) / rate;
-        } else {
-            uint256 scaleFactor = 10 ** (assetDecimals - liquidityTokenDecimals);
-            dsTokenAmount = (liquidityAmountExcludingFee * scaleFactor) * (10 ** assetDecimals) / rate;
-        }
+        dsTokenAmount = (liquidityAmountExcludingFee * (10 ** (2 * assetDecimals))) / (rate * (10 ** liquidityTokenDecimals));
     }
 
     function updateAssetProvider(address _assetProvider) external onlyOwner {
