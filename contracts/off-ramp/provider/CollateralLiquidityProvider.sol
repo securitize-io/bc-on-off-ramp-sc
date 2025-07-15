@@ -140,8 +140,8 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
         address redeemer,
         uint256 amount
     ) public whenNotPaused onlySecuritizeRedemption returns (uint256 amountToSupply) {
-        if (amount > _availableLiquidity()) {
-            revert InsufficientLiquidity(amount, _availableLiquidity());
+        if (amount > _calculateLiquidityTokenAmountBeforeFee(amount)) {
+            revert InsufficientLiquidity(amount, _calculateLiquidityTokenAmountBeforeFee(amount));
         }
 
         // Take collateral funds from collateral provider
@@ -172,5 +172,10 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
     function _calculateLiquidityTokenAmount(uint256 amount) private view returns (uint256 amountToSupply) {
         // Ensure the external collateral redemption is set
         amountToSupply = externalCollateralRedemption.calculateLiquidityTokenAmount(amount);
+    }
+
+    function _calculateLiquidityTokenAmountBeforeFee(uint256 amount) private view returns (uint256 amountToSupply) {
+        // Ensure the external collateral redemption is set
+        amountToSupply = externalCollateralRedemption.calculateLiquidityTokenAmountBeforeFee(amount);
     }
 }

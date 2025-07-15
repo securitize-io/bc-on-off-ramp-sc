@@ -44,6 +44,7 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, BaseContract {
     /**
      * @dev liquidity provider implementation.
      */
+    uint256 private liquidityDecimals;
     ILiquidityProvider public liquidityProvider;
 
     /**
@@ -194,6 +195,7 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, BaseContract {
         uint256 liquidityTokenAmount = TokenCalculator.calculateLiquidityTokenAmountBeforeFee(
             assetAmount,
             rate,
+            liquidityDecimals,
             assetDecimals
         );
 
@@ -243,10 +245,11 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, BaseContract {
         liquidityProvider = ILiquidityProvider(_liquidityProvider);
 
         // Cache liquidity decimals to save gas in calculateLiquidityTokenAmount
-        uint256 liquidityDecimals = ERC20(address(liquidityProvider.liquidityToken())).decimals();
-        if (liquidityDecimals > 18) {
-            revert ExcessiveDecimals(liquidityDecimals, 18);
+        uint256 _liquidityDecimals = ERC20(address(liquidityProvider.liquidityToken())).decimals();
+        if (_liquidityDecimals > 18) {
+            revert ExcessiveDecimals(_liquidityDecimals, 18);
         }
+        liquidityDecimals = _liquidityDecimals;
 
         emit LiquidityProviderUpdated(oldProvider, address(liquidityProvider));
     }
@@ -270,9 +273,9 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, BaseContract {
         uint256 normalizeAmount = TokenCalculator.calculateLiquidityTokenAmountBeforeFee(
             assetAmount,
             rate,
+            liquidityDecimals,
             assetDecimals
         );
-
         uint256 amountToSupply = liquidityProvider.calculateLiquidityTokenAmount(normalizeAmount);
         uint256 fee = TokenCalculator.calculateFee(feeManager, amountToSupply);
 
@@ -288,7 +291,8 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, BaseContract {
         if (rate == 0) {
             revert NonZeroNavRateError();
         }
-        return TokenCalculator.calculateLiquidityTokenAmountBeforeFee(assetAmount, rate, assetDecimals);
+        return
+            TokenCalculator.calculateLiquidityTokenAmountBeforeFee(assetAmount, rate, liquidityDecimals, assetDecimals);
     }
 
     /**

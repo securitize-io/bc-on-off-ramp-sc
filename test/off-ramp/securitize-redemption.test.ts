@@ -11,7 +11,6 @@ import {
     invalidCountryCode3,
     investorCountry,
     investorId,
-    LIQUIDITY_AMOUNT,
     MIN_OUTPUT_AMOUNT,
     restrictedCountry,
 } from './fixture';
@@ -519,7 +518,7 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
 
             it('Should fail if liquidity provider has no balance', async function () {
                 const [_, investor] = await hre.ethers.getSigners();
-                const { liquidityProvider, redemption, dsTokenMock } = await loadFixture(deployRedemptionProtocol);
+                const { redemption, dsTokenMock } = await loadFixture(deployRedemptionProtocol);
                 await dsTokenMock.mint(investor, ASSET_AMOUNT);
                 const dsTokenFromInvestor = await dsTokenMock.connect(investor);
                 await dsTokenFromInvestor.approve(await redemption.getAddress(), ASSET_AMOUNT);
@@ -528,8 +527,8 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
 
                 const redemptionFromInvestor = await redemption.connect(investor);
                 await expect(redemptionFromInvestor.redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT)).revertedWithCustomError(
-                    liquidityProvider,
-                    'InsufficientLiquidity',
+                    dsTokenMock,
+                    'ERC20InsufficientAllowance',
                 );
             });
 
@@ -537,7 +536,7 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 const [securitizeWallet, investor] = await hre.ethers.getSigners();
                 const { redemption, dsTokenMock, dsTokenCollateralMock } = await loadFixture(deployRedemptionProtocol);
                 await dsTokenMock.mint(investor, ASSET_AMOUNT);
-                await dsTokenCollateralMock.mint(securitizeWallet, LIQUIDITY_AMOUNT);
+                await dsTokenCollateralMock.mint(securitizeWallet, 50000000n);
                 const redemptionFromInvestor = await redemption.connect(investor);
                 await expect(redemptionFromInvestor.redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT)).revertedWithCustomError(
                     dsTokenCollateralMock,
@@ -1122,12 +1121,13 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 const dsTokenFromInvestor = await dsTokenMock.connect(investor);
                 await dsTokenFromInvestor.approve(await redemption.getAddress(), ASSET_AMOUNT);
 
+                const expectedAmount = await redemption.calculateLiquidityTokenAmount(ASSET_AMOUNT);
+
                 //redeem using two-step mode
                 const redemptionFromInvestor = await redemption.connect(investor);
-                await expect(redemptionFromInvestor.redeem(ASSET_AMOUNT, ASSET_AMOUNT)).to.be.revertedWithCustomError(
-                    redemption,
-                    'SlippageControlError',
-                );
+                await expect(
+                    redemptionFromInvestor.redeem(ASSET_AMOUNT, expectedAmount + 1n),
+                ).to.be.revertedWithCustomError(redemption, 'SlippageControlError');
             });
 
             it('Should execute two-step redemption with asset burn correctly', async function () {

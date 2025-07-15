@@ -56,6 +56,10 @@ contract MockExternalRedemption {
         return amountToSupply;
     }
 
+    function calculateLiquidityTokenAmountBeforeFee(uint256 amount) external pure returns (uint256) {
+        return amount;
+    }
+
     function availableLiquidity() external view returns (uint256) {
         return liquidityToken.balanceOf(address(this));
     }

@@ -1,9 +1,8 @@
 import hre from 'hardhat';
 
 export const FIXED_RATE = 2000000n;
-export const ASSET_AMOUNT = 15n * 10n ** 18n;
+export const ASSET_AMOUNT = 10000000n;
 export const COLLATERAL_TREASURY = 100000000000000000000n;
-export const LIQUIDITY_AMOUNT = 50000000n;
 export const MIN_OUTPUT_AMOUNT = 0n; // Default minimum output amount for testing
 export const investorId = 'investorId';
 export const investorCountry = 'AR';
@@ -30,12 +29,12 @@ export const deployRedemptionProtocol = async () => {
     const dsTokenMock = await hre.ethers.deployContract('MockDSToken', [
         'Token1',
         'TK1',
-        18,
+        6,
         registryServiceAddress,
         trustServiceAddress,
     ]);
     const dsTokenCollateralMock = await hre.ethers.deployContract('MockDSToken', [
-        'Token1',
+        'Token2',
         'TK2',
         6,
         registryServiceAddress,
@@ -44,7 +43,7 @@ export const deployRedemptionProtocol = async () => {
     const dsTokenOtherCollateralMock = await hre.ethers.deployContract('MockDSToken', [
         'Other-Token1',
         'Other-TK2',
-        4,
+        6,
         registryServiceAddress,
         trustServiceAddress,
     ]);
@@ -134,7 +133,7 @@ export const deployRedemptionProtocolWithMultipleTokens = async () => {
     const dsTokenMock = await hre.ethers.deployContract('MockDSToken', [
         'Token1',
         'TK1',
-        18,
+        6,
         registryServiceAddress,
         trustServiceAddress,
     ]);
@@ -148,7 +147,7 @@ export const deployRedemptionProtocolWithMultipleTokens = async () => {
     const dsToken0DecimalMock = await hre.ethers.deployContract('MockDSToken', [
         'Token1-0',
         'TK1-0',
-        0,
+        6,
         registryServiceAddress,
         trustServiceAddress,
     ]);
@@ -242,7 +241,7 @@ export const deployRedemptionAllowanceProtocol = async () => {
     const dsTokenMock = await hre.ethers.deployContract('MockDSToken', [
         'Token1',
         'TK1',
-        18,
+        6,
         registryServiceAddress,
         trustServiceAddress,
     ]);
@@ -290,12 +289,12 @@ export const deployRedemptionProtocolWithAssetBurn = async () => {
     const dsTokenMock = await hre.ethers.deployContract('MockDSToken', [
         'Token1',
         'TK1',
-        18,
+        6,
         registryServiceAddress,
         trustServiceAddress,
     ]);
     const dsTokenCollateralMock = await hre.ethers.deployContract('MockDSToken', [
-        'Token1',
+        'Token2',
         'TK2',
         6,
         registryServiceAddress,
@@ -304,7 +303,7 @@ export const deployRedemptionProtocolWithAssetBurn = async () => {
     const dsTokenOtherCollateralMock = await hre.ethers.deployContract('MockDSToken', [
         'Other-Token1',
         'Other-TK2',
-        4,
+        6,
         registryServiceAddress,
         trustServiceAddress,
     ]);

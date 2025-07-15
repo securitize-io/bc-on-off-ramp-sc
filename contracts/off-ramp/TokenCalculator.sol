@@ -14,17 +14,19 @@ import {IFeeManager} from "../fee/IFeeManager.sol";
 library TokenCalculator {
     /**
      * @dev Normalizes an amount by its decimals and rate
-     * @param amount The raw token amount to normalize
+     * @param assetAmount The amount of the asset
      * @param rate The conversion rate
-     * @param decimals The number of decimals for the token
+     * @param liquidityDecimals The decimals of the liquidity token
+     * @param assetDecimals The decimals of the asset token
      * @return The normalized token amount
      */
     function calculateLiquidityTokenAmountBeforeFee(
-        uint256 amount,
+        uint256 assetAmount,
         uint256 rate,
-        uint256 decimals
+        uint256 liquidityDecimals,
+        uint256 assetDecimals
     ) internal pure returns (uint256) {
-        return (amount * rate) / (10 ** decimals);
+        return (assetAmount * rate * 10 ** liquidityDecimals) / (10 ** assetDecimals * 10 ** assetDecimals);
     }
 
     /**
