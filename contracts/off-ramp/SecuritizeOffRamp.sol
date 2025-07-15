@@ -39,12 +39,12 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, BaseContract {
     /**
      * @dev Cached token decimals for gas optimization
      */
-    uint256 private liquidityDecimals;
     uint256 private assetDecimals;
 
     /**
      * @dev liquidity provider implementation.
      */
+    uint256 private liquidityDecimals;
     ILiquidityProvider public liquidityProvider;
 
     /**
@@ -123,7 +123,7 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, BaseContract {
     /**
      * @dev Throws if the given address is the zero address
      */
-    modifier addressNonZero(address _address, string memory parameter) {
+    modifier addressNonZero(address _address) {
         if (_address == address(0)) {
             revert NonZeroAddressError();
         }
@@ -157,14 +157,7 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, BaseContract {
         address _navProvider,
         address _feeManager,
         bool _assetBurn
-    )
-        public
-        onlyProxy
-        initializer
-        addressNonZero(_asset, "asset")
-        addressNonZero(_navProvider, "navProvider")
-        addressNonZero(_feeManager, "feeManager")
-    {
+    ) public onlyProxy initializer addressNonZero(_asset) addressNonZero(_navProvider) addressNonZero(_feeManager) {
         __BaseContract_init();
 
         uint256 _assetDecimals = TokenDataStore(_asset).decimals();
@@ -199,7 +192,7 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, BaseContract {
         // Validate country restrictions
         CountryValidator.validateCountryRestriction(_msgSender(), dsServiceConsumer, restrictedCountries);
 
-        uint256 liquidityTokenAmount = TokenCalculator.calculateLiquidityTokenAmountWithoutFee(
+        uint256 liquidityTokenAmount = TokenCalculator.calculateLiquidityTokenAmountBeforeFee(
             assetAmount,
             rate,
             liquidityDecimals,
@@ -247,9 +240,7 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, BaseContract {
         emit TwoStepTransferUpdated(twoStepTransfer_);
     }
 
-    function updateLiquidityProvider(
-        address _liquidityProvider
-    ) external onlyOwner addressNonZero(_liquidityProvider, "liquidityProvider") {
+    function updateLiquidityProvider(address _liquidityProvider) external onlyOwner addressNonZero(_liquidityProvider) {
         address oldProvider = address(liquidityProvider);
         liquidityProvider = ILiquidityProvider(_liquidityProvider);
 
@@ -263,7 +254,7 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, BaseContract {
         emit LiquidityProviderUpdated(oldProvider, address(liquidityProvider));
     }
 
-    function updateNavProvider(address _navProvider) external onlyOwner addressNonZero(_navProvider, "navProvider") {
+    function updateNavProvider(address _navProvider) external onlyOwner addressNonZero(_navProvider) {
         address oldProvider = address(navProvider);
         navProvider = ISecuritizeNavProvider(_navProvider);
         emit NavProviderUpdated(oldProvider, address(navProvider));
@@ -279,28 +270,29 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, BaseContract {
         if (rate == 0) {
             revert NonZeroNavRateError();
         }
-        return
-            TokenCalculator.calculateLiquidityTokenAmountWithFee(
-                assetAmount,
-                rate,
-                liquidityDecimals,
-                assetDecimals,
-                feeManager
-            );
+        uint256 normalizeAmount = TokenCalculator.calculateLiquidityTokenAmountBeforeFee(
+            assetAmount,
+            rate,
+            liquidityDecimals,
+            assetDecimals
+        );
+        uint256 amountToSupply = liquidityProvider.calculateLiquidityTokenAmount(normalizeAmount);
+        uint256 fee = TokenCalculator.calculateFee(feeManager, amountToSupply);
+
+        return amountToSupply - fee;
     }
 
-    function calculateLiquidityTokenAmountWithoutFee(uint256 assetAmount) public view returns (uint256) {
+    function availableLiquidity() external view returns (uint256) {
+        return liquidityProvider.availableLiquidity();
+    }
+
+    function calculateLiquidityTokenAmountBeforeFee(uint256 assetAmount) public view returns (uint256) {
         uint256 rate = navProvider.rate();
         if (rate == 0) {
             revert NonZeroNavRateError();
         }
         return
-            TokenCalculator.calculateLiquidityTokenAmountWithoutFee(
-                assetAmount,
-                rate,
-                liquidityDecimals,
-                assetDecimals
-            );
+            TokenCalculator.calculateLiquidityTokenAmountBeforeFee(assetAmount, rate, liquidityDecimals, assetDecimals);
     }
 
     /**

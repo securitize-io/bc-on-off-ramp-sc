@@ -54,11 +54,6 @@ task('deploy-redemption-allowance-protocol', 'Deploy Redemption Protocol (Allowa
             liquidityProviderAddress,
         );
 
-        console.log('Setting liquidity provider wallet');
-        // Set liquidity provider wallet
-        const tx = await liquidityProvider.setAllowanceProviderWallet(args.providerWallet);
-        await tx.wait(1);
-
         console.log('Successfully set liquidity provider wallet');
 
         console.log('');
@@ -126,7 +121,7 @@ task('deploy-allowance-provider', 'Deploy AllowanceLiquidityProvider proxy')
         const { proxyAddress, implAddress } = await hre.run('deploy-proxy', {
             contractName: 'AllowanceLiquidityProvider',
             kind: 'uups',
-            args: [taskArgs.liquidityToken, taskArgs.recipient, taskArgs.redemptionAddress],
+            args: [taskArgs.liquidityToken, taskArgs.recipient, taskArgs.redemptionAddress, taskArgs.providerWallet],
             verify: taskArgs.verify,
         });
 

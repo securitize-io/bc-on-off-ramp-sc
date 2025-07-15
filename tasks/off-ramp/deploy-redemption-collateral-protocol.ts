@@ -61,7 +61,8 @@ task('deploy-redemption-collateral-protocol', 'Deploy Redemption Protocol (Colla
             recipient: args.recipient,
             securitizeOffRamp: redemptionAddress,
             collateralToken: await collateralContract.asset(),
-            providerWallet: args.providerWallet,
+            externalCollateralRedemption: args.externalCollateralRedemption,
+            collateralProvider: args.providerWallet,
             verify: args.verify,
         });
 
@@ -81,16 +82,6 @@ task('deploy-redemption-collateral-protocol', 'Deploy Redemption Protocol (Colla
         let tx = await redemption.updateLiquidityProvider(liquidityProviderAddress);
         await tx.wait(1);
 
-        console.log('');
-        console.log('Setting collateral provider wallet');
-        // Set collateral provider
-        tx = await liquidityProvider.setCollateralProvider(args.providerWallet);
-        await tx.wait(1);
-
-        console.log('Setting external collateral redemption');
-        // Set external collateral redemption
-        await liquidityProvider.setExternalCollateralRedemption(args.externalCollateralRedemption);
-
         consoleGreen('Securitize Redemption Protocol has been configured successfully');
 
         console.log('');
@@ -107,8 +98,8 @@ task('deploy-collateral-provider', 'Deploy CollateralLiquidityProvider proxy')
     .addParam('liquidity', 'Stable coin to provide liquidity')
     .addParam('recipient', 'Wallet that receives DS Token')
     .addParam('securitizeOffRamp', 'SecuritizeOffRamp proxy address')
-    .addOptionalParam('collateralToken', 'Stable coin to provide liquidity')
-    .addOptionalParam('providerWallet', 'Wallet that provides liquidity')
+    .addParam('externalCollateralRedemption', 'External Collateral Redemption SC')
+    .addParam('collateralProvider', 'Collateral Provider address')
     .addFlag('verify', 'Verify contracts on Etherscan')
     .setAction(async (taskArgs, hre) => {
         console.log('');
@@ -121,7 +112,13 @@ task('deploy-collateral-provider', 'Deploy CollateralLiquidityProvider proxy')
         const { proxyAddress, implAddress } = await hre.run('deploy-proxy', {
             contractName: 'CollateralLiquidityProvider',
             kind: 'uups',
-            args: [taskArgs.liquidity, taskArgs.recipient, taskArgs.securitizeOffRamp],
+            args: [
+                taskArgs.liquidity,
+                taskArgs.recipient,
+                taskArgs.securitizeOffRamp,
+                taskArgs.externalCollateralRedemption,
+                taskArgs.collateralProvider,
+            ],
             verify: taskArgs.verify,
         });
 

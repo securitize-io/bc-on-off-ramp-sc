@@ -13,52 +13,20 @@ import {IFeeManager} from "../fee/IFeeManager.sol";
  */
 library TokenCalculator {
     /**
-     * @dev Calculates the amount of liquidity tokens without fees
-     * @param assetAmount The amount of asset tokens to redeem
-     * @param rate The current NAV rate
-     * @param liquidityDecimals Decimals of the liquidity token
-     * @param assetDecimals Decimals of the asset token
-     * @return The amount of liquidity tokens without fees
+     * @dev Normalizes an amount by its decimals and rate
+     * @param assetAmount The amount of the asset
+     * @param rate The conversion rate
+     * @param liquidityDecimals The decimals of the liquidity token
+     * @param assetDecimals The decimals of the asset token
+     * @return The normalized token amount
      */
-    function calculateLiquidityTokenAmountWithoutFee(
+    function calculateLiquidityTokenAmountBeforeFee(
         uint256 assetAmount,
         uint256 rate,
         uint256 liquidityDecimals,
         uint256 assetDecimals
     ) internal pure returns (uint256) {
-        if (liquidityDecimals > assetDecimals) {
-            return ((assetAmount * rate) * (10 ** (liquidityDecimals - assetDecimals))) / (10 ** liquidityDecimals);
-        }
-        if (liquidityDecimals < assetDecimals) {
-            return (assetAmount * rate) / (10 ** (assetDecimals - liquidityDecimals)) / (10 ** liquidityDecimals);
-        }
-        return (assetAmount * rate) / (10 ** assetDecimals);
-    }
-
-    /**
-     * @dev Calculates the amount of liquidity tokens after applying fees
-     * @param assetAmount The amount of asset tokens to redeem
-     * @param rate The current NAV rate
-     * @param liquidityDecimals Decimals of the liquidity token
-     * @param assetDecimals Decimals of the asset token
-     * @param feeManager Address of the fee manager
-     * @return The amount of liquidity tokens after fees
-     */
-    function calculateLiquidityTokenAmountWithFee(
-        uint256 assetAmount,
-        uint256 rate,
-        uint256 liquidityDecimals,
-        uint256 assetDecimals,
-        address feeManager
-    ) internal view returns (uint256) {
-        uint256 liquidityTokenAmount = calculateLiquidityTokenAmountWithoutFee(
-            assetAmount,
-            rate,
-            liquidityDecimals,
-            assetDecimals
-        );
-        uint256 fee = calculateFee(feeManager, liquidityTokenAmount);
-        return liquidityTokenAmount - fee;
+        return (assetAmount * rate * 10 ** liquidityDecimals) / (10 ** assetDecimals * 10 ** assetDecimals);
     }
 
     /**

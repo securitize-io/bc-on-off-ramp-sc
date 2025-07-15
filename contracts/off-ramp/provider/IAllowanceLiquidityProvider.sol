@@ -31,6 +31,20 @@ interface IAllowanceLiquidityProvider is ILiquidityProvider {
     event AllowanceLiquidityProviderWalletUpdated(address oldProvider, address newProvider);
 
     /**
+     * @dev Proxy Initializer.
+     * @param _liquidityToken liquidity token that the asset is being redeemed for.
+     * @param _recipient wallet address that receives digital assets..
+     * @param _securitizeOffRamp The address of the securitize redemption contract.
+     * @param _liquidityProviderWallet The address of the wallet that provides liquidity.
+     */
+    function initialize(
+        address _liquidityToken,
+        address _recipient,
+        address _securitizeOffRamp,
+        address _liquidityProviderWallet
+    ) external;
+
+    /**
      * @dev Set collateral provider wallet.
      * @param _liquidityProviderWallet The address of the wallet that provides collateral asset.
      */

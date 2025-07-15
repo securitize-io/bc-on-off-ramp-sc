@@ -11,7 +11,6 @@ import {
     invalidCountryCode3,
     investorCountry,
     investorId,
-    LIQUIDITY_AMOUNT,
     MIN_OUTPUT_AMOUNT,
     restrictedCountry,
 } from './fixture';
@@ -91,6 +90,8 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                     liquidityProvider.initialize(
                         await usdcMock.getAddress(),
                         securitizeWallet,
+                        await redemption.getAddress(),
+                        await redemption.getAddress(),
                         await redemption.getAddress(),
                     ),
                 ).revertedWithCustomError(liquidityProvider, 'InvalidInitialization');
@@ -183,9 +184,10 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 const { liquidityProvider } = await loadFixture(deployRedemptionProtocol);
                 await liquidityProvider.pause();
                 expect(await liquidityProvider.paused()).to.equal(true);
-                await expect(
-                    liquidityProvider.supplyTo(investor, ASSET_AMOUNT, MIN_OUTPUT_AMOUNT),
-                ).revertedWithCustomError(liquidityProvider, 'EnforcedPause');
+                await expect(liquidityProvider.supplyTo(investor, ASSET_AMOUNT)).revertedWithCustomError(
+                    liquidityProvider,
+                    'EnforcedPause',
+                );
             });
         });
 
@@ -193,27 +195,41 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
             it('Should fail if contract is called by other contract than Securitize Redemption', async function () {
                 const [_, investor] = await hre.ethers.getSigners();
                 const { liquidityProvider } = await loadFixture(deployRedemptionProtocol);
-                await expect(
-                    liquidityProvider.supplyTo(investor, ASSET_AMOUNT, MIN_OUTPUT_AMOUNT),
-                ).revertedWithCustomError(liquidityProvider, 'RedemptionUnauthorizedAccount');
+                await expect(liquidityProvider.supplyTo(investor, ASSET_AMOUNT)).revertedWithCustomError(
+                    liquidityProvider,
+                    'RedemptionUnauthorizedAccount',
+                );
             });
         });
 
         describe('Available Liquidity', function () {
             it('Should return available liquidity', async function () {
-                const { liquidityProvider, dsTokenCollateralMock, collateralProviderAddressMock } =
-                    await loadFixture(deployRedemptionProtocol);
+                const {
+                    liquidityProvider,
+                    dsTokenCollateralMock,
+                    collateralProviderAddressMock,
+                    usdcMock,
+                    externalRedemptionContractMock,
+                } = await loadFixture(deployRedemptionProtocol);
 
                 await dsTokenCollateralMock.mint(collateralProviderAddressMock, 10);
+
+                await usdcMock.mint(await externalRedemptionContractMock.getAddress(), 12);
+                await usdcMock.approve(liquidityProvider, 12);
 
                 const availableLiquidity = await liquidityProvider.availableLiquidity();
                 expect(availableLiquidity).to.equal(10);
             });
             it('Should return available liquidity for AllowanceProvider', async function () {
-                const { liquidityProvider } = await loadFixture(deployRedemptionAllowanceProtocol);
+                const { liquidityProvider, usdcMock } = await loadFixture(deployRedemptionAllowanceProtocol);
+
+                const liquidityProviderWallet = await liquidityProvider.liquidityProviderWallet();
+
+                await usdcMock.mint(liquidityProviderWallet, 12);
+                await usdcMock.approve(liquidityProvider, 12);
 
                 const availableLiquidity = await liquidityProvider.availableLiquidity();
-                expect(availableLiquidity).to.equal(0);
+                expect(availableLiquidity).to.equal(12);
             });
         });
     });
@@ -502,7 +518,7 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
 
             it('Should fail if liquidity provider has no balance', async function () {
                 const [_, investor] = await hre.ethers.getSigners();
-                const { liquidityProvider, redemption, dsTokenMock } = await loadFixture(deployRedemptionProtocol);
+                const { redemption, dsTokenMock } = await loadFixture(deployRedemptionProtocol);
                 await dsTokenMock.mint(investor, ASSET_AMOUNT);
                 const dsTokenFromInvestor = await dsTokenMock.connect(investor);
                 await dsTokenFromInvestor.approve(await redemption.getAddress(), ASSET_AMOUNT);
@@ -511,8 +527,8 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
 
                 const redemptionFromInvestor = await redemption.connect(investor);
                 await expect(redemptionFromInvestor.redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT)).revertedWithCustomError(
-                    liquidityProvider,
-                    'InsufficientLiquidity',
+                    dsTokenMock,
+                    'ERC20InsufficientAllowance',
                 );
             });
 
@@ -520,7 +536,7 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 const [securitizeWallet, investor] = await hre.ethers.getSigners();
                 const { redemption, dsTokenMock, dsTokenCollateralMock } = await loadFixture(deployRedemptionProtocol);
                 await dsTokenMock.mint(investor, ASSET_AMOUNT);
-                await dsTokenCollateralMock.mint(securitizeWallet, LIQUIDITY_AMOUNT);
+                await dsTokenCollateralMock.mint(securitizeWallet, 50000000n);
                 const redemptionFromInvestor = await redemption.connect(investor);
                 await expect(redemptionFromInvestor.redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT)).revertedWithCustomError(
                     dsTokenCollateralMock,
@@ -607,6 +623,7 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 const dsTokenFromInvestor = await dsTokenMock.connect(investor);
                 await dsTokenFromInvestor.approve(await redemption.getAddress(), ASSET_AMOUNT);
 
+                const expectedLiquidityValue = await redemption.calculateLiquidityTokenAmount(ASSET_AMOUNT);
                 //redeem
                 const redemptionFromInvestor = await redemption.connect(investor);
                 // Verify the redemption completes correctly with no fee applied
@@ -615,7 +632,7 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                     .withArgs(
                         investor.address,
                         ASSET_AMOUNT,
-                        collateralToRedeem,
+                        expectedLiquidityValue,
                         FIXED_RATE,
                         ZERO_FEE,
                         await usdcMock.getAddress(),
@@ -641,15 +658,15 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                     externalRedemptionContractMock,
                     mockFeeManager,
                 } = await loadFixture(deployRedemptionProtocol);
+
                 const externalRedemptionAddress = await externalRedemptionContractMock.getAddress();
 
                 // Set a fee of 10% (10000 basis points) on the mock fee manager
                 const fee = 10000;
                 await mockFeeManager.setRedemptionFee(fee);
 
-                const liquidityTokenAmount = await redemption.calculateLiquidityTokenAmountWithoutFee(ASSET_AMOUNT);
+                const liquidityTokenAmount = await redemption.calculateLiquidityTokenAmountBeforeFee(ASSET_AMOUNT);
                 const expectedFee = await mockFeeManager.getFee(liquidityTokenAmount);
-
                 // mint assets to investor
                 await dsTokenMock.mint(investor, ASSET_AMOUNT);
                 const dsTokenDecimals = await dsTokenMock.decimals();
@@ -675,7 +692,7 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 const dsTokenFromInvestor = await dsTokenMock.connect(investor);
                 await dsTokenFromInvestor.approve(await redemption.getAddress(), ASSET_AMOUNT);
 
-                const liquidityTokenAmountAfterFee = await redemption.calculateLiquidityTokenAmount(ASSET_AMOUNT);
+                const expectedLiquidityValue = await redemption.calculateLiquidityTokenAmount(ASSET_AMOUNT);
 
                 // Simply verify the event is emitted with the correct values
                 await expect(redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT))
@@ -683,7 +700,7 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                     .withArgs(
                         investor.address,
                         ASSET_AMOUNT,
-                        liquidityTokenAmountAfterFee,
+                        expectedLiquidityValue,
                         FIXED_RATE,
                         expectedFee,
                         await usdcMock.getAddress(),
@@ -720,13 +737,13 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 await dsTokenMock.mint(investor, smallAmount);
                 const dsTokenDecimals = await dsTokenMock.decimals();
 
-                const liquidityTokenAmount = await redemption.calculateLiquidityTokenAmountWithoutFee(smallAmount);
+                const liquidityTokenAmount = await redemption.calculateLiquidityTokenAmountBeforeFee(smallAmount);
                 const expectedFee = await mockFeeManager.getFee(liquidityTokenAmount);
 
                 // Calculate collateral/usdc to redeem
                 const collateralToRedeem = (ASSET_AMOUNT * FIXED_RATE) / 10n ** dsTokenDecimals;
 
-                const calcAmount = await redemption.calculateLiquidityTokenAmountWithoutFee(smallAmount);
+                const calcAmount = await redemption.calculateLiquidityTokenAmountBeforeFee(smallAmount);
 
                 // Provide liquidity to external mock contract
                 await usdcMock.mint(externalRedemptionAddress, collateralToRedeem);
@@ -741,13 +758,15 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 const dsTokenFromInvestor = await dsTokenMock.connect(investor);
                 await dsTokenFromInvestor.approve(await redemption.getAddress(), smallAmount);
 
+                const expectedLiquidityValue = await redemption.calculateLiquidityTokenAmount(smallAmount);
+
                 // Simply verify the event is emitted with the correct values
                 await expect(redemption.connect(investor).redeem(smallAmount, MIN_OUTPUT_AMOUNT))
                     .to.emit(redemption, 'RedemptionCompleted')
                     .withArgs(
                         investor.address,
                         smallAmount,
-                        calcAmount,
+                        expectedLiquidityValue,
                         FIXED_RATE,
                         expectedFee,
                         await usdcMock.getAddress(),
@@ -785,12 +804,13 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 //redeem
                 const redemptionFromInvestor = await redemption.connect(investor);
 
-                const liquidityTokenAmount = await redemption.calculateLiquidityTokenAmountWithoutFee(ASSET_AMOUNT);
+                const liquidityTokenAmount = await redemption.calculateLiquidityTokenAmountBeforeFee(ASSET_AMOUNT);
 
                 const fee = 1000;
                 await mockFeeManager.setRedemptionFee(fee);
                 const expectedFee = await mockFeeManager.getFee(liquidityTokenAmount);
-                const liquidityTokenAmountAfterFee = await redemption.calculateLiquidityTokenAmount(ASSET_AMOUNT);
+
+                const expectedLiquidityValue = await redemption.calculateLiquidityTokenAmount(ASSET_AMOUNT);
 
                 // Simply verify the event is emitted with the correct values
                 await expect(redemptionFromInvestor.redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT))
@@ -798,7 +818,7 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                     .withArgs(
                         investor.address,
                         ASSET_AMOUNT,
-                        liquidityTokenAmountAfterFee,
+                        expectedLiquidityValue,
                         FIXED_RATE,
                         expectedFee,
                         await usdcMock.getAddress(),
@@ -957,6 +977,8 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 const recipientAddress = await liquidityProvider.recipient();
                 const initialRecipientBalance = await dsTokenMock.balanceOf(recipientAddress);
 
+                const expectedLiquidityValue = await redemption.calculateLiquidityTokenAmount(ASSET_AMOUNT);
+
                 //redeem
                 const redemptionFromInvestor = await redemption.connect(investor);
                 await expect(redemptionFromInvestor.redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT))
@@ -964,7 +986,7 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                     .withArgs(
                         investor.address,
                         ASSET_AMOUNT,
-                        collateralToRedeem,
+                        expectedLiquidityValue,
                         FIXED_RATE,
                         0,
                         await usdcMock.getAddress(),
@@ -1030,10 +1052,10 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 const initialRedemptionUsdcBalance = await usdcMock.balanceOf(redemptionAddress);
                 const recipientAddress = await liquidityProvider.recipient();
 
-                const liquidityTokenAmount = await redemption.calculateLiquidityTokenAmountWithoutFee(ASSET_AMOUNT);
+                const liquidityTokenAmount = await redemption.calculateLiquidityTokenAmountBeforeFee(ASSET_AMOUNT);
                 const expectedFee = await mockFeeManager.getFee(liquidityTokenAmount);
 
-                const liquidityTokenAmountAfterFee = await redemption.calculateLiquidityTokenAmount(ASSET_AMOUNT);
+                const expectedLiquidityValue = await redemption.calculateLiquidityTokenAmount(ASSET_AMOUNT);
 
                 //redeem using two-step mode
                 const redemptionFromInvestor = await redemption.connect(investor);
@@ -1042,7 +1064,7 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                     .withArgs(
                         investor.address,
                         ASSET_AMOUNT,
-                        liquidityTokenAmountAfterFee,
+                        expectedLiquidityValue,
                         FIXED_RATE,
                         expectedFee,
                         await usdcMock.getAddress(),
@@ -1099,12 +1121,13 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 const dsTokenFromInvestor = await dsTokenMock.connect(investor);
                 await dsTokenFromInvestor.approve(await redemption.getAddress(), ASSET_AMOUNT);
 
+                const expectedAmount = await redemption.calculateLiquidityTokenAmount(ASSET_AMOUNT);
+
                 //redeem using two-step mode
                 const redemptionFromInvestor = await redemption.connect(investor);
-                await expect(redemptionFromInvestor.redeem(ASSET_AMOUNT, ASSET_AMOUNT)).to.be.revertedWithCustomError(
-                    redemption,
-                    'SlippageControlError',
-                );
+                await expect(
+                    redemptionFromInvestor.redeem(ASSET_AMOUNT, expectedAmount + 1n),
+                ).to.be.revertedWithCustomError(redemption, 'SlippageControlError');
             });
 
             it('Should execute two-step redemption with asset burn correctly', async function () {
@@ -1156,10 +1179,10 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 const recipientAddress = await liquidityProvider.recipient();
                 const initialRecipientBalance = await dsTokenMock.balanceOf(recipientAddress);
 
-                const liquidityTokenAmount = await redemption.calculateLiquidityTokenAmountWithoutFee(ASSET_AMOUNT);
+                const liquidityTokenAmount = await redemption.calculateLiquidityTokenAmountBeforeFee(ASSET_AMOUNT);
                 const expectedFee = await mockFeeManager.getFee(liquidityTokenAmount);
 
-                const liquidityTokenAmountAfterFee = await redemption.calculateLiquidityTokenAmount(ASSET_AMOUNT);
+                const expectedLiquidityValue = await redemption.calculateLiquidityTokenAmount(ASSET_AMOUNT);
 
                 //redeem using two-step mode with asset burn
                 const redemptionFromInvestor = await redemption.connect(investor);
@@ -1168,7 +1191,7 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                     .withArgs(
                         investor.address,
                         ASSET_AMOUNT,
-                        liquidityTokenAmountAfterFee,
+                        expectedLiquidityValue,
                         FIXED_RATE,
                         expectedFee,
                         await usdcMock.getAddress(),
@@ -1233,10 +1256,10 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 const expectedFeeAmount = await mockFeeManager.getFee(collateralToRedeem);
                 const expectedLiquidityAfterFee = collateralToRedeem - expectedFeeAmount;
 
-                const liquidityTokenAmount = await redemption.calculateLiquidityTokenAmountWithoutFee(ASSET_AMOUNT);
+                const liquidityTokenAmount = await redemption.calculateLiquidityTokenAmountBeforeFee(ASSET_AMOUNT);
                 const expectedFee = await mockFeeManager.getFee(liquidityTokenAmount);
 
-                const liquidityTokenAmountAfterFee = await redemption.calculateLiquidityTokenAmount(ASSET_AMOUNT);
+                const expectedLiquidityValue = await redemption.calculateLiquidityTokenAmount(ASSET_AMOUNT);
 
                 //redeem using two-step mode with fees
                 const redemptionFromInvestor = await redemption.connect(investor);
@@ -1245,7 +1268,7 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                     .withArgs(
                         investor.address,
                         ASSET_AMOUNT,
-                        liquidityTokenAmountAfterFee,
+                        expectedLiquidityValue,
                         FIXED_RATE,
                         expectedFee,
                         await usdcMock.getAddress(),

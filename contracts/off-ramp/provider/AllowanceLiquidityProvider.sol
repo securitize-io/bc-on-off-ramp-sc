@@ -48,7 +48,6 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
      * @dev The caller account is not authorized to perform an operation.
      */
     error RedemptionUnauthorizedAccount(address account);
-    error MinOutputAmountExceeded(uint256 minOutputAmount, uint256 amount);
     error AvailableLiquidityExceeded(uint256 availableLiquidity, uint256 amount);
 
     /**
@@ -69,21 +68,22 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
     function initialize(
         address _liquidityToken,
         address _recipient,
-        address _securitizeOffRamp
+        address _securitizeOffRamp,
+        address _liquidityProviderWallet
     ) public onlyProxy initializer {
-        if (_recipient == address(0)) {
-            revert NonZeroAddressError();
-        }
-        if (_liquidityToken == address(0)) {
-            revert NonZeroAddressError();
-        }
-        if (_securitizeOffRamp == address(0)) {
+        if (
+            _recipient == address(0) ||
+            _liquidityToken == address(0) ||
+            _securitizeOffRamp == address(0) ||
+            _liquidityProviderWallet == address(0)
+        ) {
             revert NonZeroAddressError();
         }
         __BaseContract_init();
         recipient = _recipient;
         liquidityToken = IERC20(_liquidityToken);
         securitizeOffRamp = ISecuritizeOffRamp(_securitizeOffRamp);
+        liquidityProviderWallet = _liquidityProviderWallet;
     }
 
     function setAllowanceProviderWallet(address _liquidityProviderWallet) external onlyOwner {
@@ -108,12 +108,21 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
             );
     }
 
-    function supplyTo(address redeemer, uint256 amount, uint256) public whenNotPaused onlySecuritizeRedemption {
+    function supplyTo(
+        address redeemer,
+        uint256 amount
+    ) public whenNotPaused onlySecuritizeRedemption returns (uint256) {
         if (amount > _availableLiquidity()) {
             revert InsufficientLiquidity(amount, _availableLiquidity());
         }
 
         // transfer liquidity token from liquidity provider wallet to redeemer
         liquidityToken.transferFrom(liquidityProviderWallet, redeemer, amount);
+
+        return amount;
+    }
+
+    function calculateLiquidityTokenAmount(uint256 amount) external pure returns (uint256 amountToSupply) {
+        return amount;
     }
 }

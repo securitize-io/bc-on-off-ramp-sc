@@ -6,6 +6,7 @@
 pragma solidity ^0.8.22;
 
 import {IDSToken} from "@securitize/digital_securities/contracts/token/IDSToken.sol";
+import {TokenCalculator} from "./TokenCalculator.sol";
 import {ILiquidityProvider} from "./provider/ILiquidityProvider.sol";
 import {IFeeManager} from "../fee/IFeeManager.sol";
 import {Errors} from "../common/Errors.sol";
@@ -31,7 +32,7 @@ library RedemptionManager {
      */
     function executeSingleStepRedemption(
         RedemptionParams memory params
-    ) internal returns (uint256 fee, uint256 liquidityTokenAmountAfterFee) {
+    ) internal returns (uint256 fee, uint256 userSuppliedAmount) {
         // Transfer asset to liquidity provider
         if (params.assetBurn) {
             params.asset.burn(params.redeemer, params.assetAmount, "Redemption burn");
@@ -40,20 +41,19 @@ library RedemptionManager {
         }
 
         // Apply fee if it exists, transfer it to the fee collector
-        fee = _getFee(params.feeManager, params.liquidityTokenAmount);
-        liquidityTokenAmountAfterFee = params.liquidityTokenAmount - fee;
-
-        // Check slippage protection - ensure minimum output amount is met
-        if (liquidityTokenAmountAfterFee < params.minOutputAmount) {
-            revert Errors.SlippageControlError();
-        }
+        fee = TokenCalculator.calculateFee(params.feeManager, params.liquidityTokenAmount);
 
         // Supply liquidity tokens to the fee collector
         if (fee > 0) {
-            params.liquidityProvider.supplyTo(IFeeManager(params.feeManager).feeCollector(), fee, 0);
+            params.liquidityProvider.supplyTo(IFeeManager(params.feeManager).feeCollector(), fee);
         }
+
         // Supply liquidity tokens to the redeemer
-        params.liquidityProvider.supplyTo(params.redeemer, liquidityTokenAmountAfterFee, params.minOutputAmount);
+        userSuppliedAmount = params.liquidityProvider.supplyTo(params.redeemer, params.liquidityTokenAmount - fee);
+
+        if (userSuppliedAmount < params.minOutputAmount) {
+            revert Errors.SlippageControlError();
+        }
     }
 
     /**
@@ -74,32 +74,23 @@ library RedemptionManager {
         }
 
         // Get liquidity from provider to contract
-        params.liquidityProvider.supplyTo(contractAddress, params.liquidityTokenAmount, params.minOutputAmount);
+        uint256 suppliedAmount = params.liquidityProvider.supplyTo(contractAddress, params.liquidityTokenAmount);
 
-        // Transfer full liquidity from contract to investor
-        uint256 offRampBalance = params.liquidityProvider.liquidityToken().balanceOf(contractAddress);
-        fee = _getFee(params.feeManager, offRampBalance);
+        // Calculate fee based on supplied amount
+        fee = TokenCalculator.calculateFee(params.feeManager, suppliedAmount);
 
-        userSuppliedAmount = offRampBalance - fee;
-
+        userSuppliedAmount = suppliedAmount - fee;
         // Check slippage protection - ensure minimum output amount is met
         if (userSuppliedAmount < params.minOutputAmount) {
             revert Errors.SlippageControlError();
         }
 
+        // Transfer liquidity tokens from contract to redeemer
         params.liquidityProvider.liquidityToken().transfer(params.redeemer, userSuppliedAmount);
 
         // Transfer fee from contract to fee collector
         if (fee > 0) {
             params.liquidityProvider.liquidityToken().transfer(IFeeManager(params.feeManager).feeCollector(), fee);
         }
-    }
-
-    /**
-     * @dev Calculates the fee amount
-     */
-    function _getFee(address feeManager, uint256 amount) private view returns (uint256) {
-        IFeeManager feeManagerInstance = IFeeManager(feeManager);
-        return feeManagerInstance.getFee(amount);
     }
 }

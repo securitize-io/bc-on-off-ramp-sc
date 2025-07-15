@@ -22,6 +22,7 @@ import {BaseContract} from "../../common/BaseContract.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ISecuritizeOffRamp} from "../ISecuritizeOffRamp.sol";
 import {ILiquidityProvider} from "./ILiquidityProvider.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContract {
     /**
@@ -73,21 +74,25 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
     function initialize(
         address _liquidityToken,
         address _recipient,
-        address _securitizeOffRamp
+        address _securitizeOffRamp,
+        address _externalCollateralRedemption,
+        address _collateralProvider
     ) public onlyProxy initializer {
-        if (_recipient == address(0)) {
-            revert NonZeroAddressError();
-        }
-        if (_liquidityToken == address(0)) {
-            revert NonZeroAddressError();
-        }
-        if (_securitizeOffRamp == address(0)) {
+        if (
+            _recipient == address(0) ||
+            _liquidityToken == address(0) ||
+            _securitizeOffRamp == address(0) ||
+            _externalCollateralRedemption == address(0) ||
+            _collateralProvider == address(0)
+        ) {
             revert NonZeroAddressError();
         }
         __BaseContract_init();
         recipient = _recipient;
         liquidityToken = IERC20(_liquidityToken);
         securitizeOffRamp = ISecuritizeOffRamp(_securitizeOffRamp);
+        externalCollateralRedemption = ISecuritizeOffRamp(_externalCollateralRedemption);
+        collateralProvider = _collateralProvider;
     }
 
     function setExternalCollateralRedemption(address externalCollateralRedemption_) external onlyOwner {
@@ -118,20 +123,25 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
     }
 
     function availableLiquidity() external view returns (uint256) {
-        return IERC20(externalCollateralRedemption.asset()).balanceOf(collateralProvider);
+        return _availableLiquidity();
     }
 
     function _availableLiquidity() private view returns (uint256) {
-        return IERC20(externalCollateralRedemption.asset()).balanceOf(collateralProvider);
+        return
+            Math.min(
+                externalCollateralRedemption.availableLiquidity(),
+                _calculateLiquidityTokenAmount(
+                    IERC20(externalCollateralRedemption.asset()).balanceOf(collateralProvider)
+                )
+            );
     }
 
     function supplyTo(
         address redeemer,
-        uint256 amount,
-        uint256 minOutputAmount
-    ) public whenNotPaused onlySecuritizeRedemption {
-        if (amount > _availableLiquidity()) {
-            revert InsufficientLiquidity(amount, _availableLiquidity());
+        uint256 amount
+    ) public whenNotPaused onlySecuritizeRedemption returns (uint256 amountToSupply) {
+        if (amount > _calculateLiquidityTokenAmountBeforeFee(amount)) {
+            revert InsufficientLiquidity(amount, _calculateLiquidityTokenAmountBeforeFee(amount));
         }
 
         // Take collateral funds from collateral provider
@@ -141,14 +151,31 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
         IERC20(externalCollateralRedemption.asset()).approve(address(externalCollateralRedemption), amount);
 
         // Get liquidity
-        externalCollateralRedemption.redeem(amount, minOutputAmount);
+        externalCollateralRedemption.redeem(amount, 0);
 
         // Discount the fee charged by the external collateral redemption
-        uint256 assetsAfterExternalCollateralRedemptionFee = externalCollateralRedemption.calculateLiquidityTokenAmount(
-            amount
-        );
+        amountToSupply = externalCollateralRedemption.calculateLiquidityTokenAmount(amount);
 
         // Supply redeemer
-        liquidityToken.transfer(redeemer, assetsAfterExternalCollateralRedemptionFee);
+        liquidityToken.transfer(redeemer, amountToSupply);
+    }
+
+    /**
+     * @dev Calculates the amount of liquidity tokens
+     * @param amount The amount of asset tokens to redeem
+     * @return amountToSupply The amount of liquidity tokens to supply
+     */
+    function calculateLiquidityTokenAmount(uint256 amount) external view returns (uint256 amountToSupply) {
+        return _calculateLiquidityTokenAmount(amount);
+    }
+
+    function _calculateLiquidityTokenAmount(uint256 amount) private view returns (uint256 amountToSupply) {
+        // Ensure the external collateral redemption is set
+        amountToSupply = externalCollateralRedemption.calculateLiquidityTokenAmount(amount);
+    }
+
+    function _calculateLiquidityTokenAmountBeforeFee(uint256 amount) private view returns (uint256 amountToSupply) {
+        // Ensure the external collateral redemption is set
+        amountToSupply = externalCollateralRedemption.calculateLiquidityTokenAmountBeforeFee(amount);
     }
 }
