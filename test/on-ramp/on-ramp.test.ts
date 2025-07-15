@@ -1,6 +1,12 @@
 import { expect } from 'chai';
 import { loadFixture } from '@nomicfoundation/hardhat-network-helpers';
-import { deployOnRampAllowance, deployOnRampMinting, HASH } from './fixture';
+import {
+    deployOnRampAllowance,
+    deployOnRampAllowanceLiquidity3Decimals,
+    deployOnRampAllowanceLiquidity8Decimals,
+    deployOnRampMinting,
+    HASH
+} from './fixture';
 import { Contract, ethers } from 'ethers';
 import hre from 'hardhat';
 import { eip712OnRamp } from './eip-712.helper';
@@ -746,6 +752,76 @@ describe('On-Ramp Unit Tests', function () {
                 expect(await usdcMock.balanceOf(custodianWallet)).to.equal(980000);
                 // fee collector
                 expect(await usdcMock.balanceOf(feeCollector)).to.equal(1e6 - Number(dsTokenAmount));
+                // asset provider wallet
+                expect(await dsTokenMock.balanceOf(assetProviderWallet)).to.equal(1e6 - Number(dsTokenAmount));
+            });
+
+            it('Should swap successfully - allowance asset provider - one step transfer - Liquidity 8 decimals', async function () {
+                const {
+                    onRamp,
+                    mockRegistryService,
+                    owner,
+                    usdcMock,
+                    dsTokenMock,
+                    assetProviderWallet,
+                    assetProvider,
+                    custodianWallet,
+                    feeCollector,
+                } = await loadFixture(deployOnRampAllowanceLiquidity8Decimals);
+                await usdcMock.mint(owner, 1e8);
+                await usdcMock.approve(onRamp, 1e8);
+
+                const dsTokenFromAssetProviderWallet = dsTokenMock.connect(assetProviderWallet) as Contract;
+                await dsTokenFromAssetProviderWallet.approve(assetProvider, 1e6);
+                await dsTokenMock.issueTokens(assetProviderWallet, 1e6);
+
+                await mockRegistryService.addWallet(owner);
+                await onRamp.toggleInvestorSubscription(true);
+                const [dsTokenAmount, rate, fee] = await onRamp.calculateDsTokenAmount(1e8);
+                await expect(onRamp.swap(1e8, dsTokenAmount))
+                  .emit(onRamp, 'Swap')
+                  .withArgs(owner, dsTokenAmount, 1e8, owner, rate, fee, usdcMock);
+                expect(await usdcMock.balanceOf(owner)).to.equal(0);
+                expect(await dsTokenMock.balanceOf(owner)).to.equal(dsTokenAmount);
+                // custodian wallet
+                expect(await usdcMock.balanceOf(custodianWallet)).to.equal(98000000);
+                // fee collector
+                expect(await usdcMock.balanceOf(feeCollector)).to.equal(Number(fee));
+                // asset provider wallet
+                expect(await dsTokenMock.balanceOf(assetProviderWallet)).to.equal(1e6 - Number(dsTokenAmount));
+            });
+
+            it('Should swap successfully - allowance asset provider - one step transfer - Liquidity 3 decimals', async function () {
+                const {
+                    onRamp,
+                    mockRegistryService,
+                    owner,
+                    usdcMock,
+                    dsTokenMock,
+                    assetProviderWallet,
+                    assetProvider,
+                    custodianWallet,
+                    feeCollector,
+                } = await loadFixture(deployOnRampAllowanceLiquidity3Decimals);
+                await usdcMock.mint(owner, 1e3);
+                await usdcMock.approve(onRamp, 1e3);
+
+                const dsTokenFromAssetProviderWallet = dsTokenMock.connect(assetProviderWallet) as Contract;
+                await dsTokenFromAssetProviderWallet.approve(assetProvider, 1e6);
+                await dsTokenMock.issueTokens(assetProviderWallet, 1e6);
+
+                await mockRegistryService.addWallet(owner);
+                await onRamp.toggleInvestorSubscription(true);
+                const [dsTokenAmount, rate, fee] = await onRamp.calculateDsTokenAmount(1e3);
+                await expect(onRamp.swap(1e3, dsTokenAmount))
+                  .emit(onRamp, 'Swap')
+                  .withArgs(owner, dsTokenAmount, 1e3, owner, rate, fee, usdcMock);
+                expect(await usdcMock.balanceOf(owner)).to.equal(0);
+                expect(await dsTokenMock.balanceOf(owner)).to.equal(dsTokenAmount);
+                // custodian wallet
+                expect(await usdcMock.balanceOf(custodianWallet)).to.equal(980);
+                // fee collector
+                expect(await usdcMock.balanceOf(feeCollector)).to.equal(Number(fee));
                 // asset provider wallet
                 expect(await dsTokenMock.balanceOf(assetProviderWallet)).to.equal(1e6 - Number(dsTokenAmount));
             });

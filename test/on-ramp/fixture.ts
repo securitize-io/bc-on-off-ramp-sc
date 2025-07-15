@@ -7,11 +7,19 @@ export const deployOnRampAllowance = async () => {
     return deployOnRamp(AssetProviderType.ALLOWANCE);
 };
 
+export const deployOnRampAllowanceLiquidity8Decimals = async () => {
+    return deployOnRamp(AssetProviderType.ALLOWANCE, 8);
+};
+
+export const deployOnRampAllowanceLiquidity3Decimals = async () => {
+    return deployOnRamp(AssetProviderType.ALLOWANCE, 3);
+};
+
 export const deployOnRampMinting = async () => {
     return deployOnRamp(AssetProviderType.MINTING);
 };
 
-const deployOnRamp = async (type: AssetProviderType) => {
+const deployOnRamp = async (type: AssetProviderType, liquidityDecimals: number = 6) => {
     const [owner, custodianWallet, feeCollector, assetProviderWallet, unknownWallet, eip712Signer] =
         await hre.ethers.getSigners();
     // Set up a mock registry Service
@@ -32,7 +40,7 @@ const deployOnRamp = async (type: AssetProviderType) => {
         trustServiceAddress,
     ]);
     // usdc mock
-    const usdcMock = await hre.ethers.deployContract('MockERC20', ['USDC', 'USDC', 6]);
+    const usdcMock = await hre.ethers.deployContract('MockERC20', ['USDC', 'USDC', liquidityDecimals]);
     // nav mock
     const navMock = await hre.ethers.deployContract('MockSecuritizeInternalNavProvider', [1e6]);
     // fee mock

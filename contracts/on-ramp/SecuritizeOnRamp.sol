@@ -220,10 +220,13 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
     function calculateDsTokenAmount(uint256 _liquidityAmount) public view returns (uint256 dsTokenAmount, uint256 rate, uint256 fee) {
         fee = feeManager.getFee(_liquidityAmount);
         uint256 liquidityAmountExcludingFee = _liquidityAmount - fee;
-        rate = navProvider.rate();
-        dsTokenAmount =
-            (liquidityAmountExcludingFee * 10 ** IERC20Metadata(address(assetProvider.asset())).decimals()) /
-            rate;
+
+        uint8 liquidityTokenDecimals = IERC20Metadata(address(liquidityToken)).decimals();
+        uint8 assetDecimals = IERC20Metadata(address(assetProvider.asset())).decimals();
+
+        rate = navProvider.rate(); // assumed to be in `assetDecimals`
+
+        dsTokenAmount = (liquidityAmountExcludingFee * (10 ** (2 * assetDecimals))) / (rate * (10 ** liquidityTokenDecimals));
     }
 
     function updateAssetProvider(address _assetProvider) external onlyOwner {
