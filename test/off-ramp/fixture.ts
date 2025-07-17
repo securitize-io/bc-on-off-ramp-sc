@@ -98,7 +98,7 @@ export const deployRedemptionProtocol = async () => {
         recipient: securitizeWallet.address,
         providerWallet: securitizeWallet.address,
         externalCollateralRedemption: await externalRedemptionContractMock.getAddress(),
-        verboseLogs: false,
+        silenceLogs: true,
     });
 
     return {
@@ -174,7 +174,7 @@ export const deployRedemptionProtocolWithMultipleTokens = async () => {
         recipient: securitizeWallet.address,
         providerWallet: securitizeWallet.address,
         externalCollateralRedemption: await externalRedemptionContractMock.getAddress(),
-        verboseLogs: false,
+        silenceLogs: true,
     });
 
     return {
@@ -222,7 +222,7 @@ export const deployRedemptionAllowanceProtocol = async () => {
         recipient: securitizeWallet.address,
         liquidityToken: await usdcMock.getAddress(),
         providerWallet: securitizeWallet.address,
-        verboseLogs: false,
+        silenceLogs: true,
     });
 
     return {
@@ -322,7 +322,7 @@ export const deployRedemptionProtocolWithAssetBurn = async () => {
         recipient: securitizeWallet.address,
         providerWallet: securitizeWallet.address,
         externalCollateralRedemption: await externalRedemptionContractMock.getAddress(),
-        verboseLogs: false,
+        silenceLogs: true,
     });
 
     return {

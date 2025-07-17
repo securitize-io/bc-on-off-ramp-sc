@@ -27,9 +27,9 @@ task('deploy-redemption-allowance-protocol', 'Deploy Redemption Protocol (Allowa
 
     // Verification flag
     .addFlag('verify', 'Verify contracts on Etherscan')
-    .addFlag('verboseLogs', 'Verbose output')
+    .addFlag('silenceLogs', 'Verbose output')
     .setAction(async (args, hre) => {
-        if (args.verboseLogs) {
+        if (!args.silenceLogs) {
             console.log('');
             consoleCyan('task: deploy-redemption-allowance-protocol');
         }
@@ -40,7 +40,7 @@ task('deploy-redemption-allowance-protocol', 'Deploy Redemption Protocol (Allowa
             feeManager: args.feeManager,
             assetBurn: args.assetBurn,
             verify: args.verify,
-            verboseLogs: args.verboseLogs,
+            silenceLogs: args.silenceLogs,
         });
 
         const { liquidityProviderAddress } = await hre.run('deploy-allowance-provider', {
@@ -49,7 +49,7 @@ task('deploy-redemption-allowance-protocol', 'Deploy Redemption Protocol (Allowa
             redemptionAddress,
             verify: args.verify,
             providerWallet: args.providerWallet,
-            verboseLogs: args.verboseLogs,
+            silenceLogs: args.silenceLogs,
         });
 
         // Get contract instances
@@ -64,7 +64,7 @@ task('deploy-redemption-allowance-protocol', 'Deploy Redemption Protocol (Allowa
         // Set liquidity provider on securitize redemption contract
         await redemption.updateLiquidityProvider(liquidityProviderAddress);
 
-        if (args.verboseLogs) {
+        if (!args.silenceLogs) {
             console.log('Successfully updated liquidity provider on securitize redemption contract');
 
             consoleGreen('Securitize Redemption Protocol has been configured successfully');
@@ -86,9 +86,9 @@ task('deploy-offramp', 'Deploy SecuritizeOffRamp proxy')
     .addParam('feeManager', 'Fee manager address')
     .addParam('assetBurn', 'Whether assets should be burned on redemption')
     .addFlag('verify', 'Verify contracts on Etherscan')
-    .addFlag('verboseLogs', 'Verbose output')
+    .addFlag('silenceLogs', 'Verbose output')
     .setAction(async (taskArgs, hre) => {
-        if (taskArgs.verboseLogs) {
+        if (!taskArgs.silenceLogs) {
             console.log('');
             consoleCyan('task: deploy-offramp');
             consoleCyan('Arguments:');
@@ -104,7 +104,7 @@ task('deploy-offramp', 'Deploy SecuritizeOffRamp proxy')
             kind: 'uups',
             args: [taskArgs.asset, taskArgs.navProvider, taskArgs.feeManager, taskArgs.assetBurn],
             verify: taskArgs.verify,
-            verboseLogs: taskArgs.verboseLogs,
+            silenceLogs: taskArgs.silenceLogs,
         });
 
         return { redemptionAddress: proxyAddress, redemptionImpl: implAddress };
@@ -117,10 +117,10 @@ task('deploy-allowance-provider', 'Deploy AllowanceLiquidityProvider proxy')
     .addParam('recipient', 'Wallet that receives DS Token')
     .addParam('redemptionAddress', 'SecuritizeOffRamp proxy address')
     .addFlag('verify', 'Verify contracts on Etherscan')
-    .addFlag('verboseLogs', 'Verbose output')
+    .addFlag('silenceLogs', 'Verbose output')
     .addOptionalParam('providerWallet', 'Wallet that provides liquidity')
     .setAction(async (taskArgs, hre) => {
-        if (taskArgs.verboseLogs) {
+        if (!taskArgs.silenceLogs) {
             console.log('');
             consoleCyan('task: deploy-allowance-provider');
             consoleCyan('Arguments:');
@@ -136,7 +136,7 @@ task('deploy-allowance-provider', 'Deploy AllowanceLiquidityProvider proxy')
             kind: 'uups',
             args: [taskArgs.liquidityToken, taskArgs.recipient, taskArgs.redemptionAddress, taskArgs.providerWallet],
             verify: taskArgs.verify,
-            verboseLogs: taskArgs.verboseLogs,
+            silenceLogs: taskArgs.silenceLogs,
         });
 
         return { liquidityProviderAddress: proxyAddress, liquidityProviderImpl: implAddress };

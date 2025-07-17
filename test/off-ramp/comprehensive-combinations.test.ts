@@ -152,7 +152,7 @@ describe('Comprehensive Redeem Combinations Test', function () {
                 recipient: securitizeWallet.address,
                 liquidityToken: await usdc.getAddress(),
                 providerWallet: securitizeWallet.address,
-                verboseLogs: false,
+                silenceLogs: true,
             });
             redemption = result.redemption;
             liquidityProvider = result.liquidityProvider;
@@ -187,7 +187,7 @@ describe('Comprehensive Redeem Combinations Test', function () {
                 recipient: securitizeWallet.address,
                 providerWallet: securitizeWallet.address,
                 externalCollateralRedemption: await externalRedemptionContractMock.getAddress(),
-                verboseLogs: false,
+                silenceLogs: true,
             });
 
             redemption = result.redemption;
@@ -236,7 +236,7 @@ describe('Comprehensive Redeem Combinations Test', function () {
         // events: RedemptionCompleted, TwoStepTransferUpdated, OwnableUnauthorizedAccount
         // flows: assetBurned
         allCombinations.forEach((config) => {
-            it.only(`[${config.id}] should work for: ${config.name}`, async function () {
+            it(`[${config.id}] should work for: ${config.name}`, async function () {
                 console.log(`\n--- Testing Combination ${config.id}: ${config.name} ---`);
 
                 // Create a named fixture function for this specific configuration

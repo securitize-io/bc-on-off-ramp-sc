@@ -29,10 +29,10 @@ task('deploy-redemption-collateral-protocol', 'Deploy Redemption Protocol (Colla
 
     // Verification flag
     .addFlag('verify', 'Verify contracts on Etherscan')
-    .addFlag('verboseLogs', 'Verbose output')
+    .addFlag('silenceLogs', 'Verbose output')
 
     .setAction(async (args, hre) => {
-        if (args.verboseLogs) {
+        if (!args.silenceLogs) {
             console.log('');
             consoleCyan('task: deploy-redemption-collateral-protocol');
             consoleCyan('Arguments:');
@@ -53,6 +53,7 @@ task('deploy-redemption-collateral-protocol', 'Deploy Redemption Protocol (Colla
             feeManager: args.feeManager,
             assetBurn: args.assetBurn,
             verify: args.verify,
+            silenceLogs: args.silenceLogs,
         });
 
         const collateralContract = await hre.ethers.getContractAt(
@@ -67,6 +68,7 @@ task('deploy-redemption-collateral-protocol', 'Deploy Redemption Protocol (Colla
             collateralToken: await collateralContract.asset(),
             externalCollateralRedemption: args.externalCollateralRedemption,
             collateralProvider: args.providerWallet,
+            silenceLogs: args.silenceLogs,
             verify: args.verify,
         });
 
@@ -77,7 +79,7 @@ task('deploy-redemption-collateral-protocol', 'Deploy Redemption Protocol (Colla
             liquidityProviderAddress,
         );
 
-        if (args.verboseLogs) {
+        if (!args.silenceLogs) {
             consoleYellow(
                 'Proceeding to configure the protocol: setting external collateral redemption, collateral provider, and linking liquidity provider to the redemption contract...',
             );
@@ -88,7 +90,7 @@ task('deploy-redemption-collateral-protocol', 'Deploy Redemption Protocol (Colla
         let tx = await redemption.updateLiquidityProvider(liquidityProviderAddress);
         await tx.wait(1);
 
-        if (args.verboseLogs) {
+        if (!args.silenceLogs) {
             consoleGreen('Securitize Redemption Protocol has been configured successfully');
 
             console.log('');
@@ -109,9 +111,9 @@ task('deploy-collateral-provider', 'Deploy CollateralLiquidityProvider proxy')
     .addParam('externalCollateralRedemption', 'External Collateral Redemption SC')
     .addParam('collateralProvider', 'Collateral Provider address')
     .addFlag('verify', 'Verify contracts on Etherscan')
-    .addFlag('verboseLogs', 'Verbose output')
+    .addFlag('silenceLogs', 'Verbose output')
     .setAction(async (taskArgs, hre) => {
-        if (taskArgs.verboseLogs) {
+        if (!taskArgs.silenceLogs) {
             console.log('');
             consoleCyan('task: deploy-collateral-provider');
             consoleCyan('Arguments:');
@@ -130,6 +132,7 @@ task('deploy-collateral-provider', 'Deploy CollateralLiquidityProvider proxy')
                 taskArgs.collateralProvider,
             ],
             verify: taskArgs.verify,
+            silenceLogs: taskArgs.silenceLogs,
         });
 
         return { liquidityProviderAddress: proxyAddress, liquidityProviderImpl: implAddress };
