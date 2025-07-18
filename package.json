@@ -25,7 +25,7 @@
         }
     ],
     "devDependencies": {
-        "@securitize/digital_securities": "^3.1.4",
+        "@securitize/digital_securities": "^3.1.5",
         "@nomicfoundation/hardhat-chai-matchers": "^2.0.9",
         "@nomicfoundation/hardhat-ethers": "^3.0.9",
         "@nomicfoundation/hardhat-network-helpers": "^1.0.12",
