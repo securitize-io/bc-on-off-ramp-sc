@@ -1,5 +1,5 @@
 {
-    "name": "bc-on-off-ramp-sc",
+    "name": "@securitize/bc-on-off-ramp-sc",
     "version": "0.0.1",
     "description": "Securitize on/off ramp Protocol",
     "license": "Apache-2.0",
