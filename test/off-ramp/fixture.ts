@@ -98,6 +98,7 @@ export const deployRedemptionProtocol = async () => {
         recipient: securitizeWallet.address,
         providerWallet: securitizeWallet.address,
         externalCollateralRedemption: await externalRedemptionContractMock.getAddress(),
+        verboseLogs: false,
     });
 
     return {
@@ -133,24 +134,11 @@ export const deployRedemptionProtocolWithMultipleTokens = async () => {
     const dsTokenMock = await hre.ethers.deployContract('MockDSToken', [
         'Token1',
         'TK1',
-        6,
+        18,
         registryServiceAddress,
         trustServiceAddress,
     ]);
-    const dsToken6DecimalMock = await hre.ethers.deployContract('MockDSToken', [
-        'Token1-6',
-        'TK1-6',
-        6,
-        registryServiceAddress,
-        trustServiceAddress,
-    ]);
-    const dsToken0DecimalMock = await hre.ethers.deployContract('MockDSToken', [
-        'Token1-0',
-        'TK1-0',
-        6,
-        registryServiceAddress,
-        trustServiceAddress,
-    ]);
+
     const dsTokenCollateralMock = await hre.ethers.deployContract('MockDSToken', [
         'Token1',
         'TK2',
@@ -186,41 +174,16 @@ export const deployRedemptionProtocolWithMultipleTokens = async () => {
         recipient: securitizeWallet.address,
         providerWallet: securitizeWallet.address,
         externalCollateralRedemption: await externalRedemptionContractMock.getAddress(),
+        verboseLogs: false,
     });
 
-    const contractsWith6DecimalsDsToken = await hre.run('deploy-redemption-collateral-protocol', {
-        asset: await dsToken6DecimalMock.getAddress(),
-        navProvider: await securitizeNavProviderMock.getAddress(),
-        feeManager: await mockFeeManager.getAddress(),
-        assetBurn: 'false', // Default to not burning assets
-        liquidityToken: await usdcMock.getAddress(),
-        recipient: securitizeWallet.address,
-        providerWallet: securitizeWallet.address,
-        externalCollateralRedemption: await externalRedemptionContractMock.getAddress(),
-    });
-
-    const contractsWith0DecimalsDsToken = await hre.run('deploy-redemption-collateral-protocol', {
-        asset: await dsToken0DecimalMock.getAddress(),
-        navProvider: await securitizeNavProviderMock.getAddress(),
-        feeManager: await mockFeeManager.getAddress(),
-        assetBurn: 'false', // Default to not burning assets
-        liquidityToken: await usdcMock.getAddress(),
-        recipient: securitizeWallet.address,
-        providerWallet: securitizeWallet.address,
-        externalCollateralRedemption: await externalRedemptionContractMock.getAddress(),
-    });
     return {
-        dsToken18DecimalMock: dsTokenMock,
-        dsToken6DecimalMock,
-        dsToken0DecimalMock,
         dsTokenCollateralMock,
         usdcMock,
         externalRedemptionContractMock,
         securitizeNavProviderMock,
         collateralProviderAddressMock: securitizeWallet.address,
         contractsWith18DecimalsDsTokenMock: contractsWith18DecimalsDsToken,
-        contractsWith6DecimalsDsTokenMock: contractsWith6DecimalsDsToken,
-        contractsWith0DecimalsDsTokenMock: contractsWith0DecimalsDsToken,
     };
 };
 
@@ -259,6 +222,7 @@ export const deployRedemptionAllowanceProtocol = async () => {
         recipient: securitizeWallet.address,
         liquidityToken: await usdcMock.getAddress(),
         providerWallet: securitizeWallet.address,
+        verboseLogs: false,
     });
 
     return {
@@ -358,6 +322,7 @@ export const deployRedemptionProtocolWithAssetBurn = async () => {
         recipient: securitizeWallet.address,
         providerWallet: securitizeWallet.address,
         externalCollateralRedemption: await externalRedemptionContractMock.getAddress(),
+        verboseLogs: false,
     });
 
     return {

@@ -20,12 +20,19 @@ task('deploy-proxy', 'Deploy a UUPS proxy contract')
     .addParam('contractName', 'The contract to deploy')
     .addParam('kind', 'Proxy kind (default: uups)', 'uups')
     .addFlag('verify', 'Should we attempt to verify the contracts')
+    .addFlag('verboseLogs', 'Verbose output')
+    .addFlag('compile', 'Should we compile the contracts')
     .addVariadicPositionalParam('args', 'The initializer arguments', [])
     .setAction(async (taskArgs, hre) => {
-        await hre.run('compile');
-        console.log('');
-        consoleCyan('task: deploy-proxy');
-        consoleGreen(`Deploying ${taskArgs.contractName} proxy...`);
+        if (taskArgs.compile) {
+            await hre.run('compile');
+        }
+
+        if (taskArgs.verboseLogs) {
+            console.log('');
+            consoleCyan('task: deploy-proxy');
+            consoleGreen(`Deploying ${taskArgs.contractName} proxy...`);
+        }
 
         const Contract = await hre.ethers.getContractFactory(taskArgs.contractName);
         const argsTypes = taskArgs.args.map((arg: string) => {
@@ -41,10 +48,12 @@ task('deploy-proxy', 'Deploy a UUPS proxy contract')
         const proxyAddress = await proxy.getAddress();
         const implAddress = await hre.upgrades.erc1967.getImplementationAddress(proxyAddress);
 
-        console.log(`${taskArgs.contractName} proxy deployed at:`);
-        consoleYellow(`${proxyAddress}`);
-        console.log(`${taskArgs.contractName} implementation at:`);
-        consoleYellow(`${implAddress}`);
+        if (taskArgs.verboseLogs) {
+            console.log(`${taskArgs.contractName} proxy deployed at:`);
+            consoleYellow(`${proxyAddress}`);
+            console.log(`${taskArgs.contractName} implementation at:`);
+            consoleYellow(`${implAddress}`);
+        }
 
         if (taskArgs.verify) {
             await hre.run('verify-contract', {
