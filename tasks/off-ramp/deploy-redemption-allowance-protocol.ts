@@ -30,8 +30,7 @@ task('deploy-redemption-allowance-protocol', 'Deploy Redemption Protocol (Allowa
     .addFlag('silenceLogs', 'Verbose output')
     .setAction(async (args, hre) => {
         if (!args.silenceLogs) {
-            console.log('');
-            consoleCyan('task: deploy-redemption-allowance-protocol');
+            consoleCyan('\n task: deploy-redemption-allowance-protocol');
         }
 
         const { redemptionAddress } = await hre.run('deploy-offramp', {
@@ -69,8 +68,7 @@ task('deploy-redemption-allowance-protocol', 'Deploy Redemption Protocol (Allowa
 
             consoleGreen('Securitize Redemption Protocol has been configured successfully');
 
-            console.log('');
-            consoleGreen('Securitize Redemption Protocol has been deployed successfully');
+            consoleGreen('\n Securitize Redemption Protocol has been deployed successfully');
             consoleMagenta(`- Redemption Address: ${redemptionAddress}`);
             consoleMagenta(`- Liquidity Provider Address: ${liquidityProviderAddress}`);
         }
@@ -89,8 +87,7 @@ task('deploy-offramp', 'Deploy SecuritizeOffRamp proxy')
     .addFlag('silenceLogs', 'Verbose output')
     .setAction(async (taskArgs, hre) => {
         if (!taskArgs.silenceLogs) {
-            console.log('');
-            consoleCyan('task: deploy-offramp');
+            consoleCyan('\n task: deploy-offramp');
             consoleCyan('Arguments:');
             console.log(`- Asset: ${taskArgs.asset}`);
             console.log(`- NAV Provider: ${taskArgs.navProvider}`);
@@ -121,8 +118,7 @@ task('deploy-allowance-provider', 'Deploy AllowanceLiquidityProvider proxy')
     .addOptionalParam('providerWallet', 'Wallet that provides liquidity')
     .setAction(async (taskArgs, hre) => {
         if (!taskArgs.silenceLogs) {
-            console.log('');
-            consoleCyan('task: deploy-allowance-provider');
+            consoleCyan('\n task: deploy-allowance-provider');
             consoleCyan('Arguments:');
             console.log(`- Liquidity Token: ${taskArgs.liquidityToken}`);
             console.log(`- Recipient: ${taskArgs.recipient}`);

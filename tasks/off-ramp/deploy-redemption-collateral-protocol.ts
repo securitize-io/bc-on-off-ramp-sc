@@ -33,8 +33,7 @@ task('deploy-redemption-collateral-protocol', 'Deploy Redemption Protocol (Colla
 
     .setAction(async (args, hre) => {
         if (!args.silenceLogs) {
-            console.log('');
-            consoleCyan('task: deploy-redemption-collateral-protocol');
+            consoleCyan('\n task: deploy-redemption-collateral-protocol');
             consoleCyan('Arguments:');
             console.log(`- Asset: ${args.asset}`);
             console.log(`- NAV Provider: ${args.navProvider}`);
@@ -93,8 +92,7 @@ task('deploy-redemption-collateral-protocol', 'Deploy Redemption Protocol (Colla
         if (!args.silenceLogs) {
             consoleGreen('Securitize Redemption Protocol has been configured successfully');
 
-            console.log('');
-            consoleGreen('Securitize Redemption Protocol has been deployed successfully');
+            consoleGreen('\n Securitize Redemption Protocol has been deployed successfully');
             consoleMagenta(`- Redemption Address: ${redemptionAddress}`);
             consoleMagenta(`- Liquidity Provider Address: ${liquidityProviderAddress}`);
         }
@@ -114,8 +112,7 @@ task('deploy-collateral-provider', 'Deploy CollateralLiquidityProvider proxy')
     .addFlag('silenceLogs', 'Verbose output')
     .setAction(async (taskArgs, hre) => {
         if (!taskArgs.silenceLogs) {
-            console.log('');
-            consoleCyan('task: deploy-collateral-provider');
+            consoleCyan('\n task: deploy-collateral-provider');
             consoleCyan('Arguments:');
             console.log(`- Liquidity Token: ${taskArgs.liquidity}`);
             console.log(`- Recipient: ${taskArgs.recipient}`);
