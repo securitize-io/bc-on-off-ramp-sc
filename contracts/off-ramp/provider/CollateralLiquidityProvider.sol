@@ -20,15 +20,17 @@ pragma solidity ^0.8.22;
 import {ICollateralLiquidityProvider} from "./ICollateralLiquidityProvider.sol";
 import {BaseContract} from "../../common/BaseContract.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {ISecuritizeOffRamp} from "../ISecuritizeOffRamp.sol";
 import {ILiquidityProvider} from "./ILiquidityProvider.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {ISecuritizeNavProvider} from "@securitize/digital_securities/contracts/nav/ISecuritizeNavProvider.sol";
 
 contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContract {
     /**
      * @dev liquidity asset.
      */
-    IERC20 public liquidityToken;
+    IERC20Metadata public liquidityToken;
 
     /**
      * @dev securitize redemption contract.
@@ -89,7 +91,7 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
         }
         __BaseContract_init();
         recipient = _recipient;
-        liquidityToken = IERC20(_liquidityToken);
+        liquidityToken = IERC20Metadata(_liquidityToken);
         securitizeOffRamp = ISecuritizeOffRamp(_securitizeOffRamp);
         externalCollateralRedemption = ISecuritizeOffRamp(_externalCollateralRedemption);
         collateralProvider = _collateralProvider;
@@ -130,7 +132,7 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
         return
             Math.min(
                 externalCollateralRedemption.availableLiquidity(),
-                _calculateLiquidityTokenAmount(
+                _calculateLiquidityTokenAmountBeforeFee(
                     IERC20(externalCollateralRedemption.asset()).balanceOf(collateralProvider)
                 )
             );
@@ -138,23 +140,25 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
 
     function supplyTo(
         address redeemer,
-        uint256 amount
+        uint256 liquidityAmount
     ) public whenNotPaused onlySecuritizeRedemption returns (uint256 amountToSupply) {
-        if (amount > _calculateLiquidityTokenAmountBeforeFee(amount)) {
-            revert InsufficientLiquidity(amount, _calculateLiquidityTokenAmountBeforeFee(amount));
+        if (liquidityAmount > _availableLiquidity()) {
+            revert InsufficientLiquidity(liquidityAmount, _availableLiquidity());
         }
 
+        uint256 collateralAmount = _liquidityTokenToExternalCollateralAsset(liquidityAmount);
+
         // Take collateral funds from collateral provider
-        IERC20(externalCollateralRedemption.asset()).transferFrom(collateralProvider, address(this), amount);
+        IERC20(externalCollateralRedemption.asset()).transferFrom(collateralProvider, address(this), collateralAmount);
 
         // Approve external redemption
-        IERC20(externalCollateralRedemption.asset()).approve(address(externalCollateralRedemption), amount);
+        IERC20(externalCollateralRedemption.asset()).approve(address(externalCollateralRedemption), collateralAmount);
 
         // Get liquidity
-        externalCollateralRedemption.redeem(amount, 0);
+        externalCollateralRedemption.redeem(collateralAmount, 0);
 
         // Discount the fee charged by the external collateral redemption
-        amountToSupply = externalCollateralRedemption.calculateLiquidityTokenAmount(amount);
+        amountToSupply = externalCollateralRedemption.calculateLiquidityTokenAmount(collateralAmount);
 
         // Supply redeemer
         liquidityToken.transfer(redeemer, amountToSupply);
@@ -162,20 +166,38 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
 
     /**
      * @dev Calculates the amount of liquidity tokens
-     * @param amount The amount of asset tokens to redeem
-     * @return amountToSupply The amount of liquidity tokens to supply
+     * @param liquidityAmount The amount of liquidity tokens to supply
+     * @return amountToSupply The amount of supplied liquidity tokens
      */
-    function calculateLiquidityTokenAmount(uint256 amount) external view returns (uint256 amountToSupply) {
-        return _calculateLiquidityTokenAmount(amount);
+    function calculateLiquidityTokenAmount(uint256 liquidityAmount) external view returns (uint256 amountToSupply) {
+        return _calculateLiquidityTokenAmount(liquidityAmount);
     }
 
-    function _calculateLiquidityTokenAmount(uint256 amount) private view returns (uint256 amountToSupply) {
-        // Ensure the external collateral redemption is set
-        amountToSupply = externalCollateralRedemption.calculateLiquidityTokenAmount(amount);
+    function _calculateLiquidityTokenAmount(uint256 liquidityAmount) private view returns (uint256 amountToSupply) {
+        // Convert liquidity amount to collateral amount
+        uint256 collateralAmount = _liquidityTokenToExternalCollateralAsset(liquidityAmount);
+        amountToSupply = externalCollateralRedemption.calculateLiquidityTokenAmount(collateralAmount);
     }
 
-    function _calculateLiquidityTokenAmountBeforeFee(uint256 amount) private view returns (uint256 amountToSupply) {
-        // Ensure the external collateral redemption is set
-        amountToSupply = externalCollateralRedemption.calculateLiquidityTokenAmountBeforeFee(amount);
+    function _calculateLiquidityTokenAmountBeforeFee(
+        uint256 assetAmount
+    ) private view returns (uint256 amountToSupply) {
+        amountToSupply = externalCollateralRedemption.calculateLiquidityTokenAmountBeforeFee(assetAmount);
+    }
+
+    function _liquidityTokenToExternalCollateralAsset(
+        uint256 liquidityAmount
+    ) private view returns (uint256 collateralAmount) {
+        // rate is expressed in collateral decimals
+        uint256 rate = externalCollateralRedemption.navProvider().rate();
+
+        // NOTE: IDSToken interface lacks decimals(), so we use IERC20Metadata to get decimals from the asset address
+        // TODO: update this when IDSToken has decimals
+        address collateralAddress = address(externalCollateralRedemption.asset());
+        uint8 assetDecimals = IERC20Metadata(collateralAddress).decimals();
+
+        collateralAmount =
+            ((liquidityAmount * (10 ** assetDecimals)) * (10 ** assetDecimals)) /
+            (rate * (10 ** liquidityToken.decimals()));
     }
 }

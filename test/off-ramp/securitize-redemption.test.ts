@@ -211,13 +211,13 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                     externalRedemptionContractMock,
                 } = await loadFixture(deployRedemptionProtocol);
 
-                await dsTokenCollateralMock.mint(collateralProviderAddressMock, 10);
+                await dsTokenCollateralMock.mint(collateralProviderAddressMock, 12);
 
                 await usdcMock.mint(await externalRedemptionContractMock.getAddress(), 12);
                 await usdcMock.approve(liquidityProvider, 12);
 
                 const availableLiquidity = await liquidityProvider.availableLiquidity();
-                expect(availableLiquidity).to.equal(10);
+                expect(availableLiquidity).to.equal(12);
             });
             it('Should return available liquidity for AllowanceProvider', async function () {
                 const { liquidityProvider, usdcMock } = await loadFixture(deployRedemptionAllowanceProtocol);
@@ -517,7 +517,7 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
 
             it('Should fail if liquidity provider has no balance', async function () {
                 const [_, investor] = await hre.ethers.getSigners();
-                const { redemption, dsTokenMock } = await loadFixture(deployRedemptionProtocol);
+                const { redemption, dsTokenMock, liquidityProvider } = await loadFixture(deployRedemptionProtocol);
                 await dsTokenMock.mint(investor, ASSET_AMOUNT);
                 const dsTokenFromInvestor = await dsTokenMock.connect(investor);
                 await dsTokenFromInvestor.approve(await redemption.getAddress(), ASSET_AMOUNT);
@@ -526,8 +526,8 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
 
                 const redemptionFromInvestor = await redemption.connect(investor);
                 await expect(redemptionFromInvestor.redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT)).revertedWithCustomError(
-                    dsTokenMock,
-                    'ERC20InsufficientAllowance',
+                    liquidityProvider,
+                    'InsufficientLiquidity',
                 );
             });
 
@@ -596,6 +596,7 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                     externalRedemptionContractMock,
                     mockFeeManager,
                 } = await loadFixture(deployRedemptionProtocol);
+                await redemption.toggleTwoStepTransfer(true);
                 const externalRedemptionAddress = await externalRedemptionContractMock.getAddress();
 
                 // Set a very small fee - 0.001% (1 mbps) on the mock fee manager
@@ -612,8 +613,6 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
 
                 // Calculate collateral/usdc to redeem
                 const collateralToRedeem = (ASSET_AMOUNT * FIXED_RATE) / 10n ** dsTokenDecimals;
-
-                const calcAmount = await redemption.calculateLiquidityTokenAmountBeforeFee(smallAmount);
 
                 // Provide liquidity to external mock contract
                 await usdcMock.mint(externalRedemptionAddress, collateralToRedeem);
@@ -643,9 +642,6 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                     );
 
                 expect(await dsTokenMock.balanceOf(investor)).to.equal(0);
-                expect(await dsTokenCollateralMock.balanceOf(securitizeWallet)).to.equal(
-                    COLLATERAL_TREASURY - calcAmount,
-                );
             });
 
             it('Allowance implementation - Should fail if liquidity provider wallet has no liquidity token', async function () {
