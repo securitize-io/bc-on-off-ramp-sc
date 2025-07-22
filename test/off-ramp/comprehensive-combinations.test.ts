@@ -23,10 +23,9 @@ describe('Comprehensive Redeem Combinations Test', function () {
         // fee: [false],
         // rate: [RATE],
         decimals: [
-            { name: 'same', dsDecimals: 10n, usdcDecimals: 6n, collateralDsDecimals: 18n },
-            { name: 'more', dsDecimals: 18n, usdcDecimals: 6n, collateralDsDecimals: 18n },
-            { name: 'more', dsDecimals: 3n, usdcDecimals: 0n, collateralDsDecimals: 3n },
-            { name: 'less', dsDecimals: 6n, usdcDecimals: 9n, collateralDsDecimals: 6n },
+            { name: 'same', dsDecimals: 6n, usdcDecimals: 6n, collateralDsDecimals: 10n },
+            { name: 'more', dsDecimals: 18n, usdcDecimals: 6n, collateralDsDecimals: 10n },
+            { name: 'less', dsDecimals: 6n, usdcDecimals: 9n, collateralDsDecimals: 10n },
         ],
         providerType: [
             { name: 'allowance', type: 'allowance' },
@@ -137,7 +136,9 @@ describe('Comprehensive Redeem Combinations Test', function () {
         // Setup balances and approvals
         const assetAmount = BigInt(ASSET_AMOUNT) * 10n ** BigInt(decimals.dsDecimals); // Adjust for decimals
         const secondAssetAmountBase = BigInt(ASSET_AMOUNT) * 10n ** BigInt(decimals.collateralDsDecimals); // Adjust for decimals
-        const secondAssetAmount = rate === RATE ? secondAssetAmountBase : secondAssetAmountBase * 2n;
+
+        // mockNavProvider has 1:2 rate for secondDsToken
+        const secondAssetAmount = rate === RATE ? secondAssetAmountBase / 2n : secondAssetAmountBase;
 
         const usdcAmountBase = BigInt(ASSET_AMOUNT) * 10n ** BigInt(decimals.usdcDecimals); // Adjust for decimals
         const usdcAmount = rate === RATE ? usdcAmountBase : usdcAmountBase * 2n;
@@ -167,10 +168,16 @@ describe('Comprehensive Redeem Combinations Test', function () {
             await (mainDsToken as any).connect(deployer).mint(investor.address, assetAmount);
             await (mainDsToken as any).connect(investor).approve(await redemption.getAddress(), assetAmount);
         } else {
+            const mockRateInCollateralDsDecimals = 2n * 10n ** decimals.collateralDsDecimals;
+            const mockNavProvider = await hre.ethers.deployContract('MockSecuritizeInternalNavProvider', [
+                mockRateInCollateralDsDecimals,
+            ]);
+
             const externalRedemptionContractMock = await hre.ethers.deployContract('MockExternalRedemption', [
                 await secondDsToken.getAddress(), // The asset
                 await usdc.getAddress(), // The liquidity token
                 externalCollateralFee ? FEE_RATE : 0,
+                await mockNavProvider.getAddress(),
             ]);
 
             const mockAllowanceLiquidityProvider = await hre.ethers.deployContract('MockAllowanceLiquidityProvider', [

@@ -19,6 +19,7 @@ pragma solidity ^0.8.22;
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {ILiquidityProvider} from "../provider/ILiquidityProvider.sol";
+import {ISecuritizeNavProvider} from "@securitize/digital_securities/contracts/nav/ISecuritizeNavProvider.sol";
 
 contract MockExternalRedemption {
     ERC20 public asset;
@@ -28,13 +29,15 @@ contract MockExternalRedemption {
     uint256 public fee;
     uint8 public liquidityDecimals;
     uint8 public assetDecimals;
+    ISecuritizeNavProvider public navProvider;
 
-    constructor(address _mockAsset, address _liquidityToken, uint256 _fee) {
+    constructor(address _mockAsset, address _liquidityToken, uint256 _fee, address _navProvider) {
         asset = ERC20(_mockAsset);
         liquidityToken = ERC20(_liquidityToken);
         fee = _fee;
         liquidityDecimals = ERC20(_liquidityToken).decimals();
         assetDecimals = ERC20(_mockAsset).decimals();
+        navProvider = ISecuritizeNavProvider(_navProvider);
     }
 
     function _getFee(uint256 amount) private view returns (uint256) {
@@ -42,13 +45,14 @@ contract MockExternalRedemption {
         return (amount * fee + FEE_DENOMINATOR - 1) / FEE_DENOMINATOR;
     }
 
-    // rate 1:1 without fees
+    // rate 1:2
     function redeem(uint256 assetAmount, uint256) external {
         ERC20(asset).transferFrom(msg.sender, address(this), assetAmount);
 
         uint256 liquidityAmount = _convertDecimals(assetAmount, assetDecimals, liquidityDecimals);
         uint256 fee_ = _getFee(liquidityAmount);
-        ERC20(liquidityToken).transfer(msg.sender, liquidityAmount - fee_);
+        uint256 netLiquidityAmount = (liquidityAmount - fee_) * 2;
+        ERC20(liquidityToken).transfer(msg.sender, netLiquidityAmount);
     }
 
     function updateLiquidityProvider(address _liquidityProvider) external {
@@ -56,12 +60,16 @@ contract MockExternalRedemption {
     }
 
     function calculateLiquidityTokenAmount(uint256 assetAmount) external view returns (uint256) {
-        uint256 fee_ = _getFee(assetAmount);
-        return _convertDecimals(assetAmount - fee_, assetDecimals, liquidityDecimals);
+        uint256 liquidityAmount = _convertDecimals(assetAmount, assetDecimals, liquidityDecimals);
+        uint256 fee_ = _getFee(liquidityAmount);
+        uint256 netLiquidityAmount = (liquidityAmount - fee_) * 2;
+
+        return netLiquidityAmount;
     }
 
     function calculateLiquidityTokenAmountBeforeFee(uint256 assetAmount) external view returns (uint256) {
-        return _convertDecimals(assetAmount, assetDecimals, liquidityDecimals);
+        uint256 liquidityAmount = _convertDecimals(assetAmount, assetDecimals, liquidityDecimals);
+        return liquidityAmount * 2;
     }
 
     function availableLiquidity() external view returns (uint256) {

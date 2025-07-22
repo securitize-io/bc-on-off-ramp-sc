@@ -24,6 +24,7 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {ISecuritizeOffRamp} from "../ISecuritizeOffRamp.sol";
 import {ILiquidityProvider} from "./ILiquidityProvider.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {ISecuritizeNavProvider} from "@securitize/digital_securities/contracts/nav/ISecuritizeNavProvider.sol";
 
 contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContract {
     /**
@@ -145,16 +146,7 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
             revert InsufficientLiquidity(liquidityAmount, _availableLiquidity());
         }
 
-        // FIXME: IDSToken doesn't have decimals, so we use ERC20 from the ds address
-        // update this when IDSToken has decimals
-        address collateralAddress = address(externalCollateralRedemption.asset());
-
-        // Convert liquidity amount to collateral amount
-        uint256 collateralAmount = _convertDecimals(
-            liquidityAmount,
-            ERC20(address(liquidityToken)).decimals(),
-            ERC20(collateralAddress).decimals()
-        );
+        uint256 collateralAmount = _liquidityToCollateral(liquidityAmount);
 
         // Take collateral funds from collateral provider
         IERC20(externalCollateralRedemption.asset()).transferFrom(collateralProvider, address(this), collateralAmount);
@@ -181,30 +173,29 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
         return _calculateLiquidityTokenAmount(liquidityAmount);
     }
 
-    function _calculateLiquidityTokenAmount(uint256 amount) private view returns (uint256 amountToSupply) {
-        // FIXME: IDSToken doesn't have decimals, so we use ERC20 from the ds address
-        // update this when IDSToken has decimals
-        address collateralAddress = address(externalCollateralRedemption.asset());
-
-        uint256 collateralAmount = _convertDecimals(
-            amount,
-            ERC20(address(liquidityToken)).decimals(),
-            ERC20(collateralAddress).decimals()
-        );
+    function _calculateLiquidityTokenAmount(uint256 liquidityAmount) private view returns (uint256 amountToSupply) {
+        // Convert liquidity amount to collateral amount
+        uint256 collateralAmount = _liquidityToCollateral(liquidityAmount);
         amountToSupply = externalCollateralRedemption.calculateLiquidityTokenAmount(collateralAmount);
     }
 
-    function _calculateLiquidityTokenAmountBeforeFee(uint256 amount) private view returns (uint256 amountToSupply) {
-        amountToSupply = externalCollateralRedemption.calculateLiquidityTokenAmountBeforeFee(amount);
+    function _calculateLiquidityTokenAmountBeforeFee(
+        uint256 assetAmount
+    ) private view returns (uint256 amountToSupply) {
+        amountToSupply = externalCollateralRedemption.calculateLiquidityTokenAmountBeforeFee(assetAmount);
     }
 
-    function _convertDecimals(uint256 value, uint8 fromDecimals, uint8 toDecimals) internal pure returns (uint256) {
-        if (fromDecimals == toDecimals) {
-            return value;
-        } else if (fromDecimals > toDecimals) {
-            return value / (10 ** (fromDecimals - toDecimals));
-        } else {
-            return value * (10 ** (toDecimals - fromDecimals));
-        }
+    function _liquidityToCollateral(uint256 liquidityAmount) private view returns (uint256 collateralAmount) {
+        // rate is expressed in collateral decimals
+        uint256 rate = externalCollateralRedemption.navProvider().rate();
+
+        // NOTE: IDSToken interface lacks decimals(), so we use ERC20 to get decimals from the asset address
+        // TODO: update this when IDSToken has decimals
+        address collateralAddress = address(externalCollateralRedemption.asset());
+        uint8 assetDecimals = ERC20(collateralAddress).decimals();
+
+        collateralAmount =
+            ((liquidityAmount * (10 ** assetDecimals)) * (10 ** assetDecimals)) /
+            (rate * (10 ** liquidityToken.decimals()));
     }
 }
