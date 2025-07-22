@@ -20,7 +20,6 @@ pragma solidity ^0.8.22;
 import {ICollateralLiquidityProvider} from "./ICollateralLiquidityProvider.sol";
 import {BaseContract} from "../../common/BaseContract.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {ISecuritizeOffRamp} from "../ISecuritizeOffRamp.sol";
 import {ILiquidityProvider} from "./ILiquidityProvider.sol";
@@ -31,7 +30,7 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
     /**
      * @dev liquidity asset.
      */
-    ERC20 public liquidityToken;
+    IERC20Metadata public liquidityToken;
 
     /**
      * @dev securitize redemption contract.
@@ -92,7 +91,7 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
         }
         __BaseContract_init();
         recipient = _recipient;
-        liquidityToken = ERC20(_liquidityToken);
+        liquidityToken = IERC20Metadata(_liquidityToken);
         securitizeOffRamp = ISecuritizeOffRamp(_securitizeOffRamp);
         externalCollateralRedemption = ISecuritizeOffRamp(_externalCollateralRedemption);
         collateralProvider = _collateralProvider;
