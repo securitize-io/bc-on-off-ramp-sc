@@ -12,8 +12,7 @@ task('update-countries-restriction', 'Update restriction status for multiple cou
     )
     .addParam('restricted', 'Whether the countries should be restricted (true/false)', undefined, types.boolean)
     .setAction(async (args, hre) => {
-        console.log('');
-        consoleCyan('task: update-countries-restriction');
+        consoleCyan('\n task: update-countries-restriction');
 
         // Parse and validate country codes
         const countries = args.countries.split(',').map((country: string) => country.trim());

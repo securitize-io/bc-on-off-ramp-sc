@@ -27,9 +27,11 @@ task('deploy-redemption-allowance-protocol', 'Deploy Redemption Protocol (Allowa
 
     // Verification flag
     .addFlag('verify', 'Verify contracts on Etherscan')
+    .addFlag('silenceLogs', 'Verbose output')
     .setAction(async (args, hre) => {
-        console.log('');
-        consoleCyan('task: deploy-redemption-allowance-protocol');
+        if (!args.silenceLogs) {
+            consoleCyan('\n task: deploy-redemption-allowance-protocol');
+        }
 
         const { redemptionAddress } = await hre.run('deploy-offramp', {
             asset: args.asset,
@@ -37,6 +39,7 @@ task('deploy-redemption-allowance-protocol', 'Deploy Redemption Protocol (Allowa
             feeManager: args.feeManager,
             assetBurn: args.assetBurn,
             verify: args.verify,
+            silenceLogs: args.silenceLogs,
         });
 
         const { liquidityProviderAddress } = await hre.run('deploy-allowance-provider', {
@@ -45,6 +48,7 @@ task('deploy-redemption-allowance-protocol', 'Deploy Redemption Protocol (Allowa
             redemptionAddress,
             verify: args.verify,
             providerWallet: args.providerWallet,
+            silenceLogs: args.silenceLogs,
         });
 
         // Get contract instances
@@ -56,18 +60,18 @@ task('deploy-redemption-allowance-protocol', 'Deploy Redemption Protocol (Allowa
 
         console.log('Successfully set liquidity provider wallet');
 
-        console.log('');
-        console.log('Updating liquidity provider on securitize redemption contract');
         // Set liquidity provider on securitize redemption contract
         await redemption.updateLiquidityProvider(liquidityProviderAddress);
-        console.log('Successfully updated liquidity provider on securitize redemption contract');
 
-        consoleGreen('Securitize Redemption Protocol has been configured successfully');
+        if (!args.silenceLogs) {
+            console.log('Successfully updated liquidity provider on securitize redemption contract');
 
-        console.log('');
-        consoleGreen('Securitize Redemption Protocol has been deployed successfully');
-        consoleMagenta(`- Redemption Address: ${redemptionAddress}`);
-        consoleMagenta(`- Liquidity Provider Address: ${liquidityProviderAddress}`);
+            consoleGreen('Securitize Redemption Protocol has been configured successfully');
+
+            consoleGreen('\n Securitize Redemption Protocol has been deployed successfully');
+            consoleMagenta(`- Redemption Address: ${redemptionAddress}`);
+            consoleMagenta(`- Liquidity Provider Address: ${liquidityProviderAddress}`);
+        }
 
         return { redemption, liquidityProvider };
     });
@@ -80,21 +84,24 @@ task('deploy-offramp', 'Deploy SecuritizeOffRamp proxy')
     .addParam('feeManager', 'Fee manager address')
     .addParam('assetBurn', 'Whether assets should be burned on redemption')
     .addFlag('verify', 'Verify contracts on Etherscan')
+    .addFlag('silenceLogs', 'Verbose output')
     .setAction(async (taskArgs, hre) => {
-        console.log('');
-        consoleCyan('task: deploy-offramp');
-        consoleCyan('Arguments:');
-        console.log(`- Asset: ${taskArgs.asset}`);
-        console.log(`- NAV Provider: ${taskArgs.navProvider}`);
-        console.log(`- Fee Manager: ${taskArgs.feeManager}`);
-        console.log(`- Asset Burn: ${taskArgs.assetBurn}`);
-        console.log(`- Verify: ${taskArgs.verify}`);
+        if (!taskArgs.silenceLogs) {
+            consoleCyan('\n task: deploy-offramp');
+            consoleCyan('Arguments:');
+            console.log(`- Asset: ${taskArgs.asset}`);
+            console.log(`- NAV Provider: ${taskArgs.navProvider}`);
+            console.log(`- Fee Manager: ${taskArgs.feeManager}`);
+            console.log(`- Asset Burn: ${taskArgs.assetBurn}`);
+            console.log(`- Verify: ${taskArgs.verify}`);
+        }
 
         const { proxyAddress, implAddress } = await hre.run('deploy-proxy', {
             contractName: 'SecuritizeOffRamp',
             kind: 'uups',
             args: [taskArgs.asset, taskArgs.navProvider, taskArgs.feeManager, taskArgs.assetBurn],
             verify: taskArgs.verify,
+            silenceLogs: taskArgs.silenceLogs,
         });
 
         return { redemptionAddress: proxyAddress, redemptionImpl: implAddress };
@@ -107,22 +114,25 @@ task('deploy-allowance-provider', 'Deploy AllowanceLiquidityProvider proxy')
     .addParam('recipient', 'Wallet that receives DS Token')
     .addParam('redemptionAddress', 'SecuritizeOffRamp proxy address')
     .addFlag('verify', 'Verify contracts on Etherscan')
+    .addFlag('silenceLogs', 'Verbose output')
     .addOptionalParam('providerWallet', 'Wallet that provides liquidity')
     .setAction(async (taskArgs, hre) => {
-        console.log('');
-        consoleCyan('task: deploy-allowance-provider');
-        consoleCyan('Arguments:');
-        console.log(`- Liquidity Token: ${taskArgs.liquidityToken}`);
-        console.log(`- Recipient: ${taskArgs.recipient}`);
-        console.log(`- Redemption Address: ${taskArgs.redemptionAddress}`);
-        console.log(`- Provider Wallet: ${taskArgs.providerWallet}`);
-        console.log(`- Verify: ${taskArgs.verify}`);
+        if (!taskArgs.silenceLogs) {
+            consoleCyan('\n task: deploy-allowance-provider');
+            consoleCyan('Arguments:');
+            console.log(`- Liquidity Token: ${taskArgs.liquidityToken}`);
+            console.log(`- Recipient: ${taskArgs.recipient}`);
+            console.log(`- Redemption Address: ${taskArgs.redemptionAddress}`);
+            console.log(`- Provider Wallet: ${taskArgs.providerWallet}`);
+            console.log(`- Verify: ${taskArgs.verify}`);
+        }
 
         const { proxyAddress, implAddress } = await hre.run('deploy-proxy', {
             contractName: 'AllowanceLiquidityProvider',
             kind: 'uups',
             args: [taskArgs.liquidityToken, taskArgs.recipient, taskArgs.redemptionAddress, taskArgs.providerWallet],
             verify: taskArgs.verify,
+            silenceLogs: taskArgs.silenceLogs,
         });
 
         return { liquidityProviderAddress: proxyAddress, liquidityProviderImpl: implAddress };

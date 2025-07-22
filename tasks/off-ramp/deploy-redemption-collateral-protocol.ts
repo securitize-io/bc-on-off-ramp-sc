@@ -29,19 +29,22 @@ task('deploy-redemption-collateral-protocol', 'Deploy Redemption Protocol (Colla
 
     // Verification flag
     .addFlag('verify', 'Verify contracts on Etherscan')
+    .addFlag('silenceLogs', 'Verbose output')
+
     .setAction(async (args, hre) => {
-        console.log('');
-        consoleCyan('task: deploy-redemption-collateral-protocol');
-        consoleCyan('Arguments:');
-        console.log(`- Asset: ${args.asset}`);
-        console.log(`- NAV Provider: ${args.navProvider}`);
-        console.log(`- Fee Manager: ${args.feeManager}`);
-        console.log(`- Asset Burn: ${args.assetBurn}`);
-        console.log(`- Liquidity Token: ${args.liquidityToken}`);
-        console.log(`- Recipient: ${args.recipient}`);
-        console.log(`- Provider Wallet: ${args.providerWallet}`);
-        console.log(`- External Collateral Redemption: ${args.externalCollateralRedemption}`);
-        console.log(`- Verify: ${args.verify}`);
+        if (!args.silenceLogs) {
+            consoleCyan('\n task: deploy-redemption-collateral-protocol');
+            consoleCyan('Arguments:');
+            console.log(`- Asset: ${args.asset}`);
+            console.log(`- NAV Provider: ${args.navProvider}`);
+            console.log(`- Fee Manager: ${args.feeManager}`);
+            console.log(`- Asset Burn: ${args.assetBurn}`);
+            console.log(`- Liquidity Token: ${args.liquidityToken}`);
+            console.log(`- Recipient: ${args.recipient}`);
+            console.log(`- Provider Wallet: ${args.providerWallet}`);
+            console.log(`- External Collateral Redemption: ${args.externalCollateralRedemption}`);
+            console.log(`- Verify: ${args.verify}`);
+        }
 
         const { redemptionAddress } = await hre.run('deploy-offramp', {
             asset: args.asset,
@@ -49,6 +52,7 @@ task('deploy-redemption-collateral-protocol', 'Deploy Redemption Protocol (Colla
             feeManager: args.feeManager,
             assetBurn: args.assetBurn,
             verify: args.verify,
+            silenceLogs: args.silenceLogs,
         });
 
         const collateralContract = await hre.ethers.getContractAt(
@@ -63,6 +67,7 @@ task('deploy-redemption-collateral-protocol', 'Deploy Redemption Protocol (Colla
             collateralToken: await collateralContract.asset(),
             externalCollateralRedemption: args.externalCollateralRedemption,
             collateralProvider: args.providerWallet,
+            silenceLogs: args.silenceLogs,
             verify: args.verify,
         });
 
@@ -73,21 +78,24 @@ task('deploy-redemption-collateral-protocol', 'Deploy Redemption Protocol (Colla
             liquidityProviderAddress,
         );
 
-        consoleYellow(
-            'Proceeding to configure the protocol: setting external collateral redemption, collateral provider, and linking liquidity provider to the redemption contract...',
-        );
+        if (!args.silenceLogs) {
+            consoleYellow(
+                'Proceeding to configure the protocol: setting external collateral redemption, collateral provider, and linking liquidity provider to the redemption contract...',
+            );
 
-        console.log('Updating liquidity provider on securitize redemption contract');
+            console.log('Updating liquidity provider on securitize redemption contract');
+        }
         // Set liquidity provider on securitize redemption contract
         let tx = await redemption.updateLiquidityProvider(liquidityProviderAddress);
         await tx.wait(1);
 
-        consoleGreen('Securitize Redemption Protocol has been configured successfully');
+        if (!args.silenceLogs) {
+            consoleGreen('Securitize Redemption Protocol has been configured successfully');
 
-        console.log('');
-        consoleGreen('Securitize Redemption Protocol has been deployed successfully');
-        consoleMagenta(`- Redemption Address: ${redemptionAddress}`);
-        consoleMagenta(`- Liquidity Provider Address: ${liquidityProviderAddress}`);
+            consoleGreen('\n Securitize Redemption Protocol has been deployed successfully');
+            consoleMagenta(`- Redemption Address: ${redemptionAddress}`);
+            consoleMagenta(`- Liquidity Provider Address: ${liquidityProviderAddress}`);
+        }
 
         return { redemption, liquidityProvider };
     });
@@ -101,14 +109,15 @@ task('deploy-collateral-provider', 'Deploy CollateralLiquidityProvider proxy')
     .addParam('externalCollateralRedemption', 'External Collateral Redemption SC')
     .addParam('collateralProvider', 'Collateral Provider address')
     .addFlag('verify', 'Verify contracts on Etherscan')
+    .addFlag('silenceLogs', 'Verbose output')
     .setAction(async (taskArgs, hre) => {
-        console.log('');
-        consoleCyan('task: deploy-collateral-provider');
-        consoleCyan('Arguments:');
-        console.log(`- Liquidity Token: ${taskArgs.liquidity}`);
-        console.log(`- Recipient: ${taskArgs.recipient}`);
-        console.log(`- Securitize OffRamp: ${taskArgs.securitizeOffRamp}`);
-
+        if (!taskArgs.silenceLogs) {
+            consoleCyan('\n task: deploy-collateral-provider');
+            consoleCyan('Arguments:');
+            console.log(`- Liquidity Token: ${taskArgs.liquidity}`);
+            console.log(`- Recipient: ${taskArgs.recipient}`);
+            console.log(`- Securitize OffRamp: ${taskArgs.securitizeOffRamp}`);
+        }
         const { proxyAddress, implAddress } = await hre.run('deploy-proxy', {
             contractName: 'CollateralLiquidityProvider',
             kind: 'uups',
@@ -120,6 +129,7 @@ task('deploy-collateral-provider', 'Deploy CollateralLiquidityProvider proxy')
                 taskArgs.collateralProvider,
             ],
             verify: taskArgs.verify,
+            silenceLogs: taskArgs.silenceLogs,
         });
 
         return { liquidityProviderAddress: proxyAddress, liquidityProviderImpl: implAddress };

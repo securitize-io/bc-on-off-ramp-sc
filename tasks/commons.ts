@@ -20,12 +20,18 @@ task('deploy-proxy', 'Deploy a UUPS proxy contract')
     .addParam('contractName', 'The contract to deploy')
     .addParam('kind', 'Proxy kind (default: uups)', 'uups')
     .addFlag('verify', 'Should we attempt to verify the contracts')
+    .addFlag('silenceLogs', 'Verbose output')
+    .addFlag('compile', 'Should we compile the contracts')
     .addVariadicPositionalParam('args', 'The initializer arguments', [])
     .setAction(async (taskArgs, hre) => {
-        await hre.run('compile');
-        console.log('');
-        consoleCyan('task: deploy-proxy');
-        consoleGreen(`Deploying ${taskArgs.contractName} proxy...`);
+        if (taskArgs.compile) {
+            await hre.run('compile');
+        }
+
+        if (!taskArgs.silenceLogs) {
+            consoleCyan('\n task: deploy-proxy');
+            consoleGreen(`Deploying ${taskArgs.contractName} proxy...`);
+        }
 
         const Contract = await hre.ethers.getContractFactory(taskArgs.contractName);
         const argsTypes = taskArgs.args.map((arg: string) => {
@@ -41,10 +47,12 @@ task('deploy-proxy', 'Deploy a UUPS proxy contract')
         const proxyAddress = await proxy.getAddress();
         const implAddress = await hre.upgrades.erc1967.getImplementationAddress(proxyAddress);
 
-        console.log(`${taskArgs.contractName} proxy deployed at:`);
-        consoleYellow(`${proxyAddress}`);
-        console.log(`${taskArgs.contractName} implementation at:`);
-        consoleYellow(`${implAddress}`);
+        if (!taskArgs.silenceLogs) {
+            console.log(`${taskArgs.contractName} proxy deployed at:`);
+            consoleYellow(`${proxyAddress}`);
+            console.log(`${taskArgs.contractName} implementation at:`);
+            consoleYellow(`${implAddress}`);
+        }
 
         if (taskArgs.verify) {
             await hre.run('verify-contract', {
@@ -63,8 +71,7 @@ task('deploy-contract', 'General purpose contract deployer')
     .addVariadicPositionalParam('args', 'The constructor arguments', [])
     .setAction(async (taskArgs, hre) => {
         await hre.run('compile');
-        console.log('');
-        consoleCyan('task: deploy-contract');
+        consoleCyan('\n task: deploy-contract');
         const contractFactory = await hre.ethers.getContractFactory(taskArgs.contractName);
         const contract = await contractFactory.deploy(...taskArgs.args);
         await contract.waitForDeployment();
@@ -87,8 +94,7 @@ task('verify-contract', 'Verify a proxy implementation contract on Etherscan')
     .addParam('contractName', 'Contract name')
     .addVariadicPositionalParam('args', 'Constructor arguments', [])
     .setAction(async (taskArgs, hre) => {
-        console.log('');
-        consoleCyan('task: verify-contract');
+        consoleCyan('\n task: verify-contract');
         consoleGreen(`Waiting for 40 seconds before verifying...`);
 
         // Wait for 40 seconds before verification, to ensure the contract is fully deployed
@@ -118,8 +124,7 @@ task('approve', 'Approve tokens for a spender')
     .addOptionalParam('amount', 'Address of the liquidity provider')
     .addOptionalParam('privateKey', 'Private key of the owner wallet')
     .setAction(async (args, hre) => {
-        console.log('');
-        consoleCyan('task: approve');
+        consoleCyan('\n task: approve');
         consoleCyan('Arguments:');
         console.log(`- Token: ${args.token}`);
         console.log(`- Owner: ${args.owner}`);
@@ -162,8 +167,7 @@ task('allowance', 'Approve tokens for a spender')
     .addParam('owner', 'Owner address')
     .addParam('spender', 'Spender address')
     .setAction(async (taskArgs, hre) => {
-        console.log('');
-        consoleCyan('task: allowance');
+        consoleCyan('\n task: allowance');
         consoleCyan('Arguments:');
         console.log(`- Token: ${taskArgs.token}`);
         console.log(`- Spender: ${taskArgs.spender}`);
@@ -182,8 +186,7 @@ task('redeem', 'Redeem tokens from the SecuritizeOffRamp contract')
     .addParam('minOutputAmount', 'Minimum amount of output tokens to receive')
     .addFlag('force', 'Force the redemption even if the amount is zero')
     .setAction(async (taskArgs, hre) => {
-        console.log('');
-        consoleCyan('task: redeem');
+        consoleCyan('\n task: redeem');
         consoleCyan('Arguments:');
         console.log(`- Redemption Address: ${taskArgs.redemptionAddress}`);
         console.log(`- Asset Amount: ${taskArgs.assetAmount}`);
@@ -203,8 +206,7 @@ task('balance', 'Check the balance of a token for a given address')
     .addParam('token', 'Token address')
     .addParam('address', 'Address to check balance for')
     .setAction(async (taskArgs, hre) => {
-        console.log('');
-        consoleCyan('task: balance');
+        consoleCyan('\n task: balance');
         consoleCyan('Arguments:');
         console.log(`- Token: ${taskArgs.token}`);
         console.log(`- Address: ${taskArgs.address}`);
@@ -221,8 +223,7 @@ task('upgrade-proxy', 'Upgrade a UUPS proxy to a new implementation')
     .addVariadicPositionalParam('args', 'The initializer arguments (if needed)', [])
     .setAction(async (taskArgs, hre) => {
         await hre.run('compile');
-        console.log('');
-        consoleCyan('task: upgrade-proxy');
+        consoleCyan('\n task: upgrade-proxy');
         consoleGreen(`Upgrading proxy at ${taskArgs.proxyAddress} to ${taskArgs.contractName}...`);
 
         const Contract = await hre.ethers.getContractFactory(taskArgs.contractName);
