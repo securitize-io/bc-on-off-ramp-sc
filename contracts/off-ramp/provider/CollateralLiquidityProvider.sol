@@ -20,6 +20,7 @@ pragma solidity ^0.8.22;
 import {ICollateralLiquidityProvider} from "./ICollateralLiquidityProvider.sol";
 import {BaseContract} from "../../common/BaseContract.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {ISecuritizeOffRamp} from "../ISecuritizeOffRamp.sol";
 import {ILiquidityProvider} from "./ILiquidityProvider.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
@@ -28,7 +29,7 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
     /**
      * @dev liquidity asset.
      */
-    IERC20 public liquidityToken;
+    ERC20 public liquidityToken;
 
     /**
      * @dev securitize redemption contract.
@@ -89,7 +90,7 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
         }
         __BaseContract_init();
         recipient = _recipient;
-        liquidityToken = IERC20(_liquidityToken);
+        liquidityToken = ERC20(_liquidityToken);
         securitizeOffRamp = ISecuritizeOffRamp(_securitizeOffRamp);
         externalCollateralRedemption = ISecuritizeOffRamp(_externalCollateralRedemption);
         collateralProvider = _collateralProvider;
@@ -130,7 +131,7 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
         return
             Math.min(
                 externalCollateralRedemption.availableLiquidity(),
-                _calculateLiquidityTokenAmount(
+                _calculateLiquidityTokenAmountBeforeFee(
                     IERC20(externalCollateralRedemption.asset()).balanceOf(collateralProvider)
                 )
             );
@@ -138,23 +139,34 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
 
     function supplyTo(
         address redeemer,
-        uint256 amount
+        uint256 liquidityAmount
     ) public whenNotPaused onlySecuritizeRedemption returns (uint256 amountToSupply) {
-        if (amount > _calculateLiquidityTokenAmountBeforeFee(amount)) {
-            revert InsufficientLiquidity(amount, _calculateLiquidityTokenAmountBeforeFee(amount));
+        if (liquidityAmount > _availableLiquidity()) {
+            revert InsufficientLiquidity(liquidityAmount, _availableLiquidity());
         }
 
+        // FIXME: IDSToken doesn't have decimals, so we use ERC20 from the ds address
+        // update this when IDSToken has decimals
+        address collateralAddress = address(externalCollateralRedemption.asset());
+
+        // Convert liquidity amount to collateral amount
+        uint256 collateralAmount = _convertDecimals(
+            liquidityAmount,
+            ERC20(address(liquidityToken)).decimals(),
+            ERC20(collateralAddress).decimals()
+        );
+
         // Take collateral funds from collateral provider
-        IERC20(externalCollateralRedemption.asset()).transferFrom(collateralProvider, address(this), amount);
+        IERC20(externalCollateralRedemption.asset()).transferFrom(collateralProvider, address(this), collateralAmount);
 
         // Approve external redemption
-        IERC20(externalCollateralRedemption.asset()).approve(address(externalCollateralRedemption), amount);
+        IERC20(externalCollateralRedemption.asset()).approve(address(externalCollateralRedemption), collateralAmount);
 
         // Get liquidity
-        externalCollateralRedemption.redeem(amount, 0);
+        externalCollateralRedemption.redeem(collateralAmount, 0);
 
         // Discount the fee charged by the external collateral redemption
-        amountToSupply = externalCollateralRedemption.calculateLiquidityTokenAmount(amount);
+        amountToSupply = externalCollateralRedemption.calculateLiquidityTokenAmount(collateralAmount);
 
         // Supply redeemer
         liquidityToken.transfer(redeemer, amountToSupply);
@@ -162,20 +174,37 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
 
     /**
      * @dev Calculates the amount of liquidity tokens
-     * @param amount The amount of asset tokens to redeem
-     * @return amountToSupply The amount of liquidity tokens to supply
+     * @param liquidityAmount The amount of liquidity tokens to supply
+     * @return amountToSupply The amount of supplied liquidity tokens
      */
-    function calculateLiquidityTokenAmount(uint256 amount) external view returns (uint256 amountToSupply) {
-        return _calculateLiquidityTokenAmount(amount);
+    function calculateLiquidityTokenAmount(uint256 liquidityAmount) external view returns (uint256 amountToSupply) {
+        return _calculateLiquidityTokenAmount(liquidityAmount);
     }
 
     function _calculateLiquidityTokenAmount(uint256 amount) private view returns (uint256 amountToSupply) {
-        // Ensure the external collateral redemption is set
-        amountToSupply = externalCollateralRedemption.calculateLiquidityTokenAmount(amount);
+        // FIXME: IDSToken doesn't have decimals, so we use ERC20 from the ds address
+        // update this when IDSToken has decimals
+        address collateralAddress = address(externalCollateralRedemption.asset());
+
+        uint256 collateralAmount = _convertDecimals(
+            amount,
+            ERC20(address(liquidityToken)).decimals(),
+            ERC20(collateralAddress).decimals()
+        );
+        amountToSupply = externalCollateralRedemption.calculateLiquidityTokenAmount(collateralAmount);
     }
 
     function _calculateLiquidityTokenAmountBeforeFee(uint256 amount) private view returns (uint256 amountToSupply) {
-        // Ensure the external collateral redemption is set
         amountToSupply = externalCollateralRedemption.calculateLiquidityTokenAmountBeforeFee(amount);
+    }
+
+    function _convertDecimals(uint256 value, uint8 fromDecimals, uint8 toDecimals) internal pure returns (uint256) {
+        if (fromDecimals == toDecimals) {
+            return value;
+        } else if (fromDecimals > toDecimals) {
+            return value / (10 ** (fromDecimals - toDecimals));
+        } else {
+            return value * (10 ** (toDecimals - fromDecimals));
+        }
     }
 }

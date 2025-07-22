@@ -17,7 +17,7 @@
  */
 pragma solidity ^0.8.22;
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {ISecuritizeOffRamp} from "../ISecuritizeOffRamp.sol";
 import {Errors} from "../../common/Errors.sol";
 
@@ -43,7 +43,7 @@ interface ILiquidityProvider is Errors {
      * @dev Returns the liquidity asset.
      * @return liquidity address.
      */
-    function liquidityToken() external view returns (IERC20);
+    function liquidityToken() external view returns (ERC20);
 
     /**
      * @dev The securitize off ramp contract.

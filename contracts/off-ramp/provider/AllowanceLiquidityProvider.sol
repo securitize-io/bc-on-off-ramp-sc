@@ -19,7 +19,7 @@ pragma solidity ^0.8.22;
 
 import {BaseContract} from "../../common/BaseContract.sol";
 import {IAllowanceLiquidityProvider} from "./IAllowanceLiquidityProvider.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {ISecuritizeOffRamp} from "../ISecuritizeOffRamp.sol";
 
@@ -27,7 +27,7 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
     /**
      * @dev liquidity asset.
      */
-    IERC20 public liquidityToken;
+    ERC20 public liquidityToken;
 
     /**
      * @dev securitize redemption contract.
@@ -81,7 +81,7 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
         }
         __BaseContract_init();
         recipient = _recipient;
-        liquidityToken = IERC20(_liquidityToken);
+        liquidityToken = ERC20(_liquidityToken);
         securitizeOffRamp = ISecuritizeOffRamp(_securitizeOffRamp);
         liquidityProviderWallet = _liquidityProviderWallet;
     }
@@ -110,16 +110,16 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
 
     function supplyTo(
         address redeemer,
-        uint256 amount
+        uint256 liquidityAmount
     ) public whenNotPaused onlySecuritizeRedemption returns (uint256) {
-        if (amount > _availableLiquidity()) {
-            revert InsufficientLiquidity(amount, _availableLiquidity());
+        if (liquidityAmount > _availableLiquidity()) {
+            revert InsufficientLiquidity(liquidityAmount, _availableLiquidity());
         }
 
         // transfer liquidity token from liquidity provider wallet to redeemer
-        liquidityToken.transferFrom(liquidityProviderWallet, redeemer, amount);
+        liquidityToken.transferFrom(liquidityProviderWallet, redeemer, liquidityAmount);
 
-        return amount;
+        return liquidityAmount;
     }
 
     function calculateLiquidityTokenAmount(uint256 amount) external pure returns (uint256 amountToSupply) {

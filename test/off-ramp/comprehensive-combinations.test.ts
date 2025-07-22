@@ -23,10 +23,10 @@ describe('Comprehensive Redeem Combinations Test', function () {
         // fee: [false],
         // rate: [RATE],
         decimals: [
-            { name: 'same', dsDecimals: 6n, usdcDecimals: 6n },
-            { name: 'more', dsDecimals: 18n, usdcDecimals: 6n },
-            { name: 'more', dsDecimals: 3n, usdcDecimals: 0n },
-            { name: 'less', dsDecimals: 6n, usdcDecimals: 9n },
+            { name: 'same', dsDecimals: 10n, usdcDecimals: 6n, collateralDsDecimals: 18n },
+            { name: 'more', dsDecimals: 18n, usdcDecimals: 6n, collateralDsDecimals: 18n },
+            { name: 'more', dsDecimals: 3n, usdcDecimals: 0n, collateralDsDecimals: 3n },
+            { name: 'less', dsDecimals: 6n, usdcDecimals: 9n, collateralDsDecimals: 6n },
         ],
         providerType: [
             { name: 'allowance', type: 'allowance' },
@@ -127,7 +127,7 @@ describe('Comprehensive Redeem Combinations Test', function () {
         const secondDsToken = await hre.ethers.deployContract('MockDSToken', [
             'TestSecondDSToken',
             'TSDST',
-            decimals.dsDecimals,
+            decimals.collateralDsDecimals,
             await registryService.getAddress(),
             await trustService.getAddress(),
         ]);
@@ -136,6 +136,8 @@ describe('Comprehensive Redeem Combinations Test', function () {
 
         // Setup balances and approvals
         const assetAmount = BigInt(ASSET_AMOUNT) * 10n ** BigInt(decimals.dsDecimals); // Adjust for decimals
+        const secondAssetAmountBase = BigInt(ASSET_AMOUNT) * 10n ** BigInt(decimals.collateralDsDecimals); // Adjust for decimals
+        const secondAssetAmount = rate === RATE ? secondAssetAmountBase : secondAssetAmountBase * 2n;
 
         const usdcAmountBase = BigInt(ASSET_AMOUNT) * 10n ** BigInt(decimals.usdcDecimals); // Adjust for decimals
         const usdcAmount = rate === RATE ? usdcAmountBase : usdcAmountBase * 2n;
@@ -166,20 +168,20 @@ describe('Comprehensive Redeem Combinations Test', function () {
             await (mainDsToken as any).connect(investor).approve(await redemption.getAddress(), assetAmount);
         } else {
             const externalRedemptionContractMock = await hre.ethers.deployContract('MockExternalRedemption', [
-                await mainDsToken.getAddress(), // The asset
+                await secondDsToken.getAddress(), // The asset
                 await usdc.getAddress(), // The liquidity token
                 externalCollateralFee ? FEE_RATE : 0,
             ]);
 
             const mockAllowanceLiquidityProvider = await hre.ethers.deployContract('MockAllowanceLiquidityProvider', [
                 await usdc.getAddress(),
-                await mainDsToken.getAddress(),
+                await secondDsToken.getAddress(),
                 await externalRedemptionContractMock.getAddress(),
             ]);
             await externalRedemptionContractMock.updateLiquidityProvider(mockAllowanceLiquidityProvider.getAddress());
 
             const result = await hre.run('deploy-redemption-collateral-protocol', {
-                asset: await secondDsToken.getAddress(),
+                asset: await mainDsToken.getAddress(),
                 navProvider: await navProvider.getAddress(),
                 feeManager: await feeManager.getAddress(),
                 assetBurn: assetBurn.toString(),
@@ -196,16 +198,15 @@ describe('Comprehensive Redeem Combinations Test', function () {
             // externalRedemptionContractMock has USDC
             await (usdc as any).connect(deployer).mint(await externalRedemptionContractMock.getAddress(), usdcAmount);
 
-            // securitizeWallet.address has Main DS tokens and approves liquidity provider
-            // Same amount as USDC, because the rate of the mock is always 1:1
-            await (mainDsToken as any).connect(deployer).mint(securitizeWallet.address, usdcAmount);
-            await (mainDsToken as any)
-                .connect(securitizeWallet)
-                .approve(await liquidityProvider.getAddress(), usdcAmount);
+            // Investor has Main DS tokens and approves for redemption
+            await (mainDsToken as any).connect(deployer).mint(investor.address, assetAmount);
+            await (mainDsToken as any).connect(investor).approve(await redemption.getAddress(), assetAmount);
 
-            // Investor has Second DS tokens and approves for redemption
-            await (secondDsToken as any).connect(deployer).mint(investor.address, assetAmount);
-            await (secondDsToken as any).connect(investor).approve(await redemption.getAddress(), assetAmount);
+            // Securitize Wallet has Second DS tokens and approves for redemption
+            await (secondDsToken as any).connect(deployer).mint(securitizeWallet.address, secondAssetAmount);
+            await (secondDsToken as any)
+                .connect(securitizeWallet)
+                .approve(await liquidityProvider.getAddress(), secondAssetAmount);
         }
 
         return {
@@ -222,6 +223,7 @@ describe('Comprehensive Redeem Combinations Test', function () {
             securitizeWallet,
             assetAmount,
             usdcAmount,
+            secondAssetAmount,
             assetBurn,
             providerType,
             twoSteps,
@@ -248,6 +250,7 @@ describe('Comprehensive Redeem Combinations Test', function () {
                     investor,
                     feeCollector,
                     assetAmount,
+                    secondAssetAmount,
                     usdcAmount,
                     redemption,
                     mainDsToken,
@@ -296,16 +299,14 @@ describe('Comprehensive Redeem Combinations Test', function () {
                     expect(await usdc.balanceOf(feeCollector)).to.be.equal(0);
                 } else {
                     // Check initial Investor balances
-                    expect(await secondDsToken.balanceOf(investor.address)).to.equal(assetAmount);
+                    expect(await mainDsToken.balanceOf(investor.address)).to.equal(assetAmount);
                     expect(await usdc.balanceOf(investor.address)).to.equal(0);
                     // Check initial Securitize Wallet balances
                     // Same amount as USDC, because the rate of the mock is always 1:1
-                    expect(await mainDsToken.balanceOf(securitizeWallet.address)).to.be.equal(usdcAmount);
-                    expect(await secondDsToken.balanceOf(securitizeWallet.address)).to.be.equal(0);
+                    expect(await secondDsToken.balanceOf(securitizeWallet.address)).to.be.equal(secondAssetAmount);
                     // // Check initial Fee Collector balances
                     expect(await usdc.balanceOf(feeCollector)).to.be.equal(0);
                 }
-
                 const minOutputAmount = 0; // For simplicity
 
                 const expectedAmount = await redemption.calculateLiquidityTokenAmount(assetAmount);
@@ -316,29 +317,28 @@ describe('Comprehensive Redeem Combinations Test', function () {
                 );
 
                 if (providerType === 'allowance') {
-                    // Check initial Investor balances
+                    // Check final Investor balances
                     expect(await mainDsToken.balanceOf(investor.address)).to.equal(0);
                     expect(await usdc.balanceOf(investor.address)).to.be.equal(expectedAmount);
 
-                    // Check initial Securitize Wallet balances
+                    // Check final Securitize Wallet balances
                     expect(await mainDsToken.balanceOf(securitizeWallet.address)).to.be.equal(
                         assetBurn ? 0 : assetAmount,
                     );
                     expect(await usdc.balanceOf(securitizeWallet.address)).to.be.equal(0);
-                    // Check initial Fee Collector balances
+                    // Check final Fee Collector balances
                     // expect(await usdc.balanceOf(feeCollector)).to.be.equal(0);
                 } else {
-                    // Check initial Investor balances
-                    expect(await secondDsToken.balanceOf(investor.address)).to.equal(0);
+                    // Check final Investor balances
+                    expect(await mainDsToken.balanceOf(investor.address)).to.equal(0);
                     expect(await usdc.balanceOf(investor.address)).to.be.equal(expectedAmount);
-
-                    // Check initial Securitize Wallet balances
-                    expect(await mainDsToken.balanceOf(securitizeWallet.address)).to.be.equal(0);
-                    expect(await secondDsToken.balanceOf(securitizeWallet.address)).to.be.equal(
+                    // Check final Securitize Wallet balances
+                    expect(await mainDsToken.balanceOf(securitizeWallet.address)).to.be.equal(
                         assetBurn ? 0 : assetAmount,
                     );
+                    expect(await secondDsToken.balanceOf(securitizeWallet.address)).to.be.equal(0);
                     expect(await usdc.balanceOf(securitizeWallet.address)).to.be.equal(0);
-                    // Check initial Fee Collector balances
+                    // Check final Fee Collector balances
                     // expect(await usdc.balanceOf(feeCollector)).to.be.equal(0);
                 }
 
