@@ -21,6 +21,7 @@ import {ICollateralLiquidityProvider} from "./ICollateralLiquidityProvider.sol";
 import {BaseContract} from "../../common/BaseContract.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {ISecuritizeOffRamp} from "../ISecuritizeOffRamp.sol";
 import {ILiquidityProvider} from "./ILiquidityProvider.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
@@ -189,10 +190,10 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
         // rate is expressed in collateral decimals
         uint256 rate = externalCollateralRedemption.navProvider().rate();
 
-        // NOTE: IDSToken interface lacks decimals(), so we use ERC20 to get decimals from the asset address
+        // NOTE: IDSToken interface lacks decimals(), so we use IERC20Metadata to get decimals from the asset address
         // TODO: update this when IDSToken has decimals
         address collateralAddress = address(externalCollateralRedemption.asset());
-        uint8 assetDecimals = ERC20(collateralAddress).decimals();
+        uint8 assetDecimals = IERC20Metadata(collateralAddress).decimals();
 
         collateralAmount =
             ((liquidityAmount * (10 ** assetDecimals)) * (10 ** assetDecimals)) /
