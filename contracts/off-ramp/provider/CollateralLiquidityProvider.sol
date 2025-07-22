@@ -146,7 +146,7 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
             revert InsufficientLiquidity(liquidityAmount, _availableLiquidity());
         }
 
-        uint256 collateralAmount = _liquidityToCollateral(liquidityAmount);
+        uint256 collateralAmount = _liquidityTokenToExternalCollateralAsset(liquidityAmount);
 
         // Take collateral funds from collateral provider
         IERC20(externalCollateralRedemption.asset()).transferFrom(collateralProvider, address(this), collateralAmount);
@@ -175,7 +175,7 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
 
     function _calculateLiquidityTokenAmount(uint256 liquidityAmount) private view returns (uint256 amountToSupply) {
         // Convert liquidity amount to collateral amount
-        uint256 collateralAmount = _liquidityToCollateral(liquidityAmount);
+        uint256 collateralAmount = _liquidityTokenToExternalCollateralAsset(liquidityAmount);
         amountToSupply = externalCollateralRedemption.calculateLiquidityTokenAmount(collateralAmount);
     }
 
@@ -185,7 +185,9 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
         amountToSupply = externalCollateralRedemption.calculateLiquidityTokenAmountBeforeFee(assetAmount);
     }
 
-    function _liquidityToCollateral(uint256 liquidityAmount) private view returns (uint256 collateralAmount) {
+    function _liquidityTokenToExternalCollateralAsset(
+        uint256 liquidityAmount
+    ) private view returns (uint256 collateralAmount) {
         // rate is expressed in collateral decimals
         uint256 rate = externalCollateralRedemption.navProvider().rate();
 
