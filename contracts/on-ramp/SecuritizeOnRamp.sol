@@ -282,7 +282,9 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
 
         liquidityToken.transferFrom(from, address(this), amount);
         uint256 fee = feeManager.getFee(amount);
-        liquidityToken.transfer(feeManager.feeCollector(), fee);
+        if (fee > 0) {
+            liquidityToken.transfer(feeManager.feeCollector(), fee);
+        }
 
         uint256 amountExcludingFee = amount - fee;
         bool bridgeTransfer = bridgeChainId != 0 && address(USDCBridge) != address(0);
