@@ -122,7 +122,9 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
         return liquidityAmount;
     }
 
-    function calculateLiquidityTokenAmount(uint256 amount) external pure returns (uint256 amountToSupply) {
-        return amount;
+    function calculateEffectiveLiquidityTokenAmount(
+        uint256 initialLiquidityAmount
+    ) external pure returns (uint256 amountToSupply) {
+        return initialLiquidityAmount;
     }
 }
