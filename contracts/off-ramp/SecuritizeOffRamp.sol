@@ -270,16 +270,18 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, BaseContract {
         if (rate == 0) {
             revert NonZeroNavRateError();
         }
-        uint256 normalizeAmount = TokenCalculator.calculateLiquidityTokenAmountBeforeFee(
+        uint256 initialLiquidityAmount = TokenCalculator.calculateLiquidityTokenAmountBeforeFee(
             assetAmount,
             rate,
             liquidityDecimals,
             assetDecimals
         );
-        uint256 amountToSupply = liquidityProvider.calculateLiquidityTokenAmount(normalizeAmount);
-        uint256 fee = TokenCalculator.calculateFee(feeManager, amountToSupply);
+        uint256 effectiveAmountToSupply = liquidityProvider.calculateEffectiveLiquidityTokenAmount(
+            initialLiquidityAmount
+        );
+        uint256 fee = TokenCalculator.calculateFee(feeManager, effectiveAmountToSupply);
 
-        return amountToSupply - fee;
+        return effectiveAmountToSupply - fee;
     }
 
     function availableLiquidity() external view returns (uint256) {

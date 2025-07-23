@@ -132,7 +132,7 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
         return
             Math.min(
                 externalCollateralRedemption.availableLiquidity(),
-                _calculateLiquidityTokenAmountBeforeFee(
+                externalCollateralRedemption.calculateLiquidityTokenAmountBeforeFee(
                     IERC20(externalCollateralRedemption.asset()).balanceOf(collateralProvider)
                 )
             );
@@ -166,23 +166,19 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
 
     /**
      * @dev Calculates the amount of liquidity tokens
-     * @param liquidityAmount The amount of liquidity tokens to supply
+     * @param initialLiquidityAmount The amount of liquidity tokens to supply
      * @return amountToSupply The amount of supplied liquidity tokens
      */
-    function calculateLiquidityTokenAmount(uint256 liquidityAmount) external view returns (uint256 amountToSupply) {
-        return _calculateLiquidityTokenAmount(liquidityAmount);
+    function calculateEffectiveLiquidityTokenAmount(
+        uint256 initialLiquidityAmount
+    ) external view returns (uint256 amountToSupply) {
+        return _calculateLiquidityTokenAmount(initialLiquidityAmount);
     }
 
     function _calculateLiquidityTokenAmount(uint256 liquidityAmount) private view returns (uint256 amountToSupply) {
         // Convert liquidity amount to collateral amount
         uint256 collateralAmount = _liquidityTokenToExternalCollateralAsset(liquidityAmount);
         amountToSupply = externalCollateralRedemption.calculateLiquidityTokenAmount(collateralAmount);
-    }
-
-    function _calculateLiquidityTokenAmountBeforeFee(
-        uint256 assetAmount
-    ) private view returns (uint256 amountToSupply) {
-        amountToSupply = externalCollateralRedemption.calculateLiquidityTokenAmountBeforeFee(assetAmount);
     }
 
     function _liquidityTokenToExternalCollateralAsset(
