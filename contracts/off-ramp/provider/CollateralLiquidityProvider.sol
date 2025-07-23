@@ -28,9 +28,14 @@ import {ISecuritizeNavProvider} from "@securitize/digital_securities/contracts/n
 
 contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContract {
     /**
-     * @dev liquidity asset.
+     * @dev liquidity token.
      */
     IERC20Metadata public liquidityToken;
+
+    /**
+     * @dev collateral token (externalCollateralRedemption.asset()).
+     */
+    IERC20Metadata public collateralToken;
 
     /**
      * @dev securitize redemption contract.
@@ -95,6 +100,9 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
         securitizeOffRamp = ISecuritizeOffRamp(_securitizeOffRamp);
         externalCollateralRedemption = ISecuritizeOffRamp(_externalCollateralRedemption);
         collateralProvider = _collateralProvider;
+
+        // Set collateralToken from externalCollateralRedemption.asset()
+        collateralToken = IERC20Metadata(address(externalCollateralRedemption.asset()));
     }
 
     function setExternalCollateralRedemption(address externalCollateralRedemption_) external onlyOwner {
@@ -133,7 +141,7 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
             Math.min(
                 externalCollateralRedemption.availableLiquidity(),
                 externalCollateralRedemption.calculateLiquidityTokenAmountBeforeFee(
-                    IERC20(externalCollateralRedemption.asset()).balanceOf(collateralProvider)
+                    collateralToken.balanceOf(collateralProvider)
                 )
             );
     }
@@ -146,13 +154,13 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
             revert InsufficientLiquidity(liquidityAmount, _availableLiquidity());
         }
 
-        uint256 collateralAmount = _liquidityTokenToExternalCollateralAsset(liquidityAmount);
+        uint256 collateralAmount = _liquidityTokenToExternalCollateralToken(liquidityAmount);
 
         // Take collateral funds from collateral provider
-        IERC20(externalCollateralRedemption.asset()).transferFrom(collateralProvider, address(this), collateralAmount);
+        collateralToken.transferFrom(collateralProvider, address(this), collateralAmount);
 
         // Approve external redemption
-        IERC20(externalCollateralRedemption.asset()).approve(address(externalCollateralRedemption), collateralAmount);
+        collateralToken.approve(address(externalCollateralRedemption), collateralAmount);
 
         // Get liquidity
         externalCollateralRedemption.redeem(collateralAmount, 0);
@@ -177,23 +185,22 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
 
     function _calculateLiquidityTokenAmount(uint256 liquidityAmount) private view returns (uint256 amountToSupply) {
         // Convert liquidity amount to collateral amount
-        uint256 collateralAmount = _liquidityTokenToExternalCollateralAsset(liquidityAmount);
+        uint256 collateralAmount = _liquidityTokenToExternalCollateralToken(liquidityAmount);
         amountToSupply = externalCollateralRedemption.calculateLiquidityTokenAmount(collateralAmount);
     }
 
-    function _liquidityTokenToExternalCollateralAsset(
+    function _liquidityTokenToExternalCollateralToken(
         uint256 liquidityAmount
     ) private view returns (uint256 collateralAmount) {
         // rate is expressed in collateral decimals
         uint256 rate = externalCollateralRedemption.navProvider().rate();
 
-        // NOTE: IDSToken interface lacks decimals(), so we use IERC20Metadata to get decimals from the asset address
+        // NOTE: IDSToken interface lacks decimals(), so we use IERC20Metadata to get decimals from the collateral token
         // TODO: update this when IDSToken has decimals
-        address collateralAddress = address(externalCollateralRedemption.asset());
-        uint8 assetDecimals = IERC20Metadata(collateralAddress).decimals();
+        uint8 collateralDecimals = collateralToken.decimals();
 
         collateralAmount =
-            ((liquidityAmount * (10 ** assetDecimals)) * (10 ** assetDecimals)) /
+            ((liquidityAmount * (10 ** collateralDecimals)) * (10 ** collateralDecimals)) /
             (rate * (10 ** liquidityToken.decimals()));
     }
 }
