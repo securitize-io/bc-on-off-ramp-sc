@@ -2,7 +2,7 @@ import { task, types } from 'hardhat/config';
 
 export enum AssetProviderType {
     ALLOWANCE = 'ALLOWANCE',
-    MINTING = 'MINING',
+    MINTING = 'MINTING',
 }
 
 task('deploy-on-ramp', 'Deploy on ramp protocol')
