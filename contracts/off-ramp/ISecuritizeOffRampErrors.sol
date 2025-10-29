@@ -30,10 +30,6 @@ interface ISecuritizeOffRampErrors is Errors {
     error RestrictedCountry(string country);
 
     /*
-     * @dev error selector: 0x4d78a3cb
-     */
-    error EmptyCountryCode();
-    /*
      * @dev error selector: 0x5179a003
      */
     error InvalidCountryCodeLength(uint256 length);
