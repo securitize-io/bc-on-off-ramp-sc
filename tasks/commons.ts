@@ -257,3 +257,169 @@ task('upgrade-proxy', 'Upgrade a UUPS proxy to a new implementation')
 
         return { proxyAddress: taskArgs.proxyAddress, newImplAddress };
     });
+
+task('create-wallet', 'Create a new wallet and optionally save it to .env.wallets')
+    .addOptionalParam('name', 'Name for the wallet (for saving to .env.wallets)', '')
+    .addOptionalParam('fund', 'Amount of ETH to fund the wallet (in ether)', '0')
+    .addOptionalParam('count', 'Number of wallets to create (ignored if name is provided)', '1')
+    .addFlag('save', 'Save wallet details to .env.wallets file (for multiple wallets)')
+    .setAction(async (taskArgs, hre) => {
+        console.log('');
+        consoleCyan('task: create-wallet');
+
+        // If a name is provided, create a single named wallet
+        if (taskArgs.name) {
+            const wallet = hre.ethers.Wallet.createRandom();
+
+            consoleGreen(`Wallet "${taskArgs.name}" created:`);
+            console.log(`  Address: ${wallet.address}`);
+            console.log(`  Private Key: ${wallet.privateKey}`);
+
+            // Fund with ETH if requested
+            if (parseFloat(taskArgs.fund) > 0) {
+                try {
+                    const [deployer] = await hre.ethers.getSigners();
+                    const tx = await deployer.sendTransaction({
+                        to: wallet.address,
+                        value: hre.ethers.parseEther(taskArgs.fund),
+                    });
+                    await tx.wait();
+                    console.log(`  ✅ Funded with ${taskArgs.fund} ETH`);
+                } catch (error) {
+                    console.log(`  ⚠️  Failed to fund with ETH: ${error}`);
+                }
+            }
+
+            // Save to .env.wallets with name
+            try {
+                const walletLine = `${taskArgs.name.toUpperCase()}_ADDRESS=${wallet.address}\n${taskArgs.name.toUpperCase()}_PRIVATE_KEY=${wallet.privateKey}\n\n`;
+                appendFileSync('.env.wallets', walletLine);
+                console.log(`  💾 Saved to .env.wallets as ${taskArgs.name.toUpperCase()}_*`);
+            } catch (error) {
+                console.log(`  ⚠️  Failed to save to .env.wallets: ${error}`);
+            }
+
+            return;
+        }
+
+        // Default behavior: create multiple unnamed wallets
+        const count = parseInt(taskArgs.count);
+        const createdWallets: Array<{ address: string; privateKey: string }> = [];
+
+        for (let i = 0; i < count; i++) {
+            // Create new random wallet
+            const wallet = hre.ethers.Wallet.createRandom();
+            createdWallets.push({
+                address: wallet.address,
+                privateKey: wallet.privateKey,
+            });
+
+            consoleGreen(`Wallet ${i + 1} created:`);
+            console.log(`  Address: ${wallet.address}`);
+            console.log(`  Private Key: ${wallet.privateKey}`);
+
+            // Fund with ETH if requested
+            if (parseFloat(taskArgs.fund) > 0) {
+                try {
+                    const [deployer] = await hre.ethers.getSigners();
+                    const tx = await deployer.sendTransaction({
+                        to: wallet.address,
+                        value: hre.ethers.parseEther(taskArgs.fund),
+                    });
+                    await tx.wait();
+                    console.log(`  ✅ Funded with ${taskArgs.fund} ETH`);
+                } catch (error) {
+                    console.log(`  ⚠️  Failed to fund with ETH: ${error}`);
+                }
+            }
+        }
+
+        // Save to file if requested
+        if (taskArgs.save) {
+            let envContent = `# Wallet addresses generated on ${new Date().toISOString()}\n`;
+            envContent += `# Network: ${hre.network.name}\n\n`;
+
+            // Save numbered wallets
+            createdWallets.forEach((wallet, index) => {
+                envContent += `WALLET_${index + 1}_ADDRESS=${wallet.address}\n`;
+                envContent += `WALLET_${index + 1}_PRIVATE_KEY=${wallet.privateKey}\n\n`;
+            });
+
+            const filename = `.env.wallets`;
+            writeFileSync(filename, envContent);
+            consoleGreen(`💾 Wallet details saved to: ${filename}`);
+        }
+
+        return createdWallets;
+    });
+/*
+npx hardhat register-investor --network sepolia --registry-address 0x123 --investor-address 0x456 --investor-id "investor1" --country "USA"
+*/
+task('register-investor', 'Register an investor with MockRegistryService')
+    .addParam('registryAddress', 'MockRegistryService contract address')
+    .addParam('investorAddress', 'Investor wallet address to register')
+    .addOptionalParam('investorId', 'Investor ID (default: investor1)', 'investor1')
+    .addOptionalParam('collisionHash', 'Collision hash (default: 0x)', '0x')
+    .addOptionalParam('country', 'Investor country code (default: USA)', 'USA')
+    .addOptionalParam('additionalWallets', 'Additional wallet addresses (comma-separated)', '')
+    .addOptionalParam('attributeIds', 'Attribute IDs (comma-separated)', '')
+    .addOptionalParam('attributeValues', 'Attribute values (comma-separated)', '')
+    .addOptionalParam('attributeExpirations', 'Attribute expirations (comma-separated)', '')
+    .setAction(async (taskArgs, hre) => {
+        console.log('');
+        consoleCyan('task: register-investor');
+        consoleCyan('Arguments:');
+        console.log(`- Registry Address: ${taskArgs.registryAddress}`);
+        console.log(`- Investor Address: ${taskArgs.investorAddress}`);
+        console.log(`- Investor ID: ${taskArgs.investorId}`);
+        console.log(`- Collision Hash: ${taskArgs.collisionHash}`);
+        console.log(`- Country: ${taskArgs.country}`);
+        console.log(`- Additional Wallets: ${taskArgs.additionalWallets}`);
+        console.log(`- Attribute IDs: ${taskArgs.attributeIds}`);
+        console.log(`- Attribute Values: ${taskArgs.attributeValues}`);
+        console.log(`- Attribute Expirations: ${taskArgs.attributeExpirations}`);
+
+        const registryService = await hre.ethers.getContractAt('MockRegistryService', taskArgs.registryAddress);
+
+        // Parse arrays from comma-separated strings
+        const walletsArray = [taskArgs.investorAddress];
+        if (taskArgs.additionalWallets) {
+            walletsArray.push(...taskArgs.additionalWallets.split(',').map((addr: string) => addr.trim()));
+        }
+
+        const attributeIds = taskArgs.attributeIds
+            ? taskArgs.attributeIds.split(',').map((item: string) => parseInt(item.trim()))
+            : [];
+        const attributeValues = taskArgs.attributeValues
+            ? taskArgs.attributeValues.split(',').map((item: string) => parseInt(item.trim()))
+            : [];
+        const attributeExpirations = taskArgs.attributeExpirations
+            ? taskArgs.attributeExpirations.split(',').map((item: string) => parseInt(item.trim()))
+            : [];
+
+        // Register the investor with proper parameter names from contract
+        // updateInvestor(_id, _collisionHash, _country, _wallets, _attributeIds, _attributeValues, _attributeExpirations)
+        const tx = await registryService.updateInvestor(
+            taskArgs.investorId, // _id
+            taskArgs.collisionHash, // _collisionHash
+            taskArgs.country, // _country
+            walletsArray, // _wallets
+            attributeIds, // _attributeIds
+            attributeValues, // _attributeValues
+            attributeExpirations, // _attributeExpirations
+        );
+
+        await tx.wait();
+
+        console.log(`Transaction hash: ${tx.hash}`);
+        consoleGreen(
+            `✅ Investor ${taskArgs.investorAddress} registered successfully with ID "${taskArgs.investorId}" and country "${taskArgs.country}"`,
+        );
+    });
+function appendFileSync(arg0: string, walletLine: string) {
+    throw new Error('Function not implemented.');
+}
+
+function writeFileSync(filename: string, envContent: string) {
+    throw new Error('Function not implemented.');
+}
