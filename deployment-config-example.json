@@ -1,0 +1,29 @@
+{
+    "offRampProtocol": {
+        "securitizeOffRamp": "",
+        "liquidityProvider": ""
+    },
+    "contracts": {
+        "navProvider": "",
+        "feeManager": "",
+        "registryService": "",
+        "trustService": "",
+        "liquidityToken": "",
+        "dsToken": ""
+    },
+    "wallets": {
+        "master": "",
+        "provider": "",
+        "recipient": "",
+        "feeCollector": "",
+        "investor": ""
+    },
+    "deployment": {
+        "network": "sepolia",
+        "assetBurn": false,
+        "verify": true
+    },
+    "collateralRedemption": {
+        "externalCollateralRedemption": ""
+    }
+}

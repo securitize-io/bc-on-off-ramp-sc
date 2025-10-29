@@ -28,6 +28,7 @@ npm-debug.log
 
 # local env variables
 .env
+.env.wallets
 
 # truffle build directory
 build/
@@ -48,3 +49,5 @@ ignition/deployments/
 .idea/
 
 .vscode/
+
+deployment-config.json

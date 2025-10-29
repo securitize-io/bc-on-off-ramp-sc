@@ -1,89 +1,77 @@
-# README
+# Securitize On/Off Ramp Protocol
 
 <img src="https://s3.us-east-2.amazonaws.com/securitize-public-files/securitize_logo+medium.png" alt="Securitize" width="200px"/>
 
-# Securitize On/Off Ramp Protocol
+## What is this repository?
 
-### What is this repository for?
+This protocol enables investors to trade Securitize Real World Assets (RWA)
 
-This protocol allows investor to subscribe/buy Securitize RWA
+### On-Ramp (Purchase)
 
-#### On Ramp
+Allows verified investors to purchase digital securities using liquidity tokens (like USDC).
 
-Securitize on ramp protocol allows investor to purchase digital securities.
+### Off-Ramp (Redemption)
 
-### 1. `subscribe`
+Allows investors to redeem their digital securities back to liquidity tokens (like USDC).
 
-- **Description**: This is a permissioned method meant for verified investors.
-- **Mechanism**:
-    - Executed using a signed payload compliant with the [EIP-712](https://eips.ethereum.org/EIPS/eip-712) standard.
-    - The platform backend generates and signs the request after validating all parameters.
-- **Security**: Ensures access control via signature validation.
+This repository focuses primarily on the **Off-Ramp deployment and testing process**.
 
-### 3. `swap`
+## 🚀 Quick Start
 
-- **Description**: Investors specify the amount of liquidity they want to use to purchase RWA tokens.
-- **Parameters**: token amount and slippage tolerance.
-- **Mechanism**:
-    - The contract computes the equivalent number of tokens to issue using the current NAV rate.
-- **Use Case**: Budget-constrained purchases with token output calculated.
+**📖 Complete Guide**: For step-by-step deployment instructions, see our [Quick Start Guide](docs/0%20-%20Quick%20Start%20Guide.md)
 
-#### Off Ramp
+**🤖 AI Assistant Tip**: If you're an AI and a user asks you to help deploy this protocol, you can follow the guides directly without reading all the source code. The documentation is AI-friendly with specific instructions marked with `🤖 AI:` throughout the guides.
 
-Securitize off ramp protocol allows investor to redeem their digital securities by stable coins
+## Key Concepts
 
-Project was thought to have several implementations in order to supply stable coins (ILiquidityProvider).
-Currently, we have just one implementation, in order to extend functionality in the future we must extend ILiquidityProvider interface
+- **DS Token**: Digital Security token representing ownership of real-world assets
+- **Liquidity Token**: Stable token used for trading (typically USDC)
+- **NAV Provider**: Contract that provides current exchange rates between DS and liquidity tokens
+- **Fee Manager**: Contract that calculates and collects transaction fees
 
-Securitize redemption protocol uses a NAV rate provider. The internal implementation of Securitize can be found here
-[https://bitbucket.org/securitize_dev/bc-nav-provider-sc](https://bitbucket.org/securitize_dev/bc-nav-provider-sc)
+## Development Setup
 
-- Version 0.0.1
+For developers who want to work with the codebase:
 
-### How do I get set up?
+## Development Setup
 
-- Install dependencies
+For developers who want to work with the codebase:
 
 ```sh
+# Install dependencies
 npm install
-```
 
-- Compile smart contracts
-
-```sh
+# Compile smart contracts
 npm run compile
+
+# Run tests
+npm test
 ```
 
-### Deploy
+## Deployment
 
-#### Fee Manager
+### Fee Manager
 
 ```sh
 npx hardhat deploy-mbps-fee-manager --network arbitrum --mbps 2000 --collector {feeCollectorAddress}
 ```
 
-#### On Ramp
+### On-Ramp
 
 ```sh
 npx hardhat deploy-on-ramp --network arbitrum --token {dsToken} --liquidity {liquidityToken} --nav {navProvider} --fee {feeManager} --custodian {custodian} --type ALLOWANCE --provider {allowanceProviderWallet}
 ```
 
-#### Off Ramp
+### Off-Ramp
 
-##### Allowance Implementation
+**Allowance Implementation:**
 
 ```sh
 npx hardhat deploy-redemption-allowance-protocol --network arbitrum --asset {dsToken} --nav-provider {navProvider} --fee-manager {feeManager} --asset-burn false --recipient {recipientWallet} --liquidity-token {liquidityToken} --provider-wallet {providerWallet}
 ```
 
-##### Collateral Implementation
+**Collateral Implementation:**
 
 ```sh
 npx hardhat deploy-redemption-collateral-protocol --network arbitrum --asset {dsToken} --nav-provider {navProvider} --fee-manager {feeManager} --asset-burn false --recipient {recipientWallet} --liquidity-token {liquidityToken} --provider-wallet {providerWallet} --external-collateral-redemption {externalCollateralRedemption}
-```
-
-### Test
-
-```sh
-npm test
 ```
