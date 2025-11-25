@@ -19,24 +19,12 @@ pragma solidity ^0.8.22;
 
 import {IOnOffRamp} from "../common/IOnOffRamp.sol";
 
-interface ISecuritizeOnRamp is IOnOffRamp {
+interface IBaseOnRamp is IOnOffRamp {
+
     error InvalidEIP712SignatureError();
-    error IncorrectParamLength();
-    error TransactionTooOldError();
-    error OnlySecuritizeOnRampError();
     error InvestorSubscriptionDisabledError();
     error SameValueError();
     error MinSubscriptionAmountError();
-
-    /**
-     * @dev Tx type - EIP712
-     */
-    struct ExecutePreApprovedTransaction {
-        string senderInvestor;
-        address destination;
-        bytes data;
-        uint256 nonce;
-    }
 
     /**
      * @dev Emitted for a new subscription agreement
@@ -57,13 +45,6 @@ interface ISecuritizeOnRamp is IOnOffRamp {
         uint256 fee,
         address indexed liquidityToken
     );
-
-    /**
-     * @dev Emitted for a new subscription agreement
-     * @param _from investor
-     * @param _agreementHash Document hash
-     */
-    event DocumentSigned(address indexed _from, bytes32 _agreementHash);
 
     /**
      * @dev Emitted when the asset provider is updated
@@ -114,55 +95,6 @@ interface ISecuritizeOnRamp is IOnOffRamp {
         address _feeManager,
         address _custodianWallet
     ) external;
-
-    /**
-     * @dev It does a swap between a Stable Coin ERC-20 token and DSToken.
-     * @param _investorId investor sender (blockchainId). BlockchainId should be created by main-api
-     * @param _investorWallet: investor wallet
-     * @param _investorCountry: investor country
-     * @param _investorAttributeIds attributes to set.
-     * @param _investorAttributeValues values to set.
-     * @param _investorAttributeExpirations expiration values.
-     * @param _minOutAmount minimum amount of DSTokens that are acceptable in return
-     * @param _liquidityAmount send to custodian wallet
-     * @param _blockLimit max block number when pre-approved transaction does not work anymore
-     * @param _agreementHash hash of PDF document created before starting swap operation.
-     */
-    function subscribe(
-        string memory _investorId,
-        address _investorWallet,
-        string memory _investorCountry,
-        uint8[] memory _investorAttributeIds,
-        uint256[] memory _investorAttributeValues,
-        uint256[] memory _investorAttributeExpirations,
-        uint256 _minOutAmount,
-        uint256 _liquidityAmount,
-        uint256 _blockLimit,
-        bytes32 _agreementHash
-    ) external;
-
-    /**
-     * @dev It does a swap between a Stable Coin ERC-20 token and DSToken.
-     * @param _liquidityAmount amount of stable coin that investor will spend
-     * @param _minOutAmount minimum amount of DSTokens that are acceptable in return
-     */
-    function swap(uint256 _liquidityAmount, uint256 _minOutAmount) external;
-
-    /**
-     * @dev Validates off-chain EIP-712 message signature and executes encoded transaction data.
-     * @param signature - eip712 signature
-     * @param txData - tx data
-     */
-    function executePreApprovedTransaction(
-        bytes memory signature,
-        ExecutePreApprovedTransaction calldata txData
-    ) external;
-
-    /**
-     * @dev Returns nonce per investor
-     * @param _investorId investor (blockchainId).
-     */
-    function nonceByInvestor(string memory _investorId) external view returns (uint256);
 
     /**
      * @dev Calculates the DSToken amount using current NAV rate.

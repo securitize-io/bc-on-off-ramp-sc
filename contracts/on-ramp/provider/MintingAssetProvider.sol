@@ -20,7 +20,7 @@ pragma solidity 0.8.22;
 import {IDSToken} from "@securitize/digital_securities/contracts/token/IDSToken.sol";
 import {BaseContract} from "../../common/BaseContract.sol";
 import {IAssetProvider} from "./IAssetProvider.sol";
-import {ISecuritizeOnRamp} from "../ISecuritizeOnRamp.sol";
+import {IBaseOnRamp} from "../IBaseOnRamp.sol";
 
 /**
  * @title MintingAssetProvider
@@ -35,7 +35,7 @@ contract MintingAssetProvider is IAssetProvider, BaseContract {
     /**
      * @dev securitize on ramp contract.
      */
-    ISecuritizeOnRamp public securitizeOnRamp;
+    IBaseOnRamp public securitizeOnRamp;
 
     /**
      * @dev The caller account is not authorized to perform an operation.
@@ -72,7 +72,7 @@ contract MintingAssetProvider is IAssetProvider, BaseContract {
         }
         __BaseContract_init();
         asset = IDSToken(_asset);
-        securitizeOnRamp = ISecuritizeOnRamp(_securitizeOnRamp);
+        securitizeOnRamp = IBaseOnRamp(_securitizeOnRamp);
     }
 
     function supplyTo(address _buyer, uint256 _amount) public whenNotPaused onlySecuritizeOnRamp {

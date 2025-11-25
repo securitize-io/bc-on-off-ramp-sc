@@ -17,7 +17,7 @@
  */
 pragma solidity 0.8.22;
 
-import {ISecuritizeOnRamp} from "../ISecuritizeOnRamp.sol";
+import {IBaseOnRamp} from "../IBaseOnRamp.sol";
 import {IDSToken} from "@securitize/digital_securities/contracts/token/IDSToken.sol";
 import {Errors} from "../../common/Errors.sol";
 
@@ -42,5 +42,5 @@ interface IAssetProvider is Errors {
      * @dev The securitize on ramp contract.
      * @return The address of the securitize on ramp contract.
      */
-    function securitizeOnRamp() external view returns (ISecuritizeOnRamp);
+    function securitizeOnRamp() external view returns (IBaseOnRamp);
 }
