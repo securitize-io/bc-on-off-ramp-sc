@@ -23,8 +23,8 @@ interface IRegularOffRamp is IBaseOffRamp {
 
     /**
      * @dev Redeems asset tokens for liquidity tokens using on-chain NAV rate
-     * @param assetAmount The amount of asset tokens to redeem
-     * @param minOutputAmount The minimum amount of liquidity tokens that must be received (slippage protection)
+     * @param _assetAmount The amount of asset tokens to redeem
+     * @param _minOutputAmount The minimum amount of liquidity tokens that must be received (slippage protection)
      */
-    function redeem(uint256 assetAmount, uint256 minOutputAmount) external;
+    function redeem(uint256 _assetAmount, uint256 _minOutputAmount) external;
 }

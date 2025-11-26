@@ -94,21 +94,21 @@ interface IBaseOffRamp is IOnOffRamp, ISecuritizeOffRampErrors {
 
     /**
      * @dev Calculates the amount of liquidity tokens to be received for a given asset amount, including the rate and fee
-     * @param _amount The amount of asset tokens to redeem
+     * @param _assetAmount The amount of asset tokens to redeem
      * @return liquidityTokenAmount The amount of liquidity tokens that will be received (after fees)
      * @return rate The current conversion rate between asset and liquidity tokens
      * @return fee The fee amount that will be deducted from the liquidity amount
      */
     function calculateLiquidityTokenAmount(
-        uint256 _amount
+        uint256 _assetAmount
     ) external view returns (uint256 liquidityTokenAmount, uint256 rate, uint256 fee);
 
     /**
      * @dev Calculates the amount of liquidity tokens to receive in redemption process before fees
-     * @param _amount The amount of asset tokens to redeem.
+     * @param _assetAmount The amount of asset tokens to redeem.
      * @return The amount of liquidity tokens.
      */
-    function calculateLiquidityTokenAmountBeforeFee(uint256 _amount) external view returns (uint256);
+    function calculateLiquidityTokenAmountBeforeFee(uint256 _assetAmount) external view returns (uint256);
 
     /**
      * @dev The available liquidity that can be supplied
@@ -118,17 +118,17 @@ interface IBaseOffRamp is IOnOffRamp, ISecuritizeOffRampErrors {
 
     /**
      * @dev Updates the restriction status for a country
-     * @param country The country code to update
-     * @param isRestricted Whether the country should be restricted
+     * @param _country The country code to update
+     * @param _isRestricted Whether the country should be restricted
      */
-    function updateCountryRestriction(string memory country, bool isRestricted) external;
+    function updateCountryRestriction(string memory _country, bool _isRestricted) external;
 
     /**
      * @dev Updates the restriction status for an array of countries
-     * @param countries The country codes to update
-     * @param isRestricted Whether the countries should be restricted
+     * @param _countries The country codes to update
+     * @param _isRestricted Whether the countries should be restricted
      */
-    function updateCountriesRestriction(string[] memory countries, bool isRestricted) external;
+    function updateCountriesRestriction(string[] memory _countries, bool _isRestricted) external;
 
     /**
      * @dev The asset being redeemed.

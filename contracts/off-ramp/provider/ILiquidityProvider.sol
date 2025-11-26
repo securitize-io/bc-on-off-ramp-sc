@@ -39,11 +39,11 @@ interface ILiquidityProvider is Errors {
 
     /**
      * @dev Calculates the effective liquidity token amount to supply
-     * @param initialLiquidityAmount The initial liquidity amount
+     * @param _initialLiquidityAmount The initial liquidity amount
      * @return amountToSupply The effective liquidity token amount to supply
      */
     function calculateEffectiveLiquidityTokenAmount(
-        uint256 initialLiquidityAmount
+        uint256 _initialLiquidityAmount
     ) external view returns (uint256 amountToSupply);
 
     /**

@@ -30,6 +30,13 @@ contract RegularOffRamp is IRegularOffRamp, BaseOffRamp {
         _disableInitializers();
     }
 
+    /**
+     * @notice Initializes RegularOffRamp implementation.
+     * @param _asset DS asset address.
+     * @param _navProvider NAV provider address.
+     * @param _feeManager Fee manager address.
+     * @param _assetBurn Whether redeemed asset is burned.
+     */
     function initialize(
         address _asset,
         address _navProvider,
@@ -40,6 +47,11 @@ contract RegularOffRamp is IRegularOffRamp, BaseOffRamp {
         _initializeBaseOffRamp(_asset, _navProvider, _feeManager, _assetBurn);
     }
 
+    /**
+     * @notice Redeems asset tokens for liquidity tokens using on-chain NAV rate.
+     * @param _assetAmount Asset amount to redeem.
+     * @param _minOutputAmount Minimum liquidity tokens expected (slippage guard).
+     */
     function redeem(
         uint256 _assetAmount,
         uint256 _minOutputAmount

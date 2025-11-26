@@ -79,6 +79,10 @@ abstract contract BaseOffRamp is IBaseOffRamp, EIP712Upgradeable, BaseContract {
         _disableInitializers();
     }
 
+    /**
+     * @notice Updates the liquidity provider implementation.
+     * @param _liquidityProvider New liquidity provider address.
+     */
     function updateLiquidityProvider(
         address _liquidityProvider
     ) public virtual override onlyOwner addressNonZero(_liquidityProvider) {
@@ -94,21 +98,32 @@ abstract contract BaseOffRamp is IBaseOffRamp, EIP712Upgradeable, BaseContract {
         emit LiquidityProviderUpdated(oldProvider, _liquidityProvider);
     }
 
+    /**
+     * @notice Updates the NAV provider address.
+     * @param _navProvider New NAV provider address.
+     */
     function updateNavProvider(address _navProvider) public virtual override onlyOwner addressNonZero(_navProvider) {
         address oldProvider = address(navProvider);
         navProvider = ISecuritizeNavProvider(_navProvider);
         emit NavProviderUpdated(oldProvider, address(navProvider));
     }
 
+    /**
+     * @notice Calculates liquidity tokens received for an asset amount.
+     * @param _assetAmount Asset amount to redeem.
+     * @return liquidityTokenAmount Liquidity tokens after fees.
+     * @return rate NAV rate used for the conversion.
+     * @return fee Fee charged in liquidity tokens.
+     */
     function calculateLiquidityTokenAmount(
-        uint256 assetAmount
+        uint256 _assetAmount
     ) public view virtual override nonZeroLiquidityProvider returns (uint256 liquidityTokenAmount, uint256 rate, uint256 fee) {
         rate = navProvider.rate();
         if (rate == 0) {
             revert NonZeroNavRateError();
         }
         uint256 amountBeforeFee = TokenCalculator.calculateLiquidityTokenAmountBeforeFee(
-            assetAmount,
+            _assetAmount,
             rate,
             liquidityDecimals,
             assetDecimals
@@ -118,39 +133,74 @@ abstract contract BaseOffRamp is IBaseOffRamp, EIP712Upgradeable, BaseContract {
         liquidityTokenAmount = effectiveAmount - fee;
     }
 
+    /**
+     * @notice Returns available liquidity from the provider.
+     * @return Available liquidity amount.
+     */
     function availableLiquidity() external view override nonZeroLiquidityProvider returns (uint256) {
         return liquidityProvider.availableLiquidity();
     }
 
-    function calculateLiquidityTokenAmountBeforeFee(uint256 assetAmount) public view override nonZeroLiquidityProvider returns (uint256) {
+    /**
+     * @notice Calculates liquidity tokens before fees for an asset amount.
+     * @param _assetAmount Asset amount to redeem.
+     * @return Liquidity tokens before deducting fees.
+     */
+    function calculateLiquidityTokenAmountBeforeFee(uint256 _assetAmount) public view override nonZeroLiquidityProvider returns (uint256) {
         uint256 rate = navProvider.rate();
         if (rate == 0) {
             revert NonZeroNavRateError();
         }
-        return TokenCalculator.calculateLiquidityTokenAmountBeforeFee(assetAmount, rate, liquidityDecimals, assetDecimals);
+        return TokenCalculator.calculateLiquidityTokenAmountBeforeFee(_assetAmount, rate, liquidityDecimals, assetDecimals);
     }
 
+    /**
+     * @notice Enables or disables the two-step transfer flow.
+     * @param _twoStepTransfer Desired two-step transfer flag.
+     */
     function toggleTwoStepTransfer(bool _twoStepTransfer) external override onlyOwner {
         twoStepTransfer = _twoStepTransfer;
         emit TwoStepTransferUpdated(twoStepTransfer);
     }
 
-    function updateCountryRestriction(string memory country, bool isRestricted) external override onlyOwner {
-        _updateCountryRestriction(country, isRestricted);
+    /**
+     * @notice Updates restriction status for a country.
+     * @param _country Country code.
+     * @param _isRestricted Whether the country is restricted.
+     */
+    function updateCountryRestriction(string memory _country, bool _isRestricted) external override onlyOwner {
+        _updateCountryRestriction(_country, _isRestricted);
     }
 
-    function updateCountriesRestriction(string[] memory countries, bool isRestricted) external override onlyOwner {
-        for (uint256 i = 0; i < countries.length; i++) {
-            _updateCountryRestriction(countries[i], isRestricted);
+    /**
+     * @notice Updates restriction status for multiple countries.
+     * @param _countries Country codes.
+     * @param _isRestricted Whether the countries are restricted.
+     */
+    function updateCountriesRestriction(string[] memory _countries, bool _isRestricted) external override onlyOwner {
+        for (uint256 i = 0; i < _countries.length; i++) {
+            _updateCountryRestriction(_countries[i], _isRestricted);
         }
     }
 
-    function _updateCountryRestriction(string memory country, bool isRestricted) internal {
-        CountryValidator.validateCountryCode(country);
-        restrictedCountries[country] = isRestricted;
-        emit CountryRestrictionUpdated(country, isRestricted);
+    /**
+     * @dev Internal helper to update a single country restriction flag.
+     * @param _country Country code to update.
+     * @param _isRestricted Whether the country should be restricted.
+     */
+    function _updateCountryRestriction(string memory _country, bool _isRestricted) internal {
+        CountryValidator.validateCountryCode(_country);
+        restrictedCountries[_country] = _isRestricted;
+        emit CountryRestrictionUpdated(_country, _isRestricted);
     }
 
+    /**
+     * @dev Internal initializer shared by off-ramp implementations.
+     * @param _asset Address of the DS asset token.
+     * @param _navProvider NAV provider address.
+     * @param _feeManager Fee manager address.
+     * @param _assetBurn Whether redeemed asset is burned.
+     */
     function _initializeBaseOffRamp(
         address _asset,
         address _navProvider,
@@ -173,22 +223,31 @@ abstract contract BaseOffRamp is IBaseOffRamp, EIP712Upgradeable, BaseContract {
         assetAddress = _asset;
     }
 
+    /**
+     * @dev Core redeem flow shared by off-ramps.
+     * @param _assetAmount Asset amount to redeem.
+     * @param _minOutputAmount Minimum liquidity tokens expected (slippage guard).
+     * @param _rate NAV rate used for conversion.
+     * @param _redeemer Address performing redemption.
+     * @return fee Fee charged in liquidity tokens.
+     * @return liquidityValue Amount supplied to redeemer after fee.
+     */
     function _redeem(
-        uint256 assetAmount,
-        uint256 minOutputAmount,
-        uint256 rate,
-        address redeemer
+        uint256 _assetAmount,
+        uint256 _minOutputAmount,
+        uint256 _rate,
+        address _redeemer
     ) internal nonZeroLiquidityProvider returns (uint256 fee, uint256 liquidityValue) {
-        if (rate == 0) {
+        if (_rate == 0) {
             revert NonZeroNavRateError();
         }
 
-        RedemptionValidator.validateRedemption(redeemer, assetAmount, asset);
-        CountryValidator.validateCountryRestriction(redeemer, dsServiceConsumer, restrictedCountries);
+        RedemptionValidator.validateRedemption(_redeemer, _assetAmount, asset);
+        CountryValidator.validateCountryRestriction(_redeemer, dsServiceConsumer, restrictedCountries);
 
         uint256 liquidityTokenAmount = TokenCalculator.calculateLiquidityTokenAmountBeforeFee(
-            assetAmount,
-            rate,
+            _assetAmount,
+            _rate,
             liquidityDecimals,
             assetDecimals
         );
@@ -197,10 +256,10 @@ abstract contract BaseOffRamp is IBaseOffRamp, EIP712Upgradeable, BaseContract {
             asset: asset,
             liquidityProvider: liquidityProvider,
             feeManager: feeManager,
-            assetAmount: assetAmount,
+            assetAmount: _assetAmount,
             liquidityTokenAmount: liquidityTokenAmount,
-            minOutputAmount: minOutputAmount,
-            redeemer: redeemer,
+            minOutputAmount: _minOutputAmount,
+            redeemer: _redeemer,
             assetBurn: assetBurn
         });
 

@@ -34,6 +34,13 @@ contract PublicStockOffRamp is IPublicStockOffRamp, BaseOffRamp {
         _disableInitializers();
     }
 
+    /**
+     * @notice Initializes PublicStockOffRamp implementation.
+     * @param _asset DS asset address.
+     * @param _navProvider NAV provider address.
+     * @param _feeManager Fee manager address.
+     * @param _assetBurn Whether redeemed asset is burned.
+     */
     function initialize(
         address _asset,
         address _navProvider,
@@ -44,12 +51,21 @@ contract PublicStockOffRamp is IPublicStockOffRamp, BaseOffRamp {
         _initializeBaseOffRamp(_asset, _navProvider, _feeManager, _assetBurn);
     }
 
+    /**
+     * @notice Redeems asset tokens for liquidity tokens with off-chain signed approval and provided NAV.
+     * @param _assetAmount Asset amount to redeem.
+     * @param _minOutputAmount Minimum liquidity tokens expected (slippage guard).
+     * @param _investorWallet Address of the investor signing the transaction.
+     * @param _investorSignature Signature authorizing redemption.
+     * //param _marketStatus Current market status (TODO: add all markets status when are defined).
+     * @param _anchorPrice NAV price used for redemption.
+     */
     function redeem(
         uint256 _assetAmount,
         uint256 _minOutputAmount,
         address _investorWallet,
         bytes memory _investorSignature,
-        uint8 /* _marketStatus*/, // TODO define market status enum
+        uint8 /*_marketStatus*/, // TODO define market status enum
         uint256 _anchorPrice // TODO get the price evaluating market status (new nav provider)
     )
         public
@@ -75,6 +91,14 @@ contract PublicStockOffRamp is IPublicStockOffRamp, BaseOffRamp {
         );
     }
 
+    /**
+     * @notice Calculates liquidity tokens for a given asset amount using a provided NAV rate.
+     * @param _assetAmount Asset amount to redeem.
+     * @param _navRate NAV rate used for conversion.
+     * @return liquidityTokenAmount Liquidity tokens after fees.
+     * @return usedRate NAV rate applied.
+     * @return fee Fee charged in liquidity tokens.
+     */
     function calculateLiquidityTokenAmount(
         uint256 _assetAmount,
         uint256 _navRate
@@ -94,7 +118,12 @@ contract PublicStockOffRamp is IPublicStockOffRamp, BaseOffRamp {
         usedRate = _navRate;
     }
 
-    /// @dev Computes the digest to sign (EIP-712)
+    /**
+     * @dev Computes the digest to sign (EIP-712).
+     * @param _assetAmount Asset amount to redeem.
+     * @param _minOutputAmount Minimum liquidity tokens expected (slippage guard).
+     * @return Digest ready for signature verification.
+     */
     function hashTx(uint256 _assetAmount, uint256 _minOutputAmount) private view returns (bytes32) {
         bytes32 structHash = keccak256(
             abi.encode(TXTYPE_HASH, _assetAmount, _minOutputAmount)

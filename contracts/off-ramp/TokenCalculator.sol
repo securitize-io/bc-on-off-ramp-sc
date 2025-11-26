@@ -14,29 +14,29 @@ import {IFeeManager} from "../fee/IFeeManager.sol";
 library TokenCalculator {
     /**
      * @dev Normalizes an amount by its decimals and rate
-     * @param assetAmount The amount of the asset
-     * @param rate The conversion rate
-     * @param liquidityDecimals The decimals of the liquidity token
-     * @param assetDecimals The decimals of the asset token
+     * @param _assetAmount The amount of the asset
+     * @param _rate The conversion rate
+     * @param _liquidityDecimals The decimals of the liquidity token
+     * @param _assetDecimals The decimals of the asset token
      * @return The normalized token amount
      */
     function calculateLiquidityTokenAmountBeforeFee(
-        uint256 assetAmount,
-        uint256 rate,
-        uint256 liquidityDecimals,
-        uint256 assetDecimals
+        uint256 _assetAmount,
+        uint256 _rate,
+        uint256 _liquidityDecimals,
+        uint256 _assetDecimals
     ) internal pure returns (uint256) {
-        return (assetAmount * rate * 10 ** liquidityDecimals) / (10 ** assetDecimals * 10 ** assetDecimals);
+        return (_assetAmount * _rate * 10 ** _liquidityDecimals) / (10 ** _assetDecimals * 10 ** _assetDecimals);
     }
 
     /**
      * @dev Calculates the fee amount for a given amount
-     * @param feeManager Address of the fee manager
-     * @param amount The amount to calculate fee for
+     * @param _feeManager Address of the fee manager
+     * @param _amount The amount to calculate fee for
      * @return The fee amount
      */
-    function calculateFee(address feeManager, uint256 amount) internal view returns (uint256) {
-        IFeeManager feeManagerInstance = IFeeManager(feeManager);
-        return feeManagerInstance.getFee(amount);
+    function calculateFee(address _feeManager, uint256 _amount) internal view returns (uint256) {
+        IFeeManager feeManagerInstance = IFeeManager(_feeManager);
+        return feeManagerInstance.getFee(_amount);
     }
 }

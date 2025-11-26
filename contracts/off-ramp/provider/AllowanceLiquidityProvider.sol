@@ -65,6 +65,9 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
         _disableInitializers();
     }
 
+    /**
+     * @inheritdoc IAllowanceLiquidityProvider
+     */
     function initialize(
         address _liquidityToken,
         address _recipient,
@@ -86,6 +89,10 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
         liquidityProviderWallet = _liquidityProviderWallet;
     }
 
+    /**
+     * @notice Sets allowance provider wallet.
+     * @param _liquidityProviderWallet Wallet that provides liquidity.
+     */
     function setAllowanceProviderWallet(address _liquidityProviderWallet) external onlyOwner {
         if (_liquidityProviderWallet == address(0)) {
             revert NonZeroAddressError();
@@ -95,10 +102,18 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
         emit AllowanceLiquidityProviderWalletUpdated(oldAddress, liquidityProviderWallet);
     }
 
+    /**
+     * @notice Returns the currently available liquidity.
+     * @return Available liquidity amount.
+     */
     function availableLiquidity() external view returns (uint256) {
         return _availableLiquidity();
     }
 
+    /**
+     * @dev Internal helper that returns current available liquidity.
+     * @return Minimum between balance and allowance from provider wallet.
+     */
     function _availableLiquidity() private view returns (uint256) {
         // Minimum between balance and allowance
         return
@@ -108,23 +123,37 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
             );
     }
 
+    /**
+     * @notice Supplies liquidity tokens to a redeemer.
+     * @param _redeemer Recipient of liquidity tokens.
+     * @param _liquidityAmount Requested liquidity token amount.
+     * @return Liquidity actually supplied.
+     */
     function supplyTo(
-        address redeemer,
-        uint256 liquidityAmount
+        address _redeemer,
+        uint256 _liquidityAmount
     ) public whenNotPaused onlySecuritizeRedemption returns (uint256) {
-        if (liquidityAmount > _availableLiquidity()) {
-            revert InsufficientLiquidity(liquidityAmount, _availableLiquidity());
+        if (_liquidityAmount > _availableLiquidity()) {
+            revert InsufficientLiquidity(_liquidityAmount, _availableLiquidity());
         }
 
         // transfer liquidity token from liquidity provider wallet to redeemer
-        liquidityToken.transferFrom(liquidityProviderWallet, redeemer, liquidityAmount);
+        liquidityToken.transferFrom(liquidityProviderWallet, _redeemer, _liquidityAmount);
 
-        return liquidityAmount;
+        return _liquidityAmount;
     }
 
+    /**
+     * @inheritdoc ILiquidityProvider
+     */
+    /**
+     * @notice Calculates effective liquidity token amount (1:1 in this provider).
+     * @param _initialLiquidityAmount Requested liquidity amount.
+     * @return amountToSupply Effective liquidity to supply.
+     */
     function calculateEffectiveLiquidityTokenAmount(
-        uint256 initialLiquidityAmount
+        uint256 _initialLiquidityAmount
     ) external pure returns (uint256 amountToSupply) {
-        return initialLiquidityAmount;
+        return _initialLiquidityAmount;
     }
 }
