@@ -3,7 +3,7 @@ import { consoleCyan, consoleGreen, consoleRed, consoleYellow, delay } from '../
 import { Wallet } from 'ethers';
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
 
-// npx hardhat contract-call --network sepolia --contract-name SecuritizeOffRamp --method assetAddress --contract-address 0x123...
+// npx hardhat contract-call --network sepolia --contract-name RegularOffRamp --method assetAddress --contract-address 0x123...
 task('contract-call')
     .addParam('contractName', 'The contract to use')
     .addParam('contractAddress', 'The contract address')
@@ -180,8 +180,8 @@ task('allowance', 'Approve tokens for a spender')
 /*
 npx hardhat redeem --network sepolia --redemption-address 0x123 --asset-amount 10000000 --min-output-amount 0
 */
-task('redeem', 'Redeem tokens from the SecuritizeOffRamp contract')
-    .addParam('redemptionAddress', 'SecuritizeOffRamp contract address')
+task('redeem', 'Redeem tokens from the RegularOffRamp contract')
+    .addParam('redemptionAddress', 'RegularOffRamp contract address')
     .addParam('assetAmount', 'Amount of tokens to redeem')
     .addParam('minOutputAmount', 'Minimum amount of output tokens to receive')
     .addFlag('force', 'Force the redemption even if the amount is zero')
@@ -192,7 +192,7 @@ task('redeem', 'Redeem tokens from the SecuritizeOffRamp contract')
         console.log(`- Asset Amount: ${taskArgs.assetAmount}`);
         console.log(`- Min Output Amount: ${taskArgs.minOutputAmount}`);
 
-        const redemption = await hre.ethers.getContractAt('SecuritizeOffRamp', taskArgs.redemptionAddress);
+        const redemption = await hre.ethers.getContractAt('RegularOffRamp', taskArgs.redemptionAddress);
         const tx = await redemption.redeem(taskArgs.assetAmount, taskArgs.minOutputAmount, {
             ...(taskArgs.force ? { gasLimit: 1000000 } : {}),
         });

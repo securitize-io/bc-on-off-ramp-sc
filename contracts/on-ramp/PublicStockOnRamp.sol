@@ -18,6 +18,8 @@
 pragma solidity ^0.8.22;
 
 import {IPublicStockOnRamp} from "./IPublicStockOnRamp.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {BaseOnRamp} from "./BaseOnRamp.sol";
 import {IFeeManager} from "../fee/IFeeManager.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";

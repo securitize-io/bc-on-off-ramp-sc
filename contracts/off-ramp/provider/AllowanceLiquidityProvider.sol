@@ -21,7 +21,7 @@ import {BaseContract} from "../../common/BaseContract.sol";
 import {IAllowanceLiquidityProvider} from "./IAllowanceLiquidityProvider.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-import {ISecuritizeOffRamp} from "../ISecuritizeOffRamp.sol";
+import {IBaseOffRamp} from "../IBaseOffRamp.sol";
 
 contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract {
     /**
@@ -32,7 +32,7 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
     /**
      * @dev securitize redemption contract.
      */
-    ISecuritizeOffRamp public securitizeOffRamp;
+    IBaseOffRamp public securitizeOffRamp;
 
     /**
      * @dev recipient wallet.
@@ -82,7 +82,7 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
         __BaseContract_init();
         recipient = _recipient;
         liquidityToken = IERC20Metadata(_liquidityToken);
-        securitizeOffRamp = ISecuritizeOffRamp(_securitizeOffRamp);
+        securitizeOffRamp = IBaseOffRamp(_securitizeOffRamp);
         liquidityProviderWallet = _liquidityProviderWallet;
     }
 

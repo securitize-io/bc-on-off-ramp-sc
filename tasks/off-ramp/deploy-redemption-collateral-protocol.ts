@@ -15,7 +15,7 @@ npx hardhat deploy-redemption-collateral-protocol \
     --verify
 */
 task('deploy-redemption-collateral-protocol', 'Deploy Redemption Protocol (Collateral implementation)')
-    // SecuritizeOffRamp arguments
+    // RegularOffRamp arguments
     .addParam('asset', 'DS Token to be redeemed')
     .addParam('navProvider', 'NAV rate provider address')
     .addParam('feeManager', 'Fee manager address')
@@ -55,10 +55,7 @@ task('deploy-redemption-collateral-protocol', 'Deploy Redemption Protocol (Colla
             silenceLogs: args.silenceLogs,
         });
 
-        const collateralContract = await hre.ethers.getContractAt(
-            'ISecuritizeOffRamp',
-            args.externalCollateralRedemption,
-        );
+        const collateralContract = await hre.ethers.getContractAt('IRegularOffRamp', args.externalCollateralRedemption);
 
         const { liquidityProviderAddress } = await hre.run('deploy-collateral-provider', {
             liquidity: args.liquidityToken,
@@ -72,7 +69,7 @@ task('deploy-redemption-collateral-protocol', 'Deploy Redemption Protocol (Colla
         });
 
         // // Get contract instances
-        const redemption = await hre.ethers.getContractAt('SecuritizeOffRamp', redemptionAddress);
+        const redemption = await hre.ethers.getContractAt('RegularOffRamp', redemptionAddress);
         const liquidityProvider = await hre.ethers.getContractAt(
             'CollateralLiquidityProvider',
             liquidityProviderAddress,
@@ -105,7 +102,7 @@ task('deploy-redemption-collateral-protocol', 'Deploy Redemption Protocol (Colla
 task('deploy-collateral-provider', 'Deploy CollateralLiquidityProvider proxy')
     .addParam('liquidity', 'Stable coin to provide liquidity')
     .addParam('recipient', 'Wallet that receives DS Token')
-    .addParam('securitizeOffRamp', 'SecuritizeOffRamp proxy address')
+    .addParam('securitizeOffRamp', 'RegularOffRamp proxy address')
     .addParam('externalCollateralRedemption', 'External Collateral Redemption SC')
     .addParam('collateralProvider', 'Collateral Provider address')
     .addFlag('verify', 'Verify contracts on Etherscan')

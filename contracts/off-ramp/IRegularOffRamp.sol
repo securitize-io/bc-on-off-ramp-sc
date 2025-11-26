@@ -17,17 +17,14 @@
  */
 pragma solidity ^0.8.22;
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {IRegularOffRamp} from "../IRegularOffRamp.sol";
+import {IBaseOffRamp} from "./IBaseOffRamp.sol";
 
-contract MockAllowanceLiquidityProvider {
-    IERC20 public liquidityToken;
-    address public recipient;
-    IRegularOffRamp public securitizeOffRamp;
+interface IRegularOffRamp is IBaseOffRamp {
 
-    constructor(address _liquidityToken, address _recipient, address _securitizeOffRamp) {
-        liquidityToken = IERC20(_liquidityToken);
-        recipient = _recipient;
-        securitizeOffRamp = IRegularOffRamp(_securitizeOffRamp);
-    }
+    /**
+     * @dev Redeems asset tokens for liquidity tokens using on-chain NAV rate
+     * @param assetAmount The amount of asset tokens to redeem
+     * @param minOutputAmount The minimum amount of liquidity tokens that must be received (slippage protection)
+     */
+    function redeem(uint256 assetAmount, uint256 minOutputAmount) external;
 }
