@@ -97,17 +97,6 @@ interface IBaseOnRamp is IOnOffRamp {
     ) external;
 
     /**
-     * @dev Calculates the DSToken amount using current NAV rate.
-     * @param _liquidityAmount the amount of stable coins
-     * @return dsTokenAmount
-     * @return rate
-     * @return fee
-     */
-    function calculateDsTokenAmount(
-        uint256 _liquidityAmount
-    ) external view returns (uint256 dsTokenAmount, uint256 rate, uint256 fee);
-
-    /**
      * @dev Update the asset provider
      * @param _assetProvider The new asset provider address
      */

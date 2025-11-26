@@ -82,7 +82,7 @@ abstract contract BaseOnRamp is IBaseOnRamp, EIP712Upgradeable, BaseContract {
             revert SlippageControlError();
         }
 
-        _executeLiquidityTransfer(investorWallet, _liquidityAmount);
+        _executeLiquidityTransfer(_investorWallet, _liquidityAmount);
         _executeAssetTransfer(_investorWallet, _dsTokenAmount);
     }
 

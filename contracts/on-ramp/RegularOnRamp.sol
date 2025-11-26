@@ -22,10 +22,10 @@ import {BaseOnRamp} from "./BaseOnRamp.sol";
 import {IDSServiceConsumer} from "@securitize/digital_securities/contracts/service/IDSServiceConsumer.sol";
 import {IDSTrustService} from "@securitize/digital_securities/contracts/trust/IDSTrustService.sol";
 import {IDSRegistryService} from "@securitize/digital_securities/contracts/registry/IDSRegistryService.sol";
-import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {ISecuritizeNavProvider} from "@securitize/digital_securities/contracts/nav/ISecuritizeNavProvider.sol";
 import {IFeeManager} from "../fee/IFeeManager.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 contract RegularOnRamp is IRegularOnRamp, BaseOnRamp {
