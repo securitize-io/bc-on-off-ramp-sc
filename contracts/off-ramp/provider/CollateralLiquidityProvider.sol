@@ -192,7 +192,7 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
         externalCollateralRedemption.redeem(collateralAmount, 0);
 
         // Discount the fee charged by the external collateral redemption
-        (amountToSupply, , ) = externalCollateralRedemption.calculateLiquidityTokenAmount(collateralAmount);
+        amountToSupply = externalCollateralRedemption.calculateLiquidityTokenAmount(collateralAmount);
 
         // Supply redeemer
         liquidityToken.transfer(_redeemer, amountToSupply);
@@ -215,7 +215,7 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
     function _calculateLiquidityTokenAmount(uint256 _liquidityAmount) private view returns (uint256 amountToSupply) {
         // Convert liquidity amount to collateral amount
         uint256 collateralAmount = _liquidityTokenToExternalCollateralToken(_liquidityAmount);
-        (amountToSupply, , ) = externalCollateralRedemption.calculateLiquidityTokenAmount(collateralAmount);
+        amountToSupply = externalCollateralRedemption.calculateLiquidityTokenAmount(collateralAmount);
     }
 
     /**

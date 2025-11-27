@@ -40,7 +40,7 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
 
             it('Should fail when trying to initialize with a zero address NAV provider', async function () {
                 const { dsTokenMock } = await loadFixture(deployRedemptionProtocol);
-                const Redemption = await hre.ethers.getContractFactory('SecuritizeOffRamp');
+                const Redemption = await hre.ethers.getContractFactory('RegularOffRamp');
                 await expect(
                     hre.upgrades.deployProxy(Redemption, [
                         await dsTokenMock.getAddress(),

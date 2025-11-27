@@ -111,14 +111,12 @@ abstract contract BaseOffRamp is IBaseOffRamp, EIP712Upgradeable, BaseContract {
     /**
      * @notice Calculates liquidity tokens received for an asset amount.
      * @param _assetAmount Asset amount to redeem.
-     * @return liquidityTokenAmount Liquidity tokens after fees.
-     * @return rate NAV rate used for the conversion.
-     * @return fee Fee charged in liquidity tokens.
+     * @return The amount of liquidity tokens after fees.
      */
     function calculateLiquidityTokenAmount(
         uint256 _assetAmount
-    ) public view virtual override nonZeroLiquidityProvider returns (uint256 liquidityTokenAmount, uint256 rate, uint256 fee) {
-        rate = navProvider.rate();
+    ) public view virtual override nonZeroLiquidityProvider returns (uint256) {
+        uint256 rate = navProvider.rate();
         if (rate == 0) {
             revert NonZeroNavRateError();
         }
@@ -129,8 +127,8 @@ abstract contract BaseOffRamp is IBaseOffRamp, EIP712Upgradeable, BaseContract {
             assetDecimals
         );
         uint256 effectiveAmount = liquidityProvider.calculateEffectiveLiquidityTokenAmount(amountBeforeFee);
-        fee = TokenCalculator.calculateFee(feeManager, effectiveAmount);
-        liquidityTokenAmount = effectiveAmount - fee;
+        uint256 fee = TokenCalculator.calculateFee(feeManager, effectiveAmount);
+        return effectiveAmount - fee;
     }
 
     /**

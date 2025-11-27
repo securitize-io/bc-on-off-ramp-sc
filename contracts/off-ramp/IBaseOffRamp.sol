@@ -93,15 +93,11 @@ interface IBaseOffRamp is IOnOffRamp, ISecuritizeOffRampErrors {
     function updateNavProvider(address _navProvider) external;
 
     /**
-     * @dev Calculates the amount of liquidity tokens to be received for a given asset amount, including the rate and fee
+     * @dev Calculates the amount of liquidity tokens to be received for a given asset amount
      * @param _assetAmount The amount of asset tokens to redeem
-     * @return liquidityTokenAmount The amount of liquidity tokens that will be received (after fees)
-     * @return rate The current conversion rate between asset and liquidity tokens
-     * @return fee The fee amount that will be deducted from the liquidity amount
+     * @return The amount of liquidity tokens that will be received (after fees)
      */
-    function calculateLiquidityTokenAmount(
-        uint256 _assetAmount
-    ) external view returns (uint256 liquidityTokenAmount, uint256 rate, uint256 fee);
+    function calculateLiquidityTokenAmount(uint256 _assetAmount) external view returns (uint256);
 
     /**
      * @dev Calculates the amount of liquidity tokens to receive in redemption process before fees

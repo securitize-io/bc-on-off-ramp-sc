@@ -92,30 +92,27 @@ contract PublicStockOffRamp is IPublicStockOffRamp, BaseOffRamp {
     }
 
     /**
-     * @notice Calculates liquidity tokens for a given asset amount using a provided NAV rate.
+     * @notice Calculates liquidity tokens for a given asset amount using a provided anchor rate.
      * @param _assetAmount Asset amount to redeem.
-     * @param _navRate NAV rate used for conversion.
-     * @return liquidityTokenAmount Liquidity tokens after fees.
-     * @return usedRate NAV rate applied.
-     * @return fee Fee charged in liquidity tokens.
+     * @param _anchorRate Anchor price/exchange rate used for conversion.
+     * @return The amount of liquidity tokens after fees.
      */
     function calculateLiquidityTokenAmount(
         uint256 _assetAmount,
-        uint256 _navRate
-    ) public view override nonZeroLiquidityProvider returns (uint256 liquidityTokenAmount, uint256 usedRate, uint256 fee) {
-        if (_navRate == 0) {
+        uint256 _anchorRate
+    ) public view override nonZeroLiquidityProvider returns (uint256) {
+        if (_anchorRate == 0) {
             revert NonZeroNavRateError();
         }
         uint256 amountBeforeFee = TokenCalculator.calculateLiquidityTokenAmountBeforeFee(
             _assetAmount,
-            _navRate,
+            _anchorRate,
             liquidityDecimals,
             assetDecimals
         );
         uint256 effectiveAmount = liquidityProvider.calculateEffectiveLiquidityTokenAmount(amountBeforeFee);
-        fee = TokenCalculator.calculateFee(feeManager, effectiveAmount);
-        liquidityTokenAmount = effectiveAmount - fee;
-        usedRate = _navRate;
+        uint256 fee = TokenCalculator.calculateFee(feeManager, effectiveAmount);
+        return effectiveAmount - fee;
     }
 
     /**

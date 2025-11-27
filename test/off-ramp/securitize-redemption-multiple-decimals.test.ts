@@ -18,7 +18,7 @@ describe('Securitize Redemption Multiple Decimals', function () {
         ]);
 
         // Deploy redemption contract
-        const Redemption = await hre.ethers.getContractFactory('SecuritizeOffRamp');
+        const Redemption = await hre.ethers.getContractFactory('RegularOffRamp');
 
         // Should revert when initializing with token that has more than 18 decimals
         await expect(
