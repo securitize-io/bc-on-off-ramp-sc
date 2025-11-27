@@ -26,7 +26,6 @@ import {ISecuritizeNavProvider} from "@securitize/digital_securities/contracts/n
 interface IBaseOffRamp is IOnOffRamp, ISecuritizeOffRampErrors {
 
     error InvalidEIP712SignatureError();
-    error TransactionExpiredError();
 
     /**
      * @dev Emitted when redemption is completed.

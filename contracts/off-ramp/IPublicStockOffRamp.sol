@@ -28,8 +28,7 @@ interface IPublicStockOffRamp is IBaseOffRamp {
      * @param _investorWallet Address of the investor's wallet (asset holder)
      * @param _investorSignature Signature of the investor
      * @param _marketStatus Current market status
-     * @param _anchorPrice Current anchor price for redemption
-     * @param _deadline Timestamp after which the transaction is no longer valid
+     * @param _navPrice Current NAV price
      */
     function redeem(
         uint256 _assetAmount,
@@ -37,8 +36,7 @@ interface IPublicStockOffRamp is IBaseOffRamp {
         address _investorWallet,
         bytes memory _investorSignature,
         uint8 _marketStatus,
-        uint256 _anchorPrice,
-        uint256 _deadline
+        uint256 _navPrice
     ) external;
 
     /**

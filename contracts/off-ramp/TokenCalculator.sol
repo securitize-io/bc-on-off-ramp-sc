@@ -10,15 +10,6 @@ import {IFeeManager} from "../fee/IFeeManager.sol";
 /**
  * @title TokenCalculator
  * @dev Handles token amount calculations and fee computations
- *
- * @notice Overflow Protection:
- * This contract relies on Solidity 0.8.22's built-in overflow/underflow protection.
- * Calculations will revert (not wrap) if intermediate values exceed uint256 max.
- *
- * For extremely large values (assetAmount * rate * 10^decimals > 2^256):
- * - Transaction will revert with panic code 0x11 (arithmetic overflow)
- * - This is intentional to prevent incorrect calculations
- * - Consider breaking large redemptions into smaller batches if needed
  */
 library TokenCalculator {
     /**
