@@ -42,11 +42,13 @@ interface IPublicStockOffRamp is IBaseOffRamp {
     /**
      * @dev Calculates the amount of liquidity tokens to be received for a given asset amount
      * @param _assetAmount Amount of asset tokens to convert
-     * @param _anchorRate Anchor price/exchange rate
+     * @param _anchorPrice Anchor price for conversion
      * @return The amount of liquidity tokens to be received (after fees)
+     * TODO: Add _marketStatus parameter to decide between anchor price or NAV provider
      */
     function calculateLiquidityTokenAmount(
         uint256 _assetAmount,
-        uint256 _anchorRate
+        uint256 _anchorPrice,
+        uint8 /*_marketStatus*/  // TODO: define market status enum
     ) external view returns (uint256);
 }

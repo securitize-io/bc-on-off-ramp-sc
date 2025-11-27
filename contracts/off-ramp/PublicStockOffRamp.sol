@@ -92,21 +92,27 @@ contract PublicStockOffRamp is IPublicStockOffRamp, BaseOffRamp {
     }
 
     /**
-     * @notice Calculates liquidity tokens for a given asset amount using a provided anchor rate.
+     * @notice Calculates liquidity tokens for a given asset amount using a provided anchor price.
      * @param _assetAmount Asset amount to redeem.
-     * @param _anchorRate Anchor price/exchange rate used for conversion.
+     * @param _anchorPrice Anchor price for conversion.
      * @return The amount of liquidity tokens after fees.
+     * TODO: Use _marketStatus parameter to decide between _anchorPrice or navProvider.rate()
      */
     function calculateLiquidityTokenAmount(
         uint256 _assetAmount,
-        uint256 _anchorRate
+        uint256 _anchorPrice,
+        uint8 /*_marketStatus*/  // TODO: define market status enum
     ) public view override nonZeroLiquidityProvider returns (uint256) {
-        if (_anchorRate == 0) {
+        // TODO: Implement logic based on _marketStatus
+        // if (marketStatus == MARKET_OPEN) use _anchorPrice
+        // if (marketStatus == MARKET_CLOSED) use navProvider.rate()
+
+        if (_anchorPrice == 0) {
             revert NonZeroNavRateError();
         }
         uint256 amountBeforeFee = TokenCalculator.calculateLiquidityTokenAmountBeforeFee(
             _assetAmount,
-            _anchorRate,
+            _anchorPrice,
             liquidityDecimals,
             assetDecimals
         );
