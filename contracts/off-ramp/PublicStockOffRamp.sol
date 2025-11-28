@@ -129,7 +129,7 @@ contract PublicStockOffRamp is IPublicStockOffRamp, BaseOffRamp {
         (uint256 fee, uint256 liquidityValue) = _redeem(_assetAmount, _minOutputAmount, execPrice, _investorWallet);
 
         emit RedemptionCompleted(
-            _msgSender(),
+            _investorWallet,
             _assetAmount,
             liquidityValue,
             execPrice,
