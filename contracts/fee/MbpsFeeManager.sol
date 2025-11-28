@@ -59,7 +59,7 @@ contract MbpsFeeManager is IFeeManager, BaseContract {
      * @dev Sets the fee percentage
      * @param _fee Fee percentage in mbps (1 mbps = 0.001)
      */
-    function setFeePercentageMBPS(uint256 _fee) external onlyOwner {
+    function setFeePercentageMBPS(uint256 _fee) external onlyRole(DEFAULT_ADMIN_ROLE) {
         uint256 oldFee = feePercentageMBPS;
         feePercentageMBPS = _fee;
         emit FeeUpdated(oldFee, _fee);
@@ -69,7 +69,7 @@ contract MbpsFeeManager is IFeeManager, BaseContract {
      * @dev Sets the fee collector address
      * @param _feeCollector Address to collect fees
      */
-    function setFeeCollector(address _feeCollector) external onlyOwner {
+    function setFeeCollector(address _feeCollector) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (_feeCollector == address(0)) {
             revert NonZeroAddressError();
         }

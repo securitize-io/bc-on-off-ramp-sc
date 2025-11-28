@@ -1,9 +1,9 @@
 import { task, types } from 'hardhat/config';
-import { RegularOffRamp } from '../../typechain-types';
+import { SecuritizeOffRamp } from '../../typechain-types';
 import { consoleCyan } from '../../utils';
 
 task('update-countries-restriction', 'Update restriction status for multiple countries at once')
-    .addParam('redemption', 'Address of the RegularOffRamp contract', undefined, types.string)
+    .addParam('redemption', 'Address of the SecuritizeOffRamp contract', undefined, types.string)
     .addParam(
         'countries',
         'Comma-separated list of country codes (2-3 uppercase characters each)',
@@ -32,8 +32,8 @@ task('update-countries-restriction', 'Update restriction status for multiple cou
         console.log(`Using signer: ${signer.address}`);
 
         // Connect to the redemption contract
-        const contract = await hre.ethers.getContractAt('RegularOffRamp', args.redemption, signer);
-        const redemption = contract as unknown as RegularOffRamp;
+        const contract = await hre.ethers.getContractAt('SecuritizeOffRamp', args.redemption, signer);
+        const redemption = contract as unknown as SecuritizeOffRamp;
 
         if (signer.address !== (await redemption.owner())) {
             throw new Error('Signer is not the owner of the contract');

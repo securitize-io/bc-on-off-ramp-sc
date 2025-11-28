@@ -80,7 +80,7 @@ contract PublicStockOffRamp is IPublicStockOffRamp, BaseOffRamp {
      * @notice Updates the NAV provider address.
      * @param _navProvider New NAV provider address.
      */
-    function updateNavProvider(address _navProvider) public onlyOwner {
+    function updateNavProvider(address _navProvider) public onlyRole(DEFAULT_ADMIN_ROLE) {
         if (_navProvider == address(0)) {
             revert NonZeroAddressError();
         }
@@ -112,6 +112,7 @@ contract PublicStockOffRamp is IPublicStockOffRamp, BaseOffRamp {
         override
         whenNotPaused
         initializedNavProvider
+        onlyRole(OPERATOR_ROLE)
     {
         if (block.timestamp > _anchorPriceExpiresAt) {
             revert PriceExpiredError();

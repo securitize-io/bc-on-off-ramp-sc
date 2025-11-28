@@ -76,7 +76,7 @@ abstract contract BaseOffRamp is IBaseOffRamp, EIP712Upgradeable, BaseContract {
      */
     function updateLiquidityProvider(
         address _liquidityProvider
-    ) public virtual override onlyOwner addressNonZero(_liquidityProvider) {
+    ) public virtual override onlyRole(DEFAULT_ADMIN_ROLE) addressNonZero(_liquidityProvider) {
         address oldProvider = address(liquidityProvider);
         liquidityProvider = ILiquidityProvider(_liquidityProvider);
 
@@ -101,7 +101,7 @@ abstract contract BaseOffRamp is IBaseOffRamp, EIP712Upgradeable, BaseContract {
      * @notice Enables or disables the two-step transfer flow.
      * @param _twoStepTransfer Desired two-step transfer flag.
      */
-    function toggleTwoStepTransfer(bool _twoStepTransfer) external override onlyOwner {
+    function toggleTwoStepTransfer(bool _twoStepTransfer) external override onlyRole(DEFAULT_ADMIN_ROLE) {
         twoStepTransfer = _twoStepTransfer;
         emit TwoStepTransferUpdated(twoStepTransfer);
     }
@@ -111,7 +111,7 @@ abstract contract BaseOffRamp is IBaseOffRamp, EIP712Upgradeable, BaseContract {
      * @param _country Country code.
      * @param _isRestricted Whether the country is restricted.
      */
-    function updateCountryRestriction(string memory _country, bool _isRestricted) external override onlyOwner {
+    function updateCountryRestriction(string memory _country, bool _isRestricted) external override onlyRole(DEFAULT_ADMIN_ROLE) {
         _updateCountryRestriction(_country, _isRestricted);
     }
 
@@ -120,7 +120,7 @@ abstract contract BaseOffRamp is IBaseOffRamp, EIP712Upgradeable, BaseContract {
      * @param _countries Country codes.
      * @param _isRestricted Whether the countries are restricted.
      */
-    function updateCountriesRestriction(string[] memory _countries, bool _isRestricted) external override onlyOwner {
+    function updateCountriesRestriction(string[] memory _countries, bool _isRestricted) external override onlyRole(DEFAULT_ADMIN_ROLE) {
         for (uint256 i = 0; i < _countries.length; i++) {
             _updateCountryRestriction(_countries[i], _isRestricted);
         }

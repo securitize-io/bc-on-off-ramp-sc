@@ -17,12 +17,12 @@
  */
 pragma solidity ^0.8.22;
 
-import {IRegularOffRamp} from "./IRegularOffRamp.sol";
+import {ISecuritizeOffRamp} from "./ISecuritizeOffRamp.sol";
 import {BaseOffRamp} from "./BaseOffRamp.sol";
 import {ISecuritizeNavProvider} from "@securitize/digital_securities/contracts/nav/ISecuritizeNavProvider.sol";
 import {TokenCalculator} from "./TokenCalculator.sol";
 
-contract RegularOffRamp is IRegularOffRamp, BaseOffRamp {
+contract SecuritizeOffRamp is ISecuritizeOffRamp, BaseOffRamp {
 
     string public constant NAME = "SecuritizeOffRamp";
     string public constant VERSION = "1";
@@ -45,7 +45,7 @@ contract RegularOffRamp is IRegularOffRamp, BaseOffRamp {
     }
 
     /**
-     * @notice Initializes RegularOffRamp implementation.
+     * @notice Initializes SecuritizeOffRamp implementation.
      * @param _asset DS asset address.
      * @param _navProvider NAV provider address.
      * @param _feeManager Fee manager address.
@@ -70,7 +70,7 @@ contract RegularOffRamp is IRegularOffRamp, BaseOffRamp {
      * @notice Updates the NAV provider address.
      * @param _navProvider New NAV provider address.
      */
-    function updateNavProvider(address _navProvider) public onlyOwner {
+    function updateNavProvider(address _navProvider) public onlyRole(DEFAULT_ADMIN_ROLE) {
         if (_navProvider == address(0)) {
             revert NonZeroAddressError();
         }
@@ -128,6 +128,7 @@ contract RegularOffRamp is IRegularOffRamp, BaseOffRamp {
         override
         whenNotPaused
         nonZeroNavRate
+        onlyRole(OPERATOR_ROLE)
     {
         uint256 rate = navProvider.rate();
         (uint256 fee, uint256 liquidityValue) = _redeem(_assetAmount, _minOutputAmount, rate, _msgSender());

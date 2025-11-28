@@ -18,12 +18,12 @@
 pragma solidity ^0.8.22;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {IRegularOffRamp} from "../IRegularOffRamp.sol";
+import {ISecuritizeOffRamp} from "../ISecuritizeOffRamp.sol";
 
 contract MockAllowanceLiquidityProvider {
     IERC20 public liquidityToken;
     address public recipient;
-    IRegularOffRamp public securitizeOffRamp;
+    ISecuritizeOffRamp public securitizeOffRamp;
 
     /**
      * @dev Mock constructor wiring token, recipient, and off-ramp.
@@ -34,6 +34,6 @@ contract MockAllowanceLiquidityProvider {
     constructor(address _liquidityToken, address _recipient, address _securitizeOffRamp) {
         liquidityToken = IERC20(_liquidityToken);
         recipient = _recipient;
-        securitizeOffRamp = IRegularOffRamp(_securitizeOffRamp);
+        securitizeOffRamp = ISecuritizeOffRamp(_securitizeOffRamp);
     }
 }

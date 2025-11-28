@@ -14,7 +14,7 @@ npx hardhat deploy-redemption-allowance-protocol \
     --verify
 */
 task('deploy-redemption-allowance-protocol', 'Deploy Redemption Protocol (Allowance implementation)')
-    // RegularOffRamp arguments
+    // SecuritizeOffRamp arguments
     .addParam('asset', 'DS Token to be redeemed')
     .addParam('navProvider', 'NAV rate provider address')
     .addParam('feeManager', 'Fee manager address')
@@ -52,7 +52,7 @@ task('deploy-redemption-allowance-protocol', 'Deploy Redemption Protocol (Allowa
         });
 
         // Get contract instances
-        const redemption = await hre.ethers.getContractAt('RegularOffRamp', redemptionAddress);
+        const redemption = await hre.ethers.getContractAt('SecuritizeOffRamp', redemptionAddress);
         const liquidityProvider = await hre.ethers.getContractAt(
             'AllowanceLiquidityProvider',
             liquidityProviderAddress,
@@ -76,9 +76,9 @@ task('deploy-redemption-allowance-protocol', 'Deploy Redemption Protocol (Allowa
         return { redemption, liquidityProvider };
     });
 
-// Deploy RegularOffRamp proxy
+// Deploy SecuritizeOffRamp proxy
 // npx hardhat deploy-offramp --network sepolia --asset 0x123 --nav-provider 0xe76B92272667363FD487a71c13b7799ED924C9b8 --fee-manager 0xe76B92272667363FD487a71c13b7799ED924C9b8 --asset-burn false --verify
-task('deploy-offramp', 'Deploy RegularOffRamp proxy')
+task('deploy-offramp', 'Deploy SecuritizeOffRamp proxy')
     .addParam('asset', 'DS Token to be redeemed')
     .addParam('navProvider', 'NAV rate provider address')
     .addParam('feeManager', 'Fee manager address')
@@ -97,7 +97,7 @@ task('deploy-offramp', 'Deploy RegularOffRamp proxy')
         }
 
         const { proxyAddress, implAddress } = await hre.run('deploy-proxy', {
-            contractName: 'RegularOffRamp',
+            contractName: 'SecuritizeOffRamp',
             kind: 'uups',
             args: [taskArgs.asset, taskArgs.navProvider, taskArgs.feeManager, taskArgs.assetBurn],
             verify: taskArgs.verify,
@@ -112,7 +112,7 @@ task('deploy-offramp', 'Deploy RegularOffRamp proxy')
 task('deploy-allowance-provider', 'Deploy AllowanceLiquidityProvider proxy')
     .addParam('liquidityToken', 'Stable coin to provide liquidity')
     .addParam('recipient', 'Wallet that receives DS Token')
-    .addParam('redemptionAddress', 'RegularOffRamp proxy address')
+    .addParam('redemptionAddress', 'SecuritizeOffRamp proxy address')
     .addFlag('verify', 'Verify contracts on Etherscan')
     .addFlag('silenceLogs', 'Verbose output')
     .addOptionalParam('providerWallet', 'Wallet that provides liquidity')

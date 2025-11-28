@@ -40,7 +40,7 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
 
             it('Should fail when trying to initialize with a zero address NAV provider', async function () {
                 const { dsTokenMock } = await loadFixture(deployRedemptionProtocol);
-                const Redemption = await hre.ethers.getContractFactory('RegularOffRamp');
+                const Redemption = await hre.ethers.getContractFactory('SecuritizeOffRamp');
                 await expect(
                     hre.upgrades.deployProxy(Redemption, [
                         await dsTokenMock.getAddress(),
@@ -64,7 +64,7 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 const redemptionFromUnauthorized = await redemption.connect(unauthorized);
                 await expect(redemptionFromUnauthorized.pause()).revertedWithCustomError(
                     redemption,
-                    'OwnableUnauthorizedAccount',
+                    'AccessControlUnauthorizedAccount',
                 );
             });
 
@@ -144,7 +144,7 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 const liquidityProviderFromUnauthorized = await liquidityProvider.connect(unauthorized);
                 await expect(
                     liquidityProviderFromUnauthorized.setExternalCollateralRedemption(externalCollateralAddress),
-                ).revertedWithCustomError(liquidityProvider, 'OwnableUnauthorizedAccount');
+                ).revertedWithCustomError(liquidityProvider, 'AccessControlUnauthorizedAccount');
             });
         });
 
@@ -164,7 +164,7 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 const liquidityProviderFromUnauthorized = await liquidityProvider.connect(unauthorized);
                 await expect(
                     liquidityProviderFromUnauthorized.setCollateralProvider(collateralAddress),
-                ).revertedWithCustomError(liquidityProvider, 'OwnableUnauthorizedAccount');
+                ).revertedWithCustomError(liquidityProvider, 'AccessControlUnauthorizedAccount');
             });
         });
         describe('Pause/Unpause', function () {
@@ -174,7 +174,7 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 const liquidityProviderFromUnauthorized = await liquidityProvider.connect(unauthorized);
                 await expect(liquidityProviderFromUnauthorized.pause()).revertedWithCustomError(
                     liquidityProvider,
-                    'OwnableUnauthorizedAccount',
+                    'AccessControlUnauthorizedAccount',
                 );
             });
 
@@ -256,7 +256,7 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 const redemptionFromUnauthorized = await redemption.connect(unauthorized);
                 await expect(
                     redemptionFromUnauthorized.updateLiquidityProvider(liquidityProviderAddress),
-                ).revertedWithCustomError(redemptionFromUnauthorized, 'OwnableUnauthorizedAccount');
+                ).revertedWithCustomError(redemptionFromUnauthorized, 'AccessControlUnauthorizedAccount');
             });
         });
 
@@ -313,7 +313,7 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 const redemptionFromUnauthorized = await redemption.connect(unauthorized);
                 await expect(
                     redemptionFromUnauthorized.updateCountryRestriction(invalidCountryCode1, true),
-                ).revertedWithCustomError(redemptionFromUnauthorized, 'OwnableUnauthorizedAccount');
+                ).revertedWithCustomError(redemptionFromUnauthorized, 'AccessControlUnauthorizedAccount');
             });
 
             it('Should fail when trying to set a restricted country using lowercase code', async function () {
@@ -731,7 +731,7 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
                 const navProviderFromUnauthorized = await redemption.connect(unauthorized);
                 await expect(
                     navProviderFromUnauthorized.updateNavProvider(await securitizeNavProviderMock.getAddress()),
-                ).revertedWithCustomError(redemption, 'OwnableUnauthorizedAccount');
+                ).revertedWithCustomError(redemption, 'AccessControlUnauthorizedAccount');
             });
         });
     });

@@ -17,7 +17,7 @@
  */
 pragma solidity ^0.8.22;
 
-import {IRegularOnRamp} from "./IRegularOnRamp.sol";
+import {ISecuritizeOnRamp} from "./ISecuritizeOnRamp.sol";
 import {BaseOnRamp} from "./BaseOnRamp.sol";
 import {IDSServiceConsumer} from "@securitize/digital_securities/contracts/service/IDSServiceConsumer.sol";
 import {IDSTrustService} from "@securitize/digital_securities/contracts/trust/IDSTrustService.sol";
@@ -28,7 +28,7 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
-contract RegularOnRamp is IRegularOnRamp, BaseOnRamp {
+contract SecuritizeOnRamp is ISecuritizeOnRamp, BaseOnRamp {
     using Address for address;
     using ECDSA for bytes32;
 
@@ -71,7 +71,7 @@ contract RegularOnRamp is IRegularOnRamp, BaseOnRamp {
         custodianWallet = _custodianWallet;
         feeManager = IFeeManager(_feeManager);
 
-        // Initialize navProvider for RegularOnRamp
+        // Initialize navProvider for SecuritizeOnRamp
         if (_navProvider == address(0)) {
             revert NonZeroAddressError();
         }
@@ -82,7 +82,7 @@ contract RegularOnRamp is IRegularOnRamp, BaseOnRamp {
      * @notice Updates the NAV provider address.
      * @param _navProvider New NAV provider address.
      */
-    function updateNavProvider(address _navProvider) external onlyOwner {
+    function updateNavProvider(address _navProvider) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (_navProvider == address(0)) {
             revert NonZeroAddressError();
         }
@@ -155,6 +155,7 @@ contract RegularOnRamp is IRegularOnRamp, BaseOnRamp {
         nonZeroNavRate
         validateInvestorSubscription
         validateMinSubscriptionAmount(_liquidityAmount)
+        onlyRole(OPERATOR_ROLE)
     {
         (uint256 dsTokenAmount, uint256 rate, uint256 fee) = calculateDsTokenAmount(_liquidityAmount); // calculate dsToken using liquidityAmount - fee
 

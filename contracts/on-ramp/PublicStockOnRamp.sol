@@ -86,7 +86,7 @@ contract PublicStockOnRamp is IPublicStockOnRamp, BaseOnRamp {
      * @notice Updates the NAV provider implementation.
      * @param _navProvider New NAV provider address.
      */
-    function updateNavProvider(address _navProvider) external onlyOwner {
+    function updateNavProvider(address _navProvider) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (_navProvider == address(0)) {
             revert NonZeroAddressError();
         }
@@ -109,6 +109,7 @@ contract PublicStockOnRamp is IPublicStockOnRamp, BaseOnRamp {
         investorExists
         initializedNavProvider
         validateMinSubscriptionAmount(_liquidityAmount)
+        onlyRole(OPERATOR_ROLE)
     {
         // Validate anchor price hasn't expired
         if (block.timestamp > _anchorPriceExpiresAt) {

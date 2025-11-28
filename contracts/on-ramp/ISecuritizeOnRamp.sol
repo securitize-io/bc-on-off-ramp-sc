@@ -20,7 +20,7 @@ pragma solidity ^0.8.22;
 import {IBaseOnRamp} from "./IBaseOnRamp.sol";
 import {ISecuritizeNavProvider} from "@securitize/digital_securities/contracts/nav/ISecuritizeNavProvider.sol";
 
-interface IRegularOnRamp is IBaseOnRamp {
+interface ISecuritizeOnRamp is IBaseOnRamp {
 
     error IncorrectParamLength();
     error TransactionTooOldError();

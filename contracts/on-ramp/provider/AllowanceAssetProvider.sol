@@ -84,7 +84,7 @@ contract AllowanceAssetProvider is IAllowanceAssetProvider, BaseContract {
         assetProviderWallet = _assetProviderWallet;
     }
 
-    function setAllowanceProviderWallet(address _assetProviderWallet) external onlyOwner {
+    function setAllowanceProviderWallet(address _assetProviderWallet) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (_assetProviderWallet == address(0)) {
             revert NonZeroAddressError();
         }

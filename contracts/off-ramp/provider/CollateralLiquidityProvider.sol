@@ -22,7 +22,7 @@ import {BaseContract} from "../../common/BaseContract.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {IBaseOffRamp} from "../IBaseOffRamp.sol";
-import {IRegularOffRamp} from "../IRegularOffRamp.sol";
+import {ISecuritizeOffRamp} from "../ISecuritizeOffRamp.sol";
 import {ILiquidityProvider} from "./ILiquidityProvider.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {ISecuritizeNavProvider} from "@securitize/digital_securities/contracts/nav/ISecuritizeNavProvider.sol";
@@ -46,7 +46,7 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
     /**
      * @dev external collateral redemption contract.
      */
-    IRegularOffRamp public externalCollateralRedemption;
+    ISecuritizeOffRamp public externalCollateralRedemption;
 
     /**
      * @dev recipient wallet.
@@ -102,7 +102,7 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
         recipient = _recipient;
         liquidityToken = IERC20Metadata(_liquidityToken);
         securitizeOffRamp = IBaseOffRamp(_securitizeOffRamp);
-        externalCollateralRedemption = IRegularOffRamp(_externalCollateralRedemption);
+        externalCollateralRedemption = ISecuritizeOffRamp(_externalCollateralRedemption);
         collateralProvider = _collateralProvider;
 
         // Set collateralToken from externalCollateralRedemption.asset()
@@ -113,21 +113,21 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
      * @notice Sets a new external collateral redemption implementation.
      * @param _externalCollateralRedemption Address of the external collateral redemption contract.
      */
-    function setExternalCollateralRedemption(address _externalCollateralRedemption) external onlyOwner {
+    function setExternalCollateralRedemption(address _externalCollateralRedemption) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (_externalCollateralRedemption == address(0)) {
             revert NonZeroAddressError();
         }
 
         if (
             address(
-                ILiquidityProvider(address(IRegularOffRamp(_externalCollateralRedemption).liquidityProvider()))
+                ILiquidityProvider(address(ISecuritizeOffRamp(_externalCollateralRedemption).liquidityProvider()))
                     .liquidityToken()
             ) != address(liquidityToken)
         ) {
             revert LiquidityTokenMismatch();
         }
         address oldExternalCollateral = address(externalCollateralRedemption);
-        externalCollateralRedemption = IRegularOffRamp(_externalCollateralRedemption);
+        externalCollateralRedemption = ISecuritizeOffRamp(_externalCollateralRedemption);
         emit ExternalCollateralRedemptionUpdated(oldExternalCollateral, address(externalCollateralRedemption));
     }
 
@@ -135,7 +135,7 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
      * @notice Sets collateral provider wallet.
      * @param _collateralProvider Address providing collateral asset.
      */
-    function setCollateralProvider(address _collateralProvider) external onlyOwner {
+    function setCollateralProvider(address _collateralProvider) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (_collateralProvider == address(0)) {
             revert NonZeroAddressError();
         }

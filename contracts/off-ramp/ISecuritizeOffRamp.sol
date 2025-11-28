@@ -20,7 +20,7 @@ pragma solidity ^0.8.22;
 import {IBaseOffRamp} from "./IBaseOffRamp.sol";
 import {ISecuritizeNavProvider} from "@securitize/digital_securities/contracts/nav/ISecuritizeNavProvider.sol";
 
-interface IRegularOffRamp is IBaseOffRamp {
+interface ISecuritizeOffRamp is IBaseOffRamp {
 
     /**
      * @dev Redeems asset tokens for liquidity tokens using on-chain NAV rate

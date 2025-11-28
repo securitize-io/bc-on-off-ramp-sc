@@ -93,7 +93,7 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
      * @notice Sets allowance provider wallet.
      * @param _liquidityProviderWallet Wallet that provides liquidity.
      */
-    function setAllowanceProviderWallet(address _liquidityProviderWallet) external onlyOwner {
+    function setAllowanceProviderWallet(address _liquidityProviderWallet) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (_liquidityProviderWallet == address(0)) {
             revert NonZeroAddressError();
         }

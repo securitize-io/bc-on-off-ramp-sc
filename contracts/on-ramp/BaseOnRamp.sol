@@ -77,7 +77,7 @@ abstract contract BaseOnRamp is IBaseOnRamp, EIP712Upgradeable, BaseContract {
         _executeAssetTransfer(_investorWallet, _dsTokenAmount);
     }
 
-    function updateAssetProvider(address _assetProvider) external onlyOwner {
+    function updateAssetProvider(address _assetProvider) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (_assetProvider == address(0)) {
             revert NonZeroAddressError();
         }
@@ -86,19 +86,19 @@ abstract contract BaseOnRamp is IBaseOnRamp, EIP712Upgradeable, BaseContract {
         emit AssetProviderUpdated(oldProvider, _assetProvider);
     }
 
-    function updateMinSubscriptionAmount(uint256 _minSubscriptionAmount) external onlyOwner {
+    function updateMinSubscriptionAmount(uint256 _minSubscriptionAmount) external onlyRole(DEFAULT_ADMIN_ROLE) {
         uint256 oldValue = minSubscriptionAmount;
         minSubscriptionAmount = _minSubscriptionAmount;
         emit MinSubscriptionAmountUpdated(oldValue, minSubscriptionAmount);
     }
 
-    function updateBridgeParams(uint16 _chainId, address _bridge) external onlyOwner {
+    function updateBridgeParams(uint16 _chainId, address _bridge) external onlyRole(DEFAULT_ADMIN_ROLE) {
         bridgeChainId = _chainId;
         USDCBridge = IUSDCBridge(_bridge);
         emit BridgeParamsUpdated(_chainId, _bridge);
     }
 
-    function toggleInvestorSubscription(bool _investorSubscription) external onlyOwner {
+    function toggleInvestorSubscription(bool _investorSubscription) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (_investorSubscription == investorSubscriptionEnabled) {
             revert SameValueError();
         }
@@ -106,7 +106,7 @@ abstract contract BaseOnRamp is IBaseOnRamp, EIP712Upgradeable, BaseContract {
         emit InvestorSubscriptionUpdated(investorSubscriptionEnabled);
     }
 
-    function toggleTwoStepTransfer(bool _twoStepTransfer) external onlyOwner {
+    function toggleTwoStepTransfer(bool _twoStepTransfer) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (_twoStepTransfer == twoStepTransfer) {
             revert SameValueError();
         }

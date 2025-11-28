@@ -15,7 +15,7 @@ task('deploy-on-ramp', 'Deploy on ramp protocol')
     .addParam('provider', 'optional asset provider wallet', undefined, types.string, true)
     .setAction(async (args, hre) => {
         // On Ramp deployment
-        const OnRamp = await hre.ethers.getContractFactory('RegularOnRamp');
+        const OnRamp = await hre.ethers.getContractFactory('SecuritizeOnRamp');
         const onRamp = await hre.upgrades.deployProxy(OnRamp, [
             args.token,
             args.liquidity,
