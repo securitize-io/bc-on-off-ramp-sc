@@ -18,7 +18,7 @@
 pragma solidity ^0.8.22;
 
 import {IBaseOnRamp} from "./IBaseOnRamp.sol";
-import {ISecuritizeAmmNavProvider} from "../off-ramp/ISecuritizeAmmNavProvider.sol";
+import {ISecuritizeAmmNavProvider} from "../interfaces/ISecuritizeAmmNavProvider.sol";
 
 interface IPublicStockOnRamp is IBaseOnRamp {
 

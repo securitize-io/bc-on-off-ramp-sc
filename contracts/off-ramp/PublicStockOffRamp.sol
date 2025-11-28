@@ -21,7 +21,7 @@ import {IPublicStockOffRamp} from "./IPublicStockOffRamp.sol";
 import {BaseOffRamp} from "./BaseOffRamp.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {TokenCalculator} from "./TokenCalculator.sol";
-import {ISecuritizeAmmNavProvider} from "./ISecuritizeAmmNavProvider.sol";
+import {ISecuritizeAmmNavProvider} from "../interfaces/ISecuritizeAmmNavProvider.sol";
 
 contract PublicStockOffRamp is IPublicStockOffRamp, BaseOffRamp {
 

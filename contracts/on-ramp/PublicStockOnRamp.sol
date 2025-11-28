@@ -25,7 +25,7 @@ import {IFeeManager} from "../fee/IFeeManager.sol";
 import {IDSServiceConsumer} from "@securitize/digital_securities/contracts/service/IDSServiceConsumer.sol";
 import {IDSTrustService} from "@securitize/digital_securities/contracts/trust/IDSTrustService.sol";
 import {IDSRegistryService} from "@securitize/digital_securities/contracts/registry/IDSRegistryService.sol";
-import {ISecuritizeAmmNavProvider} from "../off-ramp/ISecuritizeAmmNavProvider.sol";
+import {ISecuritizeAmmNavProvider} from "../interfaces/ISecuritizeAmmNavProvider.sol";
 
 contract PublicStockOnRamp is IPublicStockOnRamp, BaseOnRamp {
 
