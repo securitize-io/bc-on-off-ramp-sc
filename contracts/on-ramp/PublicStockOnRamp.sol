@@ -118,16 +118,20 @@ contract PublicStockOnRamp is IPublicStockOnRamp, BaseOnRamp {
         // Validate investor signature
         validateInvestorSignature(_liquidityAmount, _minOutAmount, _investorWallet, _investorSignature);
 
+        // Calculate fee first
+        uint256 fee = feeManager.getFee(_liquidityAmount);
+        uint256 liquidityAmountExcludingFee = _liquidityAmount - fee;
+
         // Get actual price from AMM NAV provider
         // For OnRamp, we BUY base tokens (user pays quote/liquidity tokens, receives base/DS tokens)
         (, uint256 execPrice) = navProvider.executeBuyBase(
-            _liquidityAmount,
+            liquidityAmountExcludingFee,
             _anchorPrice,
             _marketStatus
         );
 
         // Calculate DS tokens using AMM execution price
-        (uint256 dsTokenAmount, uint256 fee) = _calculateDsTokenAmountWithPrice(_liquidityAmount, execPrice);
+        uint256 dsTokenAmount = _calculateDsTokenAmountWithPrice(liquidityAmountExcludingFee, execPrice);
 
         _swap(_liquidityAmount, dsTokenAmount, _minOutAmount, _investorWallet);
         emit Swap(_msgSender(), dsTokenAmount, _liquidityAmount, _investorWallet, execPrice, fee, address(liquidityToken));
@@ -140,11 +144,12 @@ contract PublicStockOnRamp is IPublicStockOnRamp, BaseOnRamp {
         nonZeroAnchorPrice(_anchorPrice)
         returns (uint256 dsTokenAmount, uint256 rate, uint256 fee)
     {
-        // Get execution price from AMM
-        (, uint256 execPrice) = navProvider.quoteBuyBase(_liquidityAmount, _anchorPrice, _marketStatus);
-
+        // Calculate fee first
         fee = feeManager.getFee(_liquidityAmount);
         uint256 liquidityAmountExcludingFee = _liquidityAmount - fee;
+
+        // Get execution price from AMM with net amount
+        (, uint256 execPrice) = navProvider.quoteBuyBase(liquidityAmountExcludingFee, _anchorPrice, _marketStatus);
 
         uint8 liquidityTokenDecimals = IERC20Metadata(address(liquidityToken)).decimals();
         uint8 assetDecimals = IERC20Metadata(address(assetProvider.asset())).decimals();
@@ -152,14 +157,11 @@ contract PublicStockOnRamp is IPublicStockOnRamp, BaseOnRamp {
         dsTokenAmount = (liquidityAmountExcludingFee * (10 ** (2 * assetDecimals))) / (rate * (10 ** liquidityTokenDecimals));
     }
 
-    function _calculateDsTokenAmountWithPrice(uint256 _liquidityAmount, uint256 _execPrice) private view returns (uint256 dsTokenAmount, uint256 fee) {
-        fee = feeManager.getFee(_liquidityAmount);
-        uint256 liquidityAmountExcludingFee = _liquidityAmount - fee;
-
+    function _calculateDsTokenAmountWithPrice(uint256 _liquidityAmountExcludingFee, uint256 _execPrice) private view returns (uint256 dsTokenAmount) {
         uint8 liquidityTokenDecimals = IERC20Metadata(address(liquidityToken)).decimals();
         uint8 assetDecimals = IERC20Metadata(address(assetProvider.asset())).decimals();
 
-        dsTokenAmount = (liquidityAmountExcludingFee * (10 ** (2 * assetDecimals))) / (_execPrice * (10 ** liquidityTokenDecimals));
+        dsTokenAmount = (_liquidityAmountExcludingFee * (10 ** (2 * assetDecimals))) / (_execPrice * (10 ** liquidityTokenDecimals));
     }
 
     /// @notice Validates the EIP-712 signature provided by the investor for the swap transaction
