@@ -18,6 +18,7 @@
 pragma solidity ^0.8.22;
 
 import {IBaseOnRamp} from "./IBaseOnRamp.sol";
+import {ISecuritizeNavProvider} from "@securitize/digital_securities/contracts/nav/ISecuritizeNavProvider.sol";
 
 interface IRegularOnRamp is IBaseOnRamp {
 
@@ -100,4 +101,10 @@ interface IRegularOnRamp is IBaseOnRamp {
      * @return fee The fee amount that will be deducted from the liquidity amount
      */
     function calculateDsTokenAmount(uint256 _liquidityAmount) external view returns (uint256 dsTokenAmount, uint256 rate, uint256 fee);
+
+    /**
+     * @dev The current NAV rate provider address
+     * @return The address of the NAV rate provider.
+     */
+    function navProvider() external view returns (ISecuritizeNavProvider);
 }

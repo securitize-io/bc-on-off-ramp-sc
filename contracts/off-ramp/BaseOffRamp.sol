@@ -23,7 +23,6 @@ import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/crypt
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {IDSToken} from "@securitize/digital_securities/contracts/token/IDSToken.sol";
 import {ILiquidityProvider} from "./provider/ILiquidityProvider.sol";
-import {ISecuritizeNavProvider} from "@securitize/digital_securities/contracts/nav/ISecuritizeNavProvider.sol";
 import {IDSServiceConsumer} from "@securitize/digital_securities/contracts/service/IDSServiceConsumer.sol";
 import {TokenDataStore} from "@securitize/digital_securities/contracts/data-stores/TokenDataStore.sol";
 import {RedemptionManager} from "./RedemptionManager.sol";
@@ -39,7 +38,6 @@ abstract contract BaseOffRamp is IBaseOffRamp, EIP712Upgradeable, BaseContract {
     uint256 internal liquidityDecimals;
     ILiquidityProvider public liquidityProvider;
 
-    ISecuritizeNavProvider public navProvider;
     IDSServiceConsumer public dsServiceConsumer;
 
     mapping(string => bool) public restrictedCountries;
@@ -56,13 +54,6 @@ abstract contract BaseOffRamp is IBaseOffRamp, EIP712Upgradeable, BaseContract {
     modifier addressNonZero(address _address) {
         if (_address == address(0)) {
             revert NonZeroAddressError();
-        }
-        _;
-    }
-
-    modifier nonZeroNavRate() {
-        if (navProvider.rate() <= 0) {
-            revert NonZeroNavRateError();
         }
         _;
     }
@@ -99,57 +90,11 @@ abstract contract BaseOffRamp is IBaseOffRamp, EIP712Upgradeable, BaseContract {
     }
 
     /**
-     * @notice Updates the NAV provider address.
-     * @param _navProvider New NAV provider address.
-     */
-    function updateNavProvider(address _navProvider) public virtual override onlyOwner addressNonZero(_navProvider) {
-        address oldProvider = address(navProvider);
-        navProvider = ISecuritizeNavProvider(_navProvider);
-        emit NavProviderUpdated(oldProvider, address(navProvider));
-    }
-
-    /**
-     * @notice Calculates liquidity tokens received for an asset amount.
-     * @param _assetAmount Asset amount to redeem.
-     * @return The amount of liquidity tokens after fees.
-     */
-    function calculateLiquidityTokenAmount(
-        uint256 _assetAmount
-    ) public view virtual override nonZeroLiquidityProvider returns (uint256) {
-        uint256 rate = navProvider.rate();
-        if (rate == 0) {
-            revert NonZeroNavRateError();
-        }
-        uint256 amountBeforeFee = TokenCalculator.calculateLiquidityTokenAmountBeforeFee(
-            _assetAmount,
-            rate,
-            liquidityDecimals,
-            assetDecimals
-        );
-        uint256 effectiveAmount = liquidityProvider.calculateEffectiveLiquidityTokenAmount(amountBeforeFee);
-        uint256 fee = TokenCalculator.calculateFee(feeManager, effectiveAmount);
-        return effectiveAmount - fee;
-    }
-
-    /**
      * @notice Returns available liquidity from the provider.
      * @return Available liquidity amount.
      */
     function availableLiquidity() external view override nonZeroLiquidityProvider returns (uint256) {
         return liquidityProvider.availableLiquidity();
-    }
-
-    /**
-     * @notice Calculates liquidity tokens before fees for an asset amount.
-     * @param _assetAmount Asset amount to redeem.
-     * @return Liquidity tokens before deducting fees.
-     */
-    function calculateLiquidityTokenAmountBeforeFee(uint256 _assetAmount) public view override nonZeroLiquidityProvider returns (uint256) {
-        uint256 rate = navProvider.rate();
-        if (rate == 0) {
-            revert NonZeroNavRateError();
-        }
-        return TokenCalculator.calculateLiquidityTokenAmountBeforeFee(_assetAmount, rate, liquidityDecimals, assetDecimals);
     }
 
     /**
@@ -195,16 +140,14 @@ abstract contract BaseOffRamp is IBaseOffRamp, EIP712Upgradeable, BaseContract {
     /**
      * @dev Internal initializer shared by off-ramp implementations.
      * @param _asset Address of the DS asset token.
-     * @param _navProvider NAV provider address.
      * @param _feeManager Fee manager address.
      * @param _assetBurn Whether redeemed asset is burned.
      */
     function _initializeBaseOffRamp(
         address _asset,
-        address _navProvider,
         address _feeManager,
         bool _assetBurn
-    ) internal onlyInitializing addressNonZero(_asset) addressNonZero(_navProvider) addressNonZero(_feeManager) {
+    ) internal onlyInitializing addressNonZero(_asset) addressNonZero(_feeManager) {
         __BaseContract_init();
 
         uint256 _assetDecimals = TokenDataStore(_asset).decimals();
@@ -214,7 +157,6 @@ abstract contract BaseOffRamp is IBaseOffRamp, EIP712Upgradeable, BaseContract {
 
         asset = IDSToken(_asset);
         dsServiceConsumer = IDSServiceConsumer(_asset);
-        navProvider = ISecuritizeNavProvider(_navProvider);
         feeManager = _feeManager;
         assetBurn = _assetBurn;
         assetDecimals = _assetDecimals;

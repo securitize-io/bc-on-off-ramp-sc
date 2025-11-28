@@ -21,7 +21,6 @@ import {IOnOffRamp} from "../common/IOnOffRamp.sol";
 import {ISecuritizeOffRampErrors} from "./ISecuritizeOffRampErrors.sol";
 import {IDSToken} from "@securitize/digital_securities/contracts/token/IDSToken.sol";
 import {ILiquidityProvider} from "./provider/ILiquidityProvider.sol";
-import {ISecuritizeNavProvider} from "@securitize/digital_securities/contracts/nav/ISecuritizeNavProvider.sol";
 
 interface IBaseOffRamp is IOnOffRamp, ISecuritizeOffRampErrors {
 
@@ -87,26 +86,6 @@ interface IBaseOffRamp is IOnOffRamp, ISecuritizeOffRampErrors {
     function updateLiquidityProvider(address _liquidityProvider) external;
 
     /**
-     * @dev Update the NAV rate provider implementation.
-     * @param _navProvider The NAV rate provider implementation address
-     */
-    function updateNavProvider(address _navProvider) external;
-
-    /**
-     * @dev Calculates the amount of liquidity tokens to be received for a given asset amount
-     * @param _assetAmount The amount of asset tokens to redeem
-     * @return The amount of liquidity tokens that will be received (after fees)
-     */
-    function calculateLiquidityTokenAmount(uint256 _assetAmount) external view returns (uint256);
-
-    /**
-     * @dev Calculates the amount of liquidity tokens to receive in redemption process before fees
-     * @param _assetAmount The amount of asset tokens to redeem.
-     * @return The amount of liquidity tokens.
-     */
-    function calculateLiquidityTokenAmountBeforeFee(uint256 _assetAmount) external view returns (uint256);
-
-    /**
      * @dev The available liquidity that can be supplied
      * @return The available liquidity amount
      */
@@ -143,12 +122,6 @@ interface IBaseOffRamp is IOnOffRamp, ISecuritizeOffRampErrors {
      * @return The address of the liquidity provider.
      */
     function liquidityProvider() external view returns (ILiquidityProvider);
-
-    /**
-     * @dev The current NAV rate provider address
-     * @return The address of the NAV rate provider.
-     */
-    function navProvider() external view returns (ISecuritizeNavProvider);
 
     /**
      * @dev The fee manager address

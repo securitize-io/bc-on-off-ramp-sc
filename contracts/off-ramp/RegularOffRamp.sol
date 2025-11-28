@@ -19,11 +19,25 @@ pragma solidity ^0.8.22;
 
 import {IRegularOffRamp} from "./IRegularOffRamp.sol";
 import {BaseOffRamp} from "./BaseOffRamp.sol";
+import {ISecuritizeNavProvider} from "@securitize/digital_securities/contracts/nav/ISecuritizeNavProvider.sol";
+import {TokenCalculator} from "./TokenCalculator.sol";
 
 contract RegularOffRamp is IRegularOffRamp, BaseOffRamp {
 
     string public constant NAME = "SecuritizeOffRamp";
     string public constant VERSION = "1";
+
+    ISecuritizeNavProvider public navProvider;
+
+    /**
+     * @dev Throws if the NAV rate is zero or not set
+     */
+    modifier nonZeroNavRate() {
+        if (navProvider.rate() <= 0) {
+            revert NonZeroNavRateError();
+        }
+        _;
+    }
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -44,7 +58,61 @@ contract RegularOffRamp is IRegularOffRamp, BaseOffRamp {
         bool _assetBurn
     ) public override initializer onlyProxy {
         __EIP712_init(NAME, VERSION);
-        _initializeBaseOffRamp(_asset, _navProvider, _feeManager, _assetBurn);
+        _initializeBaseOffRamp(_asset, _feeManager, _assetBurn);
+
+        if (_navProvider == address(0)) {
+            revert NonZeroAddressError();
+        }
+        navProvider = ISecuritizeNavProvider(_navProvider);
+    }
+
+    /**
+     * @notice Updates the NAV provider address.
+     * @param _navProvider New NAV provider address.
+     */
+    function updateNavProvider(address _navProvider) public onlyOwner {
+        if (_navProvider == address(0)) {
+            revert NonZeroAddressError();
+        }
+        address oldProvider = address(navProvider);
+        navProvider = ISecuritizeNavProvider(_navProvider);
+        emit NavProviderUpdated(oldProvider, address(navProvider));
+    }
+
+    /**
+     * @notice Calculates liquidity tokens received for an asset amount.
+     * @param _assetAmount Asset amount to redeem.
+     * @return The amount of liquidity tokens after fees.
+     */
+    function calculateLiquidityTokenAmount(
+        uint256 _assetAmount
+    ) public view override nonZeroLiquidityProvider returns (uint256) {
+        uint256 rate = navProvider.rate();
+        if (rate == 0) {
+            revert NonZeroNavRateError();
+        }
+        uint256 amountBeforeFee = TokenCalculator.calculateLiquidityTokenAmountBeforeFee(
+            _assetAmount,
+            rate,
+            liquidityDecimals,
+            assetDecimals
+        );
+        uint256 effectiveAmount = liquidityProvider.calculateEffectiveLiquidityTokenAmount(amountBeforeFee);
+        uint256 fee = TokenCalculator.calculateFee(feeManager, effectiveAmount);
+        return effectiveAmount - fee;
+    }
+
+    /**
+     * @notice Calculates liquidity tokens before fees for an asset amount.
+     * @param _assetAmount Asset amount to redeem.
+     * @return Liquidity tokens before deducting fees.
+     */
+    function calculateLiquidityTokenAmountBeforeFee(uint256 _assetAmount) public view override nonZeroLiquidityProvider returns (uint256) {
+        uint256 rate = navProvider.rate();
+        if (rate == 0) {
+            revert NonZeroNavRateError();
+        }
+        return TokenCalculator.calculateLiquidityTokenAmountBeforeFee(_assetAmount, rate, liquidityDecimals, assetDecimals);
     }
 
     /**

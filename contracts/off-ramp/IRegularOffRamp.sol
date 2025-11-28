@@ -18,6 +18,7 @@
 pragma solidity ^0.8.22;
 
 import {IBaseOffRamp} from "./IBaseOffRamp.sol";
+import {ISecuritizeNavProvider} from "@securitize/digital_securities/contracts/nav/ISecuritizeNavProvider.sol";
 
 interface IRegularOffRamp is IBaseOffRamp {
 
@@ -27,4 +28,24 @@ interface IRegularOffRamp is IBaseOffRamp {
      * @param _minOutputAmount The minimum amount of liquidity tokens that must be received (slippage protection)
      */
     function redeem(uint256 _assetAmount, uint256 _minOutputAmount) external;
+
+    /**
+     * @dev Calculates the amount of liquidity tokens to be received for a given asset amount
+     * @param _assetAmount The amount of asset tokens to redeem
+     * @return The amount of liquidity tokens that will be received (after fees)
+     */
+    function calculateLiquidityTokenAmount(uint256 _assetAmount) external view returns (uint256);
+
+    /**
+     * @dev Calculates the amount of liquidity tokens to receive in redemption process before fees
+     * @param _assetAmount The amount of asset tokens to redeem.
+     * @return The amount of liquidity tokens.
+     */
+    function calculateLiquidityTokenAmountBeforeFee(uint256 _assetAmount) external view returns (uint256);
+
+    /**
+     * @dev The current NAV rate provider address
+     * @return The address of the NAV rate provider.
+     */
+    function navProvider() external view returns (ISecuritizeNavProvider);
 }

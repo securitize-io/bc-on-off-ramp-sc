@@ -22,12 +22,10 @@ import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IER
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {BaseOnRamp} from "./BaseOnRamp.sol";
 import {IFeeManager} from "../fee/IFeeManager.sol";
-import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {IDSServiceConsumer} from "@securitize/digital_securities/contracts/service/IDSServiceConsumer.sol";
 import {IDSTrustService} from "@securitize/digital_securities/contracts/trust/IDSTrustService.sol";
 import {IDSRegistryService} from "@securitize/digital_securities/contracts/registry/IDSRegistryService.sol";
-import {ISecuritizeNavProvider} from "@securitize/digital_securities/contracts/nav/ISecuritizeNavProvider.sol";
-import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {ISecuritizeAmmNavProvider} from "../off-ramp/ISecuritizeAmmNavProvider.sol";
 
 contract PublicStockOnRamp is IPublicStockOnRamp, BaseOnRamp {
 
@@ -35,6 +33,27 @@ contract PublicStockOnRamp is IPublicStockOnRamp, BaseOnRamp {
     string public constant VERSION = "1";
 
     bytes32 private constant TXTYPE_HASH = keccak256("Swap(uint256 liquidityAmount,uint256 minOutAmount)");
+
+    ISecuritizeAmmNavProvider public navProvider;
+
+    error PriceExpiredError();
+    error NavProviderNotSetError();
+
+    event NavProviderUpdated(address indexed oldProvider, address indexed newProvider);
+
+    modifier initializedNavProvider() {
+        if (address(navProvider) == address(0)) {
+            revert NavProviderNotSetError();
+        }
+        _;
+    }
+
+    modifier nonZeroAnchorPrice(uint256 _anchorPrice) {
+        if (_anchorPrice == 0) {
+            revert NonZeroNavRateError();
+        }
+        _;
+    }
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -54,8 +73,26 @@ contract PublicStockOnRamp is IPublicStockOnRamp, BaseOnRamp {
         dsToken = IDSServiceConsumer(_dsToken);
         liquidityToken = IERC20Metadata(_liquidity);
         custodianWallet = _custodianWallet;
-        navProvider = ISecuritizeNavProvider(_navProvider);
         feeManager = IFeeManager(_feeManager);
+
+        // Initialize NAV provider for PublicStockOnRamp (AMM type)
+        if (_navProvider == address(0)) {
+            revert NonZeroAddressError();
+        }
+        navProvider = ISecuritizeAmmNavProvider(_navProvider);
+    }
+
+    /**
+     * @notice Updates the NAV provider implementation.
+     * @param _navProvider New NAV provider address.
+     */
+    function updateNavProvider(address _navProvider) external onlyOwner {
+        if (_navProvider == address(0)) {
+            revert NonZeroAddressError();
+        }
+        address oldProvider = address(navProvider);
+        navProvider = ISecuritizeAmmNavProvider(_navProvider);
+        emit NavProviderUpdated(oldProvider, _navProvider);
     }
 
     function swap(
@@ -63,33 +100,66 @@ contract PublicStockOnRamp is IPublicStockOnRamp, BaseOnRamp {
         uint256 _minOutAmount,
         address _investorWallet,
         bytes memory _investorSignature,
-        uint8 /*_marketStatus*/, // TODO define market status enum
-        uint256 _anchorPrice // TODO get the price evaluating market status (new nav provider)
+        uint8 _marketStatus,
+        uint256 _anchorPrice,
+        uint256 _anchorPriceExpiresAt
     )
         public
         whenNotPaused
         investorExists
-        nonZeroNavRate
+        initializedNavProvider
         validateMinSubscriptionAmount(_liquidityAmount)
     {
-        // validate investor signature
+        // Validate anchor price hasn't expired
+        if (block.timestamp > _anchorPriceExpiresAt) {
+            revert PriceExpiredError();
+        }
+
+        // Validate investor signature
         validateInvestorSignature(_liquidityAmount, _minOutAmount, _investorWallet, _investorSignature);
 
-        (uint256 dsTokenAmount, uint256 rate, uint256 fee) = calculateDsTokenAmount(_liquidityAmount, _anchorPrice); // calculate dsToken using liquidityAmount - fee
+        // Get actual price from AMM NAV provider
+        // For OnRamp, we BUY base tokens (user pays quote/liquidity tokens, receives base/DS tokens)
+        (, uint256 execPrice) = navProvider.executeBuyBase(
+            _liquidityAmount,
+            _anchorPrice,
+            _marketStatus
+        );
+
+        // Calculate DS tokens using AMM execution price
+        (uint256 dsTokenAmount, uint256 fee) = _calculateDsTokenAmountWithPrice(_liquidityAmount, execPrice);
 
         _swap(_liquidityAmount, dsTokenAmount, _minOutAmount, _investorWallet);
-        emit Swap(_msgSender(), dsTokenAmount, _liquidityAmount, _investorWallet, rate, fee, address(liquidityToken));
+        emit Swap(_msgSender(), dsTokenAmount, _liquidityAmount, _investorWallet, execPrice, fee, address(liquidityToken));
     }
 
-    function calculateDsTokenAmount(uint256 _liquidityAmount, uint256 navPrice) public view returns (uint256 dsTokenAmount, uint256 rate, uint256 fee) {
+    function calculateDsTokenAmount(uint256 _liquidityAmount, uint256 _anchorPrice, uint8 _marketStatus)
+        public
+        view
+        initializedNavProvider
+        nonZeroAnchorPrice(_anchorPrice)
+        returns (uint256 dsTokenAmount, uint256 rate, uint256 fee)
+    {
+        // Get execution price from AMM
+        (, uint256 execPrice) = navProvider.quoteBuyBase(_liquidityAmount, _anchorPrice, _marketStatus);
+
+        fee = feeManager.getFee(_liquidityAmount);
+        uint256 liquidityAmountExcludingFee = _liquidityAmount - fee;
+
+        uint8 liquidityTokenDecimals = IERC20Metadata(address(liquidityToken)).decimals();
+        uint8 assetDecimals = IERC20Metadata(address(assetProvider.asset())).decimals();
+        rate = execPrice;
+        dsTokenAmount = (liquidityAmountExcludingFee * (10 ** (2 * assetDecimals))) / (rate * (10 ** liquidityTokenDecimals));
+    }
+
+    function _calculateDsTokenAmountWithPrice(uint256 _liquidityAmount, uint256 _execPrice) private view returns (uint256 dsTokenAmount, uint256 fee) {
         fee = feeManager.getFee(_liquidityAmount);
         uint256 liquidityAmountExcludingFee = _liquidityAmount - fee;
 
         uint8 liquidityTokenDecimals = IERC20Metadata(address(liquidityToken)).decimals();
         uint8 assetDecimals = IERC20Metadata(address(assetProvider.asset())).decimals();
 
-        rate = navPrice;
-        dsTokenAmount = (liquidityAmountExcludingFee * (10 ** (2 * assetDecimals))) / (rate * (10 ** liquidityTokenDecimals));
+        dsTokenAmount = (liquidityAmountExcludingFee * (10 ** (2 * assetDecimals))) / (_execPrice * (10 ** liquidityTokenDecimals));
     }
 
     /// @notice Validates the EIP-712 signature provided by the investor for the swap transaction

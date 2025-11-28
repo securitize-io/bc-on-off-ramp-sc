@@ -54,13 +54,6 @@ interface IBaseOnRamp is IOnOffRamp {
     event AssetProviderUpdated(address indexed oldProvider, address indexed newProvider);
 
     /**
-     * @dev Emitted when the nav provider is updated
-     * @param oldProvider Old provider address
-     * @param newProvider New provider address
-     */
-    event NavProviderUpdated(address indexed oldProvider, address indexed newProvider);
-
-    /**
      * @dev Emitted when the minSubscriptionAmount is updated
      * @param oldValue Old value
      * @param newValue New value
@@ -101,12 +94,6 @@ interface IBaseOnRamp is IOnOffRamp {
      * @param _assetProvider The new asset provider address
      */
     function updateAssetProvider(address _assetProvider) external;
-
-    /**
-     * @dev Update the NAV rate provider implementation.
-     * @param _navProvider The NAV rate provider implementation address
-     */
-    function updateNavProvider(address _navProvider) external;
 
     /**
      * @dev Update the minimum subscription amount

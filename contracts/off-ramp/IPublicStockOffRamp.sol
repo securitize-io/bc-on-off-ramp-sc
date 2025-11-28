@@ -27,8 +27,9 @@ interface IPublicStockOffRamp is IBaseOffRamp {
      * @param _minOutputAmount Minimum amount of liquidity tokens to receive
      * @param _investorWallet Address of the investor's wallet (asset holder)
      * @param _investorSignature Signature of the investor
-     * @param _marketStatus Current market status
-     * @param _navPrice Current NAV price
+     * @param _marketStatus Current market status (0 = closed, 1 = open)
+     * @param _navPrice Current NAV price (1e18 fixed-point)
+     * @param _anchorPriceExpiresAt Timestamp when the anchor price expires
      */
     function redeem(
         uint256 _assetAmount,
@@ -36,19 +37,20 @@ interface IPublicStockOffRamp is IBaseOffRamp {
         address _investorWallet,
         bytes memory _investorSignature,
         uint8 _marketStatus,
-        uint256 _navPrice
+        uint256 _navPrice,
+        uint256 _anchorPriceExpiresAt
     ) external;
 
     /**
      * @dev Calculates the amount of liquidity tokens to be received for a given asset amount
      * @param _assetAmount Amount of asset tokens to convert
-     * @param _anchorPrice Anchor price for conversion
+     * @param _anchorPrice Anchor price for conversion (1e18 fixed-point)
+     * @param _marketStatus Current market status (0 = closed, 1 = open)
      * @return The amount of liquidity tokens to be received (after fees)
-     * TODO: Add _marketStatus parameter to decide between anchor price or NAV provider
      */
     function calculateLiquidityTokenAmount(
         uint256 _assetAmount,
         uint256 _anchorPrice,
-        uint8 /*_marketStatus*/  // TODO: define market status enum
+        uint8 _marketStatus
     ) external view returns (uint256);
 }

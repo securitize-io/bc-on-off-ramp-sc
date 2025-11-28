@@ -26,7 +26,6 @@ import {IFeeManager} from "../fee/IFeeManager.sol";
 import {IAssetProvider} from "./provider/IAssetProvider.sol";
 import {IDSRegistryService} from "@securitize/digital_securities/contracts/registry/IDSRegistryService.sol";
 import {IDSTrustService} from "@securitize/digital_securities/contracts/trust/IDSTrustService.sol";
-import {ISecuritizeNavProvider} from "@securitize/digital_securities/contracts/nav/ISecuritizeNavProvider.sol";
 import {IDSServiceConsumer} from "@securitize/digital_securities/contracts/service/IDSServiceConsumer.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {IUSDCBridge} from "./cttp/IUSDCBridge.sol";
@@ -37,7 +36,6 @@ abstract contract BaseOnRamp is IBaseOnRamp, EIP712Upgradeable, BaseContract {
     IDSServiceConsumer public dsToken;
     IERC20Metadata public liquidityToken;
     IAssetProvider public assetProvider;
-    ISecuritizeNavProvider public navProvider;
     IFeeManager public feeManager;
     address public custodianWallet;
 
@@ -70,13 +68,6 @@ abstract contract BaseOnRamp is IBaseOnRamp, EIP712Upgradeable, BaseContract {
         _;
     }
 
-    modifier nonZeroNavRate() {
-        if (navProvider.rate() <= 0) {
-            revert NonZeroNavRateError();
-        }
-        _;
-    }
-
     function _swap(uint256 _liquidityAmount, uint256 _dsTokenAmount, uint256 _minOutAmount, address _investorWallet) internal {
         if (_dsTokenAmount < _minOutAmount) {
             revert SlippageControlError();
@@ -93,15 +84,6 @@ abstract contract BaseOnRamp is IBaseOnRamp, EIP712Upgradeable, BaseContract {
         address oldProvider = address(assetProvider);
         assetProvider = IAssetProvider(_assetProvider);
         emit AssetProviderUpdated(oldProvider, _assetProvider);
-    }
-
-    function updateNavProvider(address _navProvider) external onlyOwner {
-        if (_navProvider == address(0)) {
-            revert NonZeroAddressError();
-        }
-        address oldProvider = address(_navProvider);
-        navProvider = ISecuritizeNavProvider(_navProvider);
-        emit NavProviderUpdated(oldProvider, _navProvider);
     }
 
     function updateMinSubscriptionAmount(uint256 _minSubscriptionAmount) external onlyOwner {

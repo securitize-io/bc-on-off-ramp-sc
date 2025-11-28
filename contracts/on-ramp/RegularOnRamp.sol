@@ -40,6 +40,17 @@ contract RegularOnRamp is IRegularOnRamp, BaseOnRamp {
 
     mapping(string => uint256) internal noncePerInvestor;
 
+    ISecuritizeNavProvider public navProvider;
+
+    event NavProviderUpdated(address indexed oldProvider, address indexed newProvider);
+
+    modifier nonZeroNavRate() {
+        if (navProvider.rate() <= 0) {
+            revert NonZeroNavRateError();
+        }
+        _;
+    }
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -58,8 +69,26 @@ contract RegularOnRamp is IRegularOnRamp, BaseOnRamp {
         dsToken = IDSServiceConsumer(_dsToken);
         liquidityToken = IERC20Metadata(_liquidity);
         custodianWallet = _custodianWallet;
-        navProvider = ISecuritizeNavProvider(_navProvider);
         feeManager = IFeeManager(_feeManager);
+
+        // Initialize navProvider for RegularOnRamp
+        if (_navProvider == address(0)) {
+            revert NonZeroAddressError();
+        }
+        navProvider = ISecuritizeNavProvider(_navProvider);
+    }
+
+    /**
+     * @notice Updates the NAV provider address.
+     * @param _navProvider New NAV provider address.
+     */
+    function updateNavProvider(address _navProvider) external onlyOwner {
+        if (_navProvider == address(0)) {
+            revert NonZeroAddressError();
+        }
+        address oldProvider = address(navProvider);
+        navProvider = ISecuritizeNavProvider(_navProvider);
+        emit NavProviderUpdated(oldProvider, _navProvider);
     }
 
     modifier onlySecuritizeOnRamp() {
