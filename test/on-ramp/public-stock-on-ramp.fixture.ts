@@ -1,4 +1,13 @@
 import hre from 'hardhat';
+import type { PublicStockOnRamp } from '../../typechain-types/contracts/on-ramp/PublicStockOnRamp';
+import type { MintingAssetProvider } from '../../typechain-types/contracts/on-ramp/provider/MintingAssetProvider';
+import type { MockDSToken } from '../../typechain-types/contracts/mock/MockDSToken';
+import type { MockERC20 } from '../../typechain-types/contracts/mock/MockERC20';
+import type { MockSecuritizeAmmNavProvider } from '../../typechain-types/contracts/mock/MockSecuritizeAmmNavProvider';
+import type { MockFeeManagerOffRamp } from '../../typechain-types/contracts/off-ramp/mock/MockFeeManagerOffRamp';
+import type { MockRegistryService } from '../../typechain-types/contracts/mock/MockRegistryService';
+import type { MockTrustService } from '../../typechain-types/contracts/mock/MockTrustService';
+import type { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
 
 export const FIXED_AMM_PRICE = 2000000n; // 2.0 in base asset decimals (6 decimals for TSLA)
 export const LIQUIDITY_AMOUNT = 10000000n; // 10 USDC (6 decimals)
@@ -12,7 +21,21 @@ export const FEE_COLLECTOR = hre.ethers.Wallet.createRandom().address;
 /**
  * Deploy PublicStockOnRamp with all necessary dependencies for testing
  */
-export const deployPublicStockOnRamp = async () => {
+export const deployPublicStockOnRamp = async (): Promise<{
+    onRamp: PublicStockOnRamp;
+    assetProvider: MintingAssetProvider;
+    dsToken: MockDSToken;
+    liquidityToken: MockERC20;
+    ammNavProvider: MockSecuritizeAmmNavProvider;
+    feeManager: MockFeeManagerOffRamp;
+    mockRegistryService: MockRegistryService;
+    mockTrustService: MockTrustService;
+    owner: HardhatEthersSigner;
+    investor: HardhatEthersSigner;
+    operator: HardhatEthersSigner;
+    custodian: HardhatEthersSigner;
+    unauthorized: HardhatEthersSigner;
+}> => {
     const [owner, investor, operator, custodian, unauthorized] = await hre.ethers.getSigners();
 
     // Mock Registry Service
@@ -69,14 +92,14 @@ export const deployPublicStockOnRamp = async () => {
     await onRamp.updateAssetProvider(await assetProvider.getAddress());
 
     return {
-        onRamp,
-        assetProvider,
-        dsToken,
-        liquidityToken,
-        ammNavProvider,
-        feeManager,
-        mockRegistryService,
-        mockTrustService,
+        onRamp: onRamp as unknown as PublicStockOnRamp,
+        assetProvider: assetProvider as unknown as MintingAssetProvider,
+        dsToken: dsToken as unknown as MockDSToken,
+        liquidityToken: liquidityToken as unknown as MockERC20,
+        ammNavProvider: ammNavProvider as unknown as MockSecuritizeAmmNavProvider,
+        feeManager: feeManager as unknown as MockFeeManagerOffRamp,
+        mockRegistryService: mockRegistryService as unknown as MockRegistryService,
+        mockTrustService: mockTrustService as unknown as MockTrustService,
         owner,
         investor,
         operator,

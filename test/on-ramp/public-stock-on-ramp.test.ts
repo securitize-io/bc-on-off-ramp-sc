@@ -428,6 +428,7 @@ describe('PublicStockOnRamp Unit Tests', function () {
                 );
 
             const receipt = await tx.wait();
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const swapEvent = receipt?.logs.find((log: any) => {
                 try {
                     return onRamp.interface.parseLog(log)?.name === 'Swap';
@@ -436,6 +437,7 @@ describe('PublicStockOnRamp Unit Tests', function () {
                 }
             });
 
+            // eslint-disable-next-line @typescript-eslint/no-unused-expressions
             expect(swapEvent).to.not.be.undefined;
             const parsedEvent = onRamp.interface.parseLog(swapEvent!);
             expect(parsedEvent?.args[0]).to.equal(operator.address); // from

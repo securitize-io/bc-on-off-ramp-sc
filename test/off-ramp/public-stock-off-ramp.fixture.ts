@@ -1,4 +1,13 @@
 import hre from 'hardhat';
+import type { PublicStockOffRamp } from '../../typechain-types/contracts/off-ramp/PublicStockOffRamp';
+import type { AllowanceLiquidityProvider } from '../../typechain-types/contracts/off-ramp/provider/AllowanceLiquidityProvider';
+import type { MockDSToken } from '../../typechain-types/contracts/mock/MockDSToken';
+import type { MockERC20 } from '../../typechain-types/contracts/mock/MockERC20';
+import type { MockSecuritizeAmmNavProvider } from '../../typechain-types/contracts/mock/MockSecuritizeAmmNavProvider';
+import type { MockFeeManagerOffRamp } from '../../typechain-types/contracts/off-ramp/mock/MockFeeManagerOffRamp';
+import type { MockRegistryService } from '../../typechain-types/contracts/mock/MockRegistryService';
+import type { MockTrustService } from '../../typechain-types/contracts/mock/MockTrustService';
+import type { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
 
 export const FIXED_AMM_PRICE = 2000000n; // 2.0 in base asset decimals (6 decimals for TSLA)
 export const ASSET_AMOUNT = 10000000n; // 10 TSLA tokens (6 decimals)
@@ -13,7 +22,21 @@ export const FEE_COLLECTOR = hre.ethers.Wallet.createRandom().address;
 /**
  * Deploy PublicStockOffRamp with all necessary dependencies for testing
  */
-export const deployPublicStockOffRamp = async () => {
+export const deployPublicStockOffRamp = async (): Promise<{
+    offRamp: PublicStockOffRamp;
+    liquidityProvider: AllowanceLiquidityProvider;
+    dsToken: MockDSToken;
+    liquidityToken: MockERC20;
+    ammNavProvider: MockSecuritizeAmmNavProvider;
+    feeManager: MockFeeManagerOffRamp;
+    mockRegistryService: MockRegistryService;
+    mockTrustService: MockTrustService;
+    owner: HardhatEthersSigner;
+    investor: HardhatEthersSigner;
+    operator: HardhatEthersSigner;
+    recipient: HardhatEthersSigner;
+    unauthorized: HardhatEthersSigner;
+}> => {
     const [owner, investor, operator, recipient, unauthorized] = await hre.ethers.getSigners();
 
     // Mock Registry Service
@@ -77,14 +100,14 @@ export const deployPublicStockOffRamp = async () => {
     await liquidityToken.approve(await liquidityProvider.getAddress(), 100000000000n);
 
     return {
-        offRamp,
-        liquidityProvider,
-        dsToken,
-        liquidityToken,
-        ammNavProvider,
-        feeManager,
-        mockRegistryService,
-        mockTrustService,
+        offRamp: offRamp as unknown as PublicStockOffRamp,
+        liquidityProvider: liquidityProvider as unknown as AllowanceLiquidityProvider,
+        dsToken: dsToken as unknown as MockDSToken,
+        liquidityToken: liquidityToken as unknown as MockERC20,
+        ammNavProvider: ammNavProvider as unknown as MockSecuritizeAmmNavProvider,
+        feeManager: feeManager as unknown as MockFeeManagerOffRamp,
+        mockRegistryService: mockRegistryService as unknown as MockRegistryService,
+        mockTrustService: mockTrustService as unknown as MockTrustService,
         owner,
         investor,
         operator,
