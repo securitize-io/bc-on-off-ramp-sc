@@ -148,8 +148,6 @@ describe('PublicStockOffRamp Unit Tests', function () {
             const anchorPrice = FIXED_AMM_PRICE;
             const anchorPriceExpiresAt = (await hre.ethers.provider.getBlock('latest'))!.timestamp + 3600;
 
-            const initialLiquidityBalance = await liquidityToken.balanceOf(investor.address);
-
             await dsToken.connect(investor).approve(await offRamp.getAddress(), assetAmount);
 
             const signature = await eip712PublicStockOffRampRedeem(
@@ -173,7 +171,7 @@ describe('PublicStockOffRamp Unit Tests', function () {
                     ),
             ).to.emit(offRamp, 'RedemptionCompleted');
 
-            expect(await liquidityToken.balanceOf(investor.address)).to.be.gt(initialLiquidityBalance);
+            expect(await liquidityToken.balanceOf(investor.address)).to.equal(20000000n);
         });
 
         it('Should reject signature from wrong signer', async function () {
@@ -312,7 +310,7 @@ describe('PublicStockOffRamp Unit Tests', function () {
                     anchorPriceExpiresAt,
                 );
 
-            expect(await liquidityToken.balanceOf(investor.address)).to.be.gt(0);
+            expect(await liquidityToken.balanceOf(investor.address)).to.equal(20000000n);
         });
 
         it('Should reject redeem when anchorPriceExpiresAt is in the past', async function () {
@@ -359,7 +357,6 @@ describe('PublicStockOffRamp Unit Tests', function () {
             const anchorPriceExpiresAt = (await hre.ethers.provider.getBlock('latest'))!.timestamp + 3600;
 
             const initialDsBalance = await dsToken.balanceOf(investor.address);
-            const initialLiquidityBalance = await liquidityToken.balanceOf(investor.address);
 
             await dsToken.connect(investor).approve(await offRamp.getAddress(), assetAmount);
 
@@ -383,7 +380,7 @@ describe('PublicStockOffRamp Unit Tests', function () {
                 );
 
             expect(await dsToken.balanceOf(investor.address)).to.equal(initialDsBalance - assetAmount);
-            expect(await liquidityToken.balanceOf(investor.address)).to.be.gt(initialLiquidityBalance);
+            expect(await liquidityToken.balanceOf(investor.address)).to.equal(20000000n);
         });
 
         it('Should emit RedemptionCompleted event with correct values', async function () {
@@ -416,6 +413,7 @@ describe('PublicStockOffRamp Unit Tests', function () {
                 );
 
             const receipt = await tx.wait();
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const redemptionEvent = receipt?.logs.find((log: any) => {
                 try {
                     return offRamp.interface.parseLog(log)?.name === 'RedemptionCompleted';
@@ -424,11 +422,12 @@ describe('PublicStockOffRamp Unit Tests', function () {
                 }
             });
 
+            // eslint-disable-next-line @typescript-eslint/no-unused-expressions
             expect(redemptionEvent).to.not.be.undefined;
             const parsedEvent = offRamp.interface.parseLog(redemptionEvent!);
             expect(parsedEvent?.args[0]).to.equal(investor.address); // redeemer
             expect(parsedEvent?.args[1]).to.equal(assetAmount); // dsTokenValue
-            expect(parsedEvent?.args[2]).to.be.gt(0); // liquidityValue should be > 0
+            expect(parsedEvent?.args[2]).to.equal(20000000n); // liquidityValue
             expect(parsedEvent?.args[3]).to.equal(FIXED_AMM_PRICE); // rate
             expect(parsedEvent?.args[4]).to.equal(0n); // fee
             expect(parsedEvent?.args[5]).to.equal(await liquidityToken.getAddress()); // liquidityToken
@@ -464,7 +463,7 @@ describe('PublicStockOffRamp Unit Tests', function () {
                     anchorPriceExpiresAt,
                 );
 
-            expect(await liquidityToken.balanceOf(investor.address)).to.be.gt(0);
+            expect(await liquidityToken.balanceOf(investor.address)).to.equal(20000000n);
         });
     });
 
@@ -568,8 +567,9 @@ describe('PublicStockOffRamp Unit Tests', function () {
                     anchorPriceExpiresAt,
                 );
 
-            // With higher price, should receive more liquidity tokens
-            expect(await liquidityToken.balanceOf(investor.address)).to.be.gt(0);
+            // With higher price (3.0 vs 2.0), should receive more liquidity tokens
+            // Expected: (10000000 * 3000000) / 10^6 = 30000000
+            expect(await liquidityToken.balanceOf(investor.address)).to.equal(30000000n);
         });
     });
 
@@ -604,7 +604,7 @@ describe('PublicStockOffRamp Unit Tests', function () {
                     anchorPriceExpiresAt,
                 );
 
-            expect(await liquidityToken.balanceOf(investor.address)).to.be.gt(0);
+            expect(await liquidityToken.balanceOf(investor.address)).to.equal(20000000n);
         });
 
         it('Should block redemption for restricted country', async function () {
