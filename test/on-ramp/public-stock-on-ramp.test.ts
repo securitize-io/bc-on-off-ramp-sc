@@ -178,7 +178,7 @@ describe('PublicStockOnRamp Unit Tests', function () {
                     ),
             ).to.emit(onRamp, 'Swap');
 
-            expect(await dsToken.balanceOf(investor.address)).to.be.gt(0);
+            expect(await dsToken.balanceOf(investor.address)).to.equal(5000000n);
         });
 
         it('Should reject signature from wrong signer', async function () {
@@ -321,7 +321,7 @@ describe('PublicStockOnRamp Unit Tests', function () {
                     anchorPriceExpiresAt,
                 );
 
-            expect(await dsToken.balanceOf(investor.address)).to.be.gt(0);
+            expect(await dsToken.balanceOf(investor.address)).to.equal(5000000n);
         });
 
         it('Should reject swap when anchorPriceExpiresAt is in the past', async function () {
@@ -369,7 +369,6 @@ describe('PublicStockOnRamp Unit Tests', function () {
             const anchorPriceExpiresAt = (await hre.ethers.provider.getBlock('latest'))!.timestamp + 3600;
 
             const initialLiquidityBalance = await liquidityToken.balanceOf(investor.address);
-            const initialDsBalance = await dsToken.balanceOf(investor.address);
 
             await liquidityToken.mint(investor.address, liquidityAmount);
             await liquidityToken.connect(investor).approve(await onRamp.getAddress(), liquidityAmount);
@@ -394,7 +393,7 @@ describe('PublicStockOnRamp Unit Tests', function () {
                 );
 
             expect(await liquidityToken.balanceOf(investor.address)).to.equal(initialLiquidityBalance);
-            expect(await dsToken.balanceOf(investor.address)).to.be.gt(initialDsBalance);
+            expect(await dsToken.balanceOf(investor.address)).to.equal(5000000n);
         });
 
         it('Should emit Swap event with correct values', async function () {
@@ -480,7 +479,7 @@ describe('PublicStockOnRamp Unit Tests', function () {
                     anchorPriceExpiresAt,
                 );
 
-            expect(await dsToken.balanceOf(investor.address)).to.be.gt(0);
+            expect(await dsToken.balanceOf(investor.address)).to.equal(5000000n);
         });
     });
 
@@ -587,8 +586,9 @@ describe('PublicStockOnRamp Unit Tests', function () {
                     anchorPriceExpiresAt,
                 );
 
-            // With higher price, should receive fewer DS tokens
-            expect(await dsToken.balanceOf(investor.address)).to.be.gt(0);
+            // With higher price (3.0 vs 2.0), should receive fewer DS tokens
+            // Expected: (10000000 * 10^6) / 3000000 = 3333333
+            expect(await dsToken.balanceOf(investor.address)).to.equal(3333333n);
         });
     });
 });
