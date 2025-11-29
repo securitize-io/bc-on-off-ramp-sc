@@ -109,6 +109,7 @@ contract PublicStockOnRamp is IPublicStockOnRamp, BaseOnRamp {
         investorExists
         initializedNavProvider
         validateMinSubscriptionAmount(_liquidityAmount)
+        nonZeroAnchorPrice(_anchorPrice)
         onlyRole(OPERATOR_ROLE)
     {
         // Validate anchor price hasn't expired

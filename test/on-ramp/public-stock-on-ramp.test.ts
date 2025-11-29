@@ -503,7 +503,6 @@ describe('PublicStockOnRamp Unit Tests', function () {
                 minOutAmount,
             );
 
-            // When anchor price is 0, the AMM returns execPrice = 0, which causes division by zero
             await expect(
                 onRamp
                     .connect(operator)
@@ -516,7 +515,7 @@ describe('PublicStockOnRamp Unit Tests', function () {
                         anchorPrice,
                         anchorPriceExpiresAt,
                     ),
-            ).to.be.revertedWithPanic(0x12); // Division by zero
+            ).to.be.revertedWithCustomError(onRamp, 'NonZeroNavRateError');
         });
 
         it('Should fail when investor has insufficient liquidity balance', async function () {
