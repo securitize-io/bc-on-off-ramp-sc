@@ -28,69 +28,76 @@ library RedemptionManager {
     }
 
     /**
-     * @dev Executes single-step redemption
+     * @dev Executes single-step redemption.
+     * @param _params Redemption parameters payload.
+     * @return fee Fee charged in liquidity tokens.
+     * @return userSuppliedAmount Amount supplied to redeemer after fee.
      */
     function executeSingleStepRedemption(
-        RedemptionParams memory params
+        RedemptionParams memory _params
     ) internal returns (uint256 fee, uint256 userSuppliedAmount) {
         // Transfer asset to liquidity provider
-        if (params.assetBurn) {
-            params.asset.burn(params.redeemer, params.assetAmount, "Redemption burn");
+        if (_params.assetBurn) {
+            _params.asset.burn(_params.redeemer, _params.assetAmount, "Redemption burn");
         } else {
-            params.asset.transferFrom(params.redeemer, params.liquidityProvider.recipient(), params.assetAmount);
+            _params.asset.transferFrom(_params.redeemer, _params.liquidityProvider.recipient(), _params.assetAmount);
         }
 
         // Apply fee if it exists, transfer it to the fee collector
-        fee = TokenCalculator.calculateFee(params.feeManager, params.liquidityTokenAmount);
+        fee = TokenCalculator.calculateFee(_params.feeManager, _params.liquidityTokenAmount);
 
         // Supply liquidity tokens to the fee collector
         if (fee > 0) {
-            params.liquidityProvider.supplyTo(IFeeManager(params.feeManager).feeCollector(), fee);
+            _params.liquidityProvider.supplyTo(IFeeManager(_params.feeManager).feeCollector(), fee);
         }
 
         // Supply liquidity tokens to the redeemer
-        userSuppliedAmount = params.liquidityProvider.supplyTo(params.redeemer, params.liquidityTokenAmount - fee);
+        userSuppliedAmount = _params.liquidityProvider.supplyTo(_params.redeemer, _params.liquidityTokenAmount - fee);
 
-        if (userSuppliedAmount < params.minOutputAmount) {
+        if (userSuppliedAmount < _params.minOutputAmount) {
             revert Errors.SlippageControlError();
         }
     }
 
     /**
-     * @dev Executes two-step redemption
+     * @dev Executes two-step redemption.
+     * @param _params Redemption parameters payload.
+     * @param _contractAddress Address holding tokens during the two-step process.
+     * @return fee Fee charged in liquidity tokens.
+     * @return userSuppliedAmount Amount supplied to redeemer after fee.
      */
     function executeTwoStepRedemption(
-        RedemptionParams memory params,
-        address contractAddress
+        RedemptionParams memory _params,
+        address _contractAddress
     ) internal returns (uint256 fee, uint256 userSuppliedAmount) {
         // Get DS tokens from investor to contract
-        params.asset.transferFrom(params.redeemer, contractAddress, params.assetAmount);
+        _params.asset.transferFrom(_params.redeemer, _contractAddress, _params.assetAmount);
 
         // Transfer DS tokens from contract to recipient or burn
-        if (params.assetBurn) {
-            params.asset.burn(contractAddress, params.assetAmount, "Redemption burn");
+        if (_params.assetBurn) {
+            _params.asset.burn(_contractAddress, _params.assetAmount, "Redemption burn");
         } else {
-            params.asset.transfer(params.liquidityProvider.recipient(), params.assetAmount);
+            _params.asset.transfer(_params.liquidityProvider.recipient(), _params.assetAmount);
         }
 
         // Get liquidity from provider to contract
-        uint256 suppliedAmount = params.liquidityProvider.supplyTo(contractAddress, params.liquidityTokenAmount);
+        uint256 suppliedAmount = _params.liquidityProvider.supplyTo(_contractAddress, _params.liquidityTokenAmount);
 
         // Calculate fee based on supplied amount
-        fee = TokenCalculator.calculateFee(params.feeManager, suppliedAmount);
+        fee = TokenCalculator.calculateFee(_params.feeManager, suppliedAmount);
 
         userSuppliedAmount = suppliedAmount - fee;
         // Check slippage protection - ensure minimum output amount is met
-        if (userSuppliedAmount < params.minOutputAmount) {
+        if (userSuppliedAmount < _params.minOutputAmount) {
             revert Errors.SlippageControlError();
         }
 
         // Transfer liquidity tokens from contract to redeemer
-        params.liquidityProvider.liquidityToken().transfer(params.redeemer, userSuppliedAmount);
+        _params.liquidityProvider.liquidityToken().transfer(_params.redeemer, userSuppliedAmount);
 
         // Transfer fee from contract to fee collector
         if (fee > 0) {
-            params.liquidityProvider.liquidityToken().transfer(IFeeManager(params.feeManager).feeCollector(), fee);
+            _params.liquidityProvider.liquidityToken().transfer(IFeeManager(_params.feeManager).feeCollector(), fee);
         }
     }
 }

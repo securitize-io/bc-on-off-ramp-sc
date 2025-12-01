@@ -51,7 +51,7 @@ describe('On-Ramp Unit Tests', function () {
         it('Should fail when trying to pause with unauthorized wallet', async function () {
             const { onRamp, unknownWallet } = await loadFixture(deployOnRampAllowance);
             const onRampFromUnauthorized = await onRamp.connect(unknownWallet);
-            await expect(onRampFromUnauthorized.pause()).revertedWithCustomError(onRamp, 'OwnableUnauthorizedAccount');
+            await expect(onRampFromUnauthorized.pause()).revertedWithCustomError(onRamp, 'AccessControlUnauthorizedAccount');
         });
     });
 
@@ -61,7 +61,7 @@ describe('On-Ramp Unit Tests', function () {
             const onRampFromUnauthorized = await onRamp.connect(unknownWallet);
             await expect(onRampFromUnauthorized.updateAssetProvider(assetProvider)).revertedWithCustomError(
                 onRamp,
-                'OwnableUnauthorizedAccount',
+                'AccessControlUnauthorizedAccount',
             );
         });
 
@@ -80,7 +80,7 @@ describe('On-Ramp Unit Tests', function () {
             const onRampFromUnauthorized = await onRamp.connect(unknownWallet);
             await expect(onRampFromUnauthorized.updateNavProvider(navMock)).revertedWithCustomError(
                 onRamp,
-                'OwnableUnauthorizedAccount',
+                'AccessControlUnauthorizedAccount',
             );
         });
 
@@ -99,7 +99,7 @@ describe('On-Ramp Unit Tests', function () {
             const onRampFromUnauthorized = await onRamp.connect(unknownWallet);
             await expect(onRampFromUnauthorized.updateMinSubscriptionAmount(0)).revertedWithCustomError(
                 onRamp,
-                'OwnableUnauthorizedAccount',
+                'AccessControlUnauthorizedAccount',
             );
         });
 
@@ -118,7 +118,7 @@ describe('On-Ramp Unit Tests', function () {
             const onRampFromUnauthorized = await onRamp.connect(unknownWallet);
             await expect(onRampFromUnauthorized.updateBridgeParams(1, ethers.ZeroAddress)).revertedWithCustomError(
                 onRamp,
-                'OwnableUnauthorizedAccount',
+                'AccessControlUnauthorizedAccount',
             );
         });
 
@@ -138,7 +138,7 @@ describe('On-Ramp Unit Tests', function () {
             const onRampFromUnauthorized = await onRamp.connect(unknownWallet);
             await expect(onRampFromUnauthorized.toggleInvestorSubscription(true)).revertedWithCustomError(
                 onRamp,
-                'OwnableUnauthorizedAccount',
+                'AccessControlUnauthorizedAccount',
             );
         });
 
@@ -164,7 +164,7 @@ describe('On-Ramp Unit Tests', function () {
             const onRampFromUnauthorized = await onRamp.connect(unknownWallet);
             await expect(onRampFromUnauthorized.toggleTwoStepTransfer(true)).revertedWithCustomError(
                 onRamp,
-                'OwnableUnauthorizedAccount',
+                'AccessControlUnauthorizedAccount',
             );
         });
 

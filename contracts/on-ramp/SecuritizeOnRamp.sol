@@ -17,7 +17,7 @@
  */
 pragma solidity ^0.8.22;
 
-import {IRegularOnRamp} from "./IRegularOnRamp.sol";
+import {ISecuritizeOnRamp} from "./ISecuritizeOnRamp.sol";
 import {BaseOnRamp} from "./BaseOnRamp.sol";
 import {IDSServiceConsumer} from "@securitize/digital_securities/contracts/service/IDSServiceConsumer.sol";
 import {IDSTrustService} from "@securitize/digital_securities/contracts/trust/IDSTrustService.sol";
@@ -28,7 +28,7 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
-contract RegularOnRamp is IRegularOnRamp, BaseOnRamp {
+contract SecuritizeOnRamp is ISecuritizeOnRamp, BaseOnRamp {
     using Address for address;
     using ECDSA for bytes32;
 
@@ -39,6 +39,17 @@ contract RegularOnRamp is IRegularOnRamp, BaseOnRamp {
         keccak256("ExecutePreApprovedTransaction(string senderInvestor,address destination,bytes data,uint256 nonce)");
 
     mapping(string => uint256) internal noncePerInvestor;
+
+    ISecuritizeNavProvider public navProvider;
+
+    event NavProviderUpdated(address indexed oldProvider, address indexed newProvider);
+
+    modifier nonZeroNavRate() {
+        if (navProvider.rate() <= 0) {
+            revert NonZeroNavRateError();
+        }
+        _;
+    }
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -58,8 +69,26 @@ contract RegularOnRamp is IRegularOnRamp, BaseOnRamp {
         dsToken = IDSServiceConsumer(_dsToken);
         liquidityToken = IERC20Metadata(_liquidity);
         custodianWallet = _custodianWallet;
-        navProvider = ISecuritizeNavProvider(_navProvider);
         feeManager = IFeeManager(_feeManager);
+
+        // Initialize navProvider for SecuritizeOnRamp
+        if (_navProvider == address(0)) {
+            revert NonZeroAddressError();
+        }
+        navProvider = ISecuritizeNavProvider(_navProvider);
+    }
+
+    /**
+     * @notice Updates the NAV provider address.
+     * @param _navProvider New NAV provider address.
+     */
+    function updateNavProvider(address _navProvider) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (_navProvider == address(0)) {
+            revert NonZeroAddressError();
+        }
+        address oldProvider = address(navProvider);
+        navProvider = ISecuritizeNavProvider(_navProvider);
+        emit NavProviderUpdated(oldProvider, _navProvider);
     }
 
     modifier onlySecuritizeOnRamp() {
@@ -126,6 +155,7 @@ contract RegularOnRamp is IRegularOnRamp, BaseOnRamp {
         nonZeroNavRate
         validateInvestorSubscription
         validateMinSubscriptionAmount(_liquidityAmount)
+        onlyRole(OPERATOR_ROLE)
     {
         (uint256 dsTokenAmount, uint256 rate, uint256 fee) = calculateDsTokenAmount(_liquidityAmount); // calculate dsToken using liquidityAmount - fee
 

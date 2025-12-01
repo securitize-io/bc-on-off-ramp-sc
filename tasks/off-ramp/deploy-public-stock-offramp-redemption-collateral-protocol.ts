@@ -2,7 +2,7 @@ import { task } from 'hardhat/config';
 import { consoleCyan, consoleGreen, consoleMagenta, consoleYellow } from '../../utils';
 
 /*
-npx hardhat deploy-redemption-collateral-protocol \
+npx hardhat deploy-public-stock-offramp-collateral-protocol \
     --network sepolia \
     --asset 0xd1c009BF8402b24c77F29Ef8Bc99C099c90478De \
     --nav-provider 0x8f98297E6A2250647D731c99E23c76Ce0C3BffD7 \
@@ -14,8 +14,8 @@ npx hardhat deploy-redemption-collateral-protocol \
     --external-collateral-redemption 0x8C30865F25f1f46fA36Dfe4cC39e663E751724D9 \
     --verify
 */
-task('deploy-redemption-collateral-protocol', 'Deploy Redemption Protocol (Collateral implementation)')
-    // SecuritizeOffRamp arguments
+task('deploy-public-stock-offramp-collateral-protocol', 'Deploy Public Stock Off-Ramp Protocol (Collateral implementation)')
+    // PublicStockOffRamp arguments
     .addParam('asset', 'DS Token to be redeemed')
     .addParam('navProvider', 'NAV rate provider address')
     .addParam('feeManager', 'Fee manager address')
@@ -33,7 +33,7 @@ task('deploy-redemption-collateral-protocol', 'Deploy Redemption Protocol (Colla
 
     .setAction(async (args, hre) => {
         if (!args.silenceLogs) {
-            consoleCyan('\n task: deploy-redemption-collateral-protocol');
+            consoleCyan('\n task: deploy-public-stock-offramp-collateral-protocol');
             consoleCyan('Arguments:');
             console.log(`- Asset: ${args.asset}`);
             console.log(`- NAV Provider: ${args.navProvider}`);
@@ -46,7 +46,7 @@ task('deploy-redemption-collateral-protocol', 'Deploy Redemption Protocol (Colla
             console.log(`- Verify: ${args.verify}`);
         }
 
-        const { redemptionAddress } = await hre.run('deploy-offramp', {
+        const { redemptionAddress } = await hre.run('deploy-public-stock-offramp', {
             asset: args.asset,
             navProvider: args.navProvider,
             feeManager: args.feeManager,
@@ -69,7 +69,7 @@ task('deploy-redemption-collateral-protocol', 'Deploy Redemption Protocol (Colla
         });
 
         // // Get contract instances
-        const redemption = await hre.ethers.getContractAt('SecuritizeOffRamp', redemptionAddress);
+        const redemption = await hre.ethers.getContractAt('PublicStockOffRamp', redemptionAddress);
         const liquidityProvider = await hre.ethers.getContractAt(
             'CollateralLiquidityProvider',
             liquidityProviderAddress,
@@ -80,54 +80,19 @@ task('deploy-redemption-collateral-protocol', 'Deploy Redemption Protocol (Colla
                 'Proceeding to configure the protocol: setting external collateral redemption, collateral provider, and linking liquidity provider to the redemption contract...',
             );
 
-            console.log('Updating liquidity provider on securitize redemption contract');
+            console.log('Updating liquidity provider on public stock redemption contract');
         }
-        // Set liquidity provider on securitize redemption contract
+        // Set liquidity provider on public stock redemption contract
         let tx = await redemption.updateLiquidityProvider(liquidityProviderAddress);
         await tx.wait(1);
 
         if (!args.silenceLogs) {
-            consoleGreen('Securitize Redemption Protocol has been configured successfully');
+            consoleGreen('Public Stock Redemption Protocol has been configured successfully');
 
-            consoleGreen('\n Securitize Redemption Protocol has been deployed successfully');
+            consoleGreen('\n Public Stock Redemption Protocol has been deployed successfully');
             consoleMagenta(`- Redemption Address: ${redemptionAddress}`);
             consoleMagenta(`- Liquidity Provider Address: ${liquidityProviderAddress}`);
         }
 
         return { redemption, liquidityProvider };
-    });
-
-// Deploy CollateralLiquidityProvider proxy
-// npx hardhat deploy-collateral-provider --liquidity 0x123 --recipient 0x123 --redemption-address 0x123 --verify
-task('deploy-collateral-provider', 'Deploy CollateralLiquidityProvider proxy')
-    .addParam('liquidity', 'Stable coin to provide liquidity')
-    .addParam('recipient', 'Wallet that receives DS Token')
-    .addParam('securitizeOffRamp', 'SecuritizeOffRamp proxy address')
-    .addParam('externalCollateralRedemption', 'External Collateral Redemption SC')
-    .addParam('collateralProvider', 'Collateral Provider address')
-    .addFlag('verify', 'Verify contracts on Etherscan')
-    .addFlag('silenceLogs', 'Verbose output')
-    .setAction(async (taskArgs, hre) => {
-        if (!taskArgs.silenceLogs) {
-            consoleCyan('\n task: deploy-collateral-provider');
-            consoleCyan('Arguments:');
-            console.log(`- Liquidity Token: ${taskArgs.liquidity}`);
-            console.log(`- Recipient: ${taskArgs.recipient}`);
-            console.log(`- Securitize OffRamp: ${taskArgs.securitizeOffRamp}`);
-        }
-        const { proxyAddress, implAddress } = await hre.run('deploy-proxy', {
-            contractName: 'CollateralLiquidityProvider',
-            kind: 'uups',
-            args: [
-                taskArgs.liquidity,
-                taskArgs.recipient,
-                taskArgs.securitizeOffRamp,
-                taskArgs.externalCollateralRedemption,
-                taskArgs.collateralProvider,
-            ],
-            verify: taskArgs.verify,
-            silenceLogs: taskArgs.silenceLogs,
-        });
-
-        return { liquidityProviderAddress: proxyAddress, liquidityProviderImpl: implAddress };
     });

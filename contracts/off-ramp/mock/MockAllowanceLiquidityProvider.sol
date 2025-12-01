@@ -25,6 +25,12 @@ contract MockAllowanceLiquidityProvider {
     address public recipient;
     ISecuritizeOffRamp public securitizeOffRamp;
 
+    /**
+     * @dev Mock constructor wiring token, recipient, and off-ramp.
+     * @param _liquidityToken Mock liquidity token address.
+     * @param _recipient Recipient wallet.
+     * @param _securitizeOffRamp Off-ramp contract address.
+     */
     constructor(address _liquidityToken, address _recipient, address _securitizeOffRamp) {
         liquidityToken = IERC20(_liquidityToken);
         recipient = _recipient;

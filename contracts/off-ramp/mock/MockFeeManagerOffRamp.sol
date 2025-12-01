@@ -24,15 +24,29 @@ contract MockFeeManagerOffRamp {
 
     event RedemptionFeeUpdated(uint256 oldFee, uint256 newFee);
 
+    /**
+     * @dev Mock constructor setting initial fee and collector.
+     * @param _initialFee Initial fee in FEE_DENOMINATOR terms.
+     * @param _feeCollector Fee collector address.
+     */
     constructor(uint256 _initialFee, address _feeCollector) {
         redemptionFee = _initialFee;
         feeCollector = _feeCollector;
     }
 
-    function getFee(uint256 amount) external view returns (uint256) {
-        return (amount * redemptionFee + FEE_DENOMINATOR - 1) / FEE_DENOMINATOR;
+    /**
+     * @dev Returns fee for given amount using configured redemptionFee.
+     * @param _amount Amount to charge fee on.
+     * @return Calculated fee.
+     */
+    function getFee(uint256 _amount) external view returns (uint256) {
+        return (_amount * redemptionFee + FEE_DENOMINATOR - 1) / FEE_DENOMINATOR;
     }
 
+    /**
+     * @dev Updates redemption fee.
+     * @param _redemptionFee New fee in FEE_DENOMINATOR terms.
+     */
     function setRedemptionFee(uint256 _redemptionFee) external {
         uint256 oldFee = redemptionFee;
         redemptionFee = _redemptionFee;
