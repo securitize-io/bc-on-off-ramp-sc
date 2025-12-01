@@ -160,6 +160,10 @@ describe('Comprehensive Redeem Combinations Test', function () {
             redemption = result.redemption;
             liquidityProvider = result.liquidityProvider;
 
+            // Grant OPERATOR_ROLE to investor for testing
+            const OPERATOR_ROLE_ALLOWANCE = await redemption.OPERATOR_ROLE();
+            await redemption.grantRole(OPERATOR_ROLE_ALLOWANCE, investor.address);
+
             // securitizeWallet has USDC and approves liquidity provider
             await (usdc as any).connect(deployer).mint(securitizeWallet.address, usdcAmount);
             await (usdc as any).connect(securitizeWallet).approve(await liquidityProvider.getAddress(), usdcAmount);
@@ -201,6 +205,10 @@ describe('Comprehensive Redeem Combinations Test', function () {
 
             redemption = result.redemption;
             liquidityProvider = result.liquidityProvider;
+
+            // Grant OPERATOR_ROLE to investor for testing
+            const OPERATOR_ROLE_COLLATERAL = await redemption.OPERATOR_ROLE();
+            await redemption.grantRole(OPERATOR_ROLE_COLLATERAL, investor.address);
 
             // externalRedemptionContractMock has USDC
             await (usdc as any).connect(deployer).mint(await externalRedemptionContractMock.getAddress(), usdcAmount);
@@ -287,7 +295,7 @@ describe('Comprehensive Redeem Combinations Test', function () {
                     const redemptionFromUnauthorized = await redemption.connect(unauthorized);
                     await expect(redemptionFromUnauthorized.toggleTwoStepTransfer(true)).revertedWithCustomError(
                         redemption,
-                        'OwnableUnauthorizedAccount',
+                        'AccessControlUnauthorizedAccount',
                     );
 
                     // Enable again to continue the test

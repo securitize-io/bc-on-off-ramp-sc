@@ -21,6 +21,7 @@ import {ICollateralLiquidityProvider} from "./ICollateralLiquidityProvider.sol";
 import {BaseContract} from "../../common/BaseContract.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {IBaseOffRamp} from "../IBaseOffRamp.sol";
 import {ISecuritizeOffRamp} from "../ISecuritizeOffRamp.sol";
 import {ILiquidityProvider} from "./ILiquidityProvider.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
@@ -40,7 +41,7 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
     /**
      * @dev securitize redemption contract.
      */
-    ISecuritizeOffRamp public securitizeOffRamp;
+    IBaseOffRamp public securitizeOffRamp;
 
     /**
      * @dev external collateral redemption contract.
@@ -78,6 +79,9 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
         _disableInitializers();
     }
 
+    /**
+     * @inheritdoc ICollateralLiquidityProvider
+     */
     function initialize(
         address _liquidityToken,
         address _recipient,
@@ -97,7 +101,7 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
         __BaseContract_init();
         recipient = _recipient;
         liquidityToken = IERC20Metadata(_liquidityToken);
-        securitizeOffRamp = ISecuritizeOffRamp(_securitizeOffRamp);
+        securitizeOffRamp = IBaseOffRamp(_securitizeOffRamp);
         externalCollateralRedemption = ISecuritizeOffRamp(_externalCollateralRedemption);
         collateralProvider = _collateralProvider;
 
@@ -105,37 +109,53 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
         collateralToken = IERC20Metadata(address(externalCollateralRedemption.asset()));
     }
 
-    function setExternalCollateralRedemption(address externalCollateralRedemption_) external onlyOwner {
-        if (externalCollateralRedemption_ == address(0)) {
+    /**
+     * @notice Sets a new external collateral redemption implementation.
+     * @param _externalCollateralRedemption Address of the external collateral redemption contract.
+     */
+    function setExternalCollateralRedemption(address _externalCollateralRedemption) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (_externalCollateralRedemption == address(0)) {
             revert NonZeroAddressError();
         }
 
         if (
             address(
-                ILiquidityProvider(address(ISecuritizeOffRamp(externalCollateralRedemption_).liquidityProvider()))
+                ILiquidityProvider(address(ISecuritizeOffRamp(_externalCollateralRedemption).liquidityProvider()))
                     .liquidityToken()
             ) != address(liquidityToken)
         ) {
             revert LiquidityTokenMismatch();
         }
         address oldExternalCollateral = address(externalCollateralRedemption);
-        externalCollateralRedemption = ISecuritizeOffRamp(externalCollateralRedemption_);
+        externalCollateralRedemption = ISecuritizeOffRamp(_externalCollateralRedemption);
         emit ExternalCollateralRedemptionUpdated(oldExternalCollateral, address(externalCollateralRedemption));
     }
 
-    function setCollateralProvider(address collateralProvider_) external onlyOwner {
-        if (collateralProvider_ == address(0)) {
+    /**
+     * @notice Sets collateral provider wallet.
+     * @param _collateralProvider Address providing collateral asset.
+     */
+    function setCollateralProvider(address _collateralProvider) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (_collateralProvider == address(0)) {
             revert NonZeroAddressError();
         }
         address oldAddress = collateralProvider;
-        collateralProvider = collateralProvider_;
+        collateralProvider = _collateralProvider;
         emit CollateralProviderUpdated(oldAddress, address(collateralProvider));
     }
 
+    /**
+     * @notice Returns the currently available liquidity.
+     * @return Available liquidity amount.
+     */
     function availableLiquidity() external view returns (uint256) {
         return _availableLiquidity();
     }
 
+    /**
+     * @dev Computes the currently available liquidity for this provider.
+     * @return Minimum between external redemption liquidity and collateral capacity.
+     */
     function _availableLiquidity() private view returns (uint256) {
         return
             Math.min(
@@ -146,15 +166,21 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
             );
     }
 
+    /**
+     * @notice Supplies liquidity tokens to a redeemer.
+     * @param _redeemer Recipient of liquidity tokens.
+     * @param _liquidityAmount Requested liquidity token amount.
+     * @return amountToSupply Liquidity actually supplied.
+     */
     function supplyTo(
-        address redeemer,
-        uint256 liquidityAmount
+        address _redeemer,
+        uint256 _liquidityAmount
     ) public whenNotPaused onlySecuritizeRedemption returns (uint256 amountToSupply) {
-        if (liquidityAmount > _availableLiquidity()) {
-            revert InsufficientLiquidity(liquidityAmount, _availableLiquidity());
+        if (_liquidityAmount > _availableLiquidity()) {
+            revert InsufficientLiquidity(_liquidityAmount, _availableLiquidity());
         }
 
-        uint256 collateralAmount = _liquidityTokenToExternalCollateralToken(liquidityAmount);
+        uint256 collateralAmount = _liquidityTokenToExternalCollateralToken(_liquidityAmount);
 
         // Take collateral funds from collateral provider
         collateralToken.transferFrom(collateralProvider, address(this), collateralAmount);
@@ -169,28 +195,36 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
         amountToSupply = externalCollateralRedemption.calculateLiquidityTokenAmount(collateralAmount);
 
         // Supply redeemer
-        liquidityToken.transfer(redeemer, amountToSupply);
+        liquidityToken.transfer(_redeemer, amountToSupply);
     }
 
     /**
-     * @dev Calculates the amount of liquidity tokens
-     * @param initialLiquidityAmount The amount of liquidity tokens to supply
-     * @return amountToSupply The amount of supplied liquidity tokens
+     * @inheritdoc ILiquidityProvider
      */
     function calculateEffectiveLiquidityTokenAmount(
-        uint256 initialLiquidityAmount
+        uint256 _initialLiquidityAmount
     ) external view returns (uint256 amountToSupply) {
-        return _calculateLiquidityTokenAmount(initialLiquidityAmount);
+        return _calculateLiquidityTokenAmount(_initialLiquidityAmount);
     }
 
-    function _calculateLiquidityTokenAmount(uint256 liquidityAmount) private view returns (uint256 amountToSupply) {
+    /**
+     * @dev Converts liquidity amount to supplied amount through external redemption.
+     * @param _liquidityAmount Liquidity token amount requested.
+     * @return amountToSupply Effective liquidity token amount supplied to redeemer.
+     */
+    function _calculateLiquidityTokenAmount(uint256 _liquidityAmount) private view returns (uint256 amountToSupply) {
         // Convert liquidity amount to collateral amount
-        uint256 collateralAmount = _liquidityTokenToExternalCollateralToken(liquidityAmount);
+        uint256 collateralAmount = _liquidityTokenToExternalCollateralToken(_liquidityAmount);
         amountToSupply = externalCollateralRedemption.calculateLiquidityTokenAmount(collateralAmount);
     }
 
+    /**
+     * @dev Converts liquidity token amount to collateral token amount using NAV rate.
+     * @param _liquidityAmount Liquidity token amount.
+     * @return collateralAmount Collateral token equivalent.
+     */
     function _liquidityTokenToExternalCollateralToken(
-        uint256 liquidityAmount
+        uint256 _liquidityAmount
     ) private view returns (uint256 collateralAmount) {
         // rate is expressed in collateral decimals
         uint256 rate = externalCollateralRedemption.navProvider().rate();
@@ -200,7 +234,7 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
         uint8 collateralDecimals = collateralToken.decimals();
 
         collateralAmount =
-            ((liquidityAmount * (10 ** collateralDecimals)) * (10 ** collateralDecimals)) /
+            ((_liquidityAmount * (10 ** collateralDecimals)) * (10 ** collateralDecimals)) /
             (rate * (10 ** liquidityToken.decimals()));
     }
 }

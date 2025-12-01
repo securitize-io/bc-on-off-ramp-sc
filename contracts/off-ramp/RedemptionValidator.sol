@@ -14,18 +14,18 @@ import {ISecuritizeOffRampErrors} from "./ISecuritizeOffRampErrors.sol";
 library RedemptionValidator {
     /**
      * @dev Validates basic redemption requirements
-     * @param redeemer Address of the redeemer
-     * @param assetAmount Amount to redeem
-     * @param asset Asset token contract
+     * @param _redeemer Address of the redeemer
+     * @param _assetAmount Amount to redeem
+     * @param _asset Asset token contract
 
      */
-    function validateRedemption(address redeemer, uint256 assetAmount, IERC20 asset) internal view {
+    function validateRedemption(address _redeemer, uint256 _assetAmount, IERC20 _asset) internal view {
         // Validate redeemer balance
-        if (asset.balanceOf(redeemer) < assetAmount) {
+        if (_asset.balanceOf(_redeemer) < _assetAmount) {
             revert ISecuritizeOffRampErrors.InsufficientRedeemerBalance(
-                redeemer,
-                assetAmount,
-                asset.balanceOf(redeemer)
+                _redeemer,
+                _assetAmount,
+                _asset.balanceOf(_redeemer)
             );
         }
     }

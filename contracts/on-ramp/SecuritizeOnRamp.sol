@@ -17,21 +17,18 @@
  */
 pragma solidity ^0.8.22;
 
-import {BaseContract} from "../common/BaseContract.sol";
 import {ISecuritizeOnRamp} from "./ISecuritizeOnRamp.sol";
-import {IUSDCBridge} from "./cttp/IUSDCBridge.sol";
-import {IFeeManager} from "../fee/IFeeManager.sol";
-import {IAssetProvider} from "./provider/IAssetProvider.sol";
-import {IDSRegistryService} from "@securitize/digital_securities/contracts/registry/IDSRegistryService.sol";
-import {IDSTrustService} from "@securitize/digital_securities/contracts/trust/IDSTrustService.sol";
-import {ISecuritizeNavProvider} from "@securitize/digital_securities/contracts/nav/ISecuritizeNavProvider.sol";
+import {BaseOnRamp} from "./BaseOnRamp.sol";
 import {IDSServiceConsumer} from "@securitize/digital_securities/contracts/service/IDSServiceConsumer.sol";
+import {IDSTrustService} from "@securitize/digital_securities/contracts/trust/IDSTrustService.sol";
+import {IDSRegistryService} from "@securitize/digital_securities/contracts/registry/IDSRegistryService.sol";
+import {ISecuritizeNavProvider} from "@securitize/digital_securities/contracts/nav/ISecuritizeNavProvider.sol";
+import {IFeeManager} from "../fee/IFeeManager.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
-import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
-import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
-contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract {
+contract SecuritizeOnRamp is ISecuritizeOnRamp, BaseOnRamp {
     using Address for address;
     using ECDSA for bytes32;
 
@@ -43,20 +40,16 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
 
     mapping(string => uint256) internal noncePerInvestor;
 
-    // init params
-    IDSServiceConsumer public dsToken;
-    IERC20Metadata public liquidityToken;
-    IAssetProvider public assetProvider;
     ISecuritizeNavProvider public navProvider;
-    IFeeManager public feeManager;
-    address public custodianWallet;
 
-    // adhoc configuration variables
-    uint256 public minSubscriptionAmount;
-    bool public investorSubscriptionEnabled;
-    bool public twoStepTransfer;
-    IUSDCBridge public USDCBridge;
-    uint16 public bridgeChainId;
+    event NavProviderUpdated(address indexed oldProvider, address indexed newProvider);
+
+    modifier nonZeroNavRate() {
+        if (navProvider.rate() <= 0) {
+            revert NonZeroNavRateError();
+        }
+        _;
+    }
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -76,42 +69,31 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
         dsToken = IDSServiceConsumer(_dsToken);
         liquidityToken = IERC20Metadata(_liquidity);
         custodianWallet = _custodianWallet;
-        navProvider = ISecuritizeNavProvider(_navProvider);
         feeManager = IFeeManager(_feeManager);
+
+        // Initialize navProvider for SecuritizeOnRamp
+        if (_navProvider == address(0)) {
+            revert NonZeroAddressError();
+        }
+        navProvider = ISecuritizeNavProvider(_navProvider);
+    }
+
+    /**
+     * @notice Updates the NAV provider address.
+     * @param _navProvider New NAV provider address.
+     */
+    function updateNavProvider(address _navProvider) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (_navProvider == address(0)) {
+            revert NonZeroAddressError();
+        }
+        address oldProvider = address(navProvider);
+        navProvider = ISecuritizeNavProvider(_navProvider);
+        emit NavProviderUpdated(oldProvider, _navProvider);
     }
 
     modifier onlySecuritizeOnRamp() {
         if (_msgSender() != address(this)) {
             revert OnlySecuritizeOnRampError();
-        }
-        _;
-    }
-
-    modifier validateMinSubscriptionAmount(uint256 _amount) {
-        if (_amount < minSubscriptionAmount) {
-            revert MinSubscriptionAmountError();
-        }
-        _;
-    }
-
-    modifier validateInvestorSubscription() {
-        if (!investorSubscriptionEnabled) {
-            revert InvestorSubscriptionDisabledError();
-        }
-        _;
-    }
-
-    modifier investorExists() {
-        IDSRegistryService registryService = IDSRegistryService(dsToken.getDSService(dsToken.REGISTRY_SERVICE()));
-        if (!registryService.isWallet(_msgSender())) {
-            revert InvestorNotRegisteredError();
-        }
-        _;
-    }
-
-    modifier nonZeroNavRate() {
-        if (navProvider.rate() <= 0) {
-            revert NonZeroNavRateError();
         }
         _;
     }
@@ -173,15 +155,11 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
         nonZeroNavRate
         validateInvestorSubscription
         validateMinSubscriptionAmount(_liquidityAmount)
+        onlyRole(OPERATOR_ROLE)
     {
         (uint256 dsTokenAmount, uint256 rate, uint256 fee) = calculateDsTokenAmount(_liquidityAmount); // calculate dsToken using liquidityAmount - fee
-        if (dsTokenAmount < _minOutAmount) {
-            revert SlippageControlError();
-        }
 
-        _executeLiquidityTransfer(_msgSender(), _liquidityAmount);
-        _executeAssetTransfer(_msgSender(), dsTokenAmount);
-
+        _swap(_liquidityAmount, dsTokenAmount, _minOutAmount, _msgSender());
         emit Swap(_msgSender(), dsTokenAmount, _liquidityAmount, _msgSender(), rate, fee, address(liquidityToken));
     }
 
@@ -202,6 +180,18 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
         Address.functionCall(txData.destination, txData.data);
     }
 
+    function calculateDsTokenAmount(uint256 _liquidityAmount) public view returns (uint256 dsTokenAmount, uint256 rate, uint256 fee) {
+        fee = feeManager.getFee(_liquidityAmount);
+        uint256 liquidityAmountExcludingFee = _liquidityAmount - fee;
+
+        uint8 liquidityTokenDecimals = IERC20Metadata(address(liquidityToken)).decimals();
+        uint8 assetDecimals = IERC20Metadata(address(assetProvider.asset())).decimals();
+
+        rate = navProvider.rate(); // assumed to be in `assetDecimals`
+
+        dsTokenAmount = (liquidityAmountExcludingFee * (10 ** (2 * assetDecimals))) / (rate * (10 ** liquidityTokenDecimals));
+    }
+
     /// @dev Computes the digest to sign (EIP-712)
     function hashTx(ExecutePreApprovedTransaction calldata txData) private view returns (bytes32) {
         bytes32 structHash = keccak256(
@@ -215,94 +205,6 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
         );
 
         return _hashTypedDataV4(structHash);
-    }
-
-    function calculateDsTokenAmount(uint256 _liquidityAmount) public view returns (uint256 dsTokenAmount, uint256 rate, uint256 fee) {
-        fee = feeManager.getFee(_liquidityAmount);
-        uint256 liquidityAmountExcludingFee = _liquidityAmount - fee;
-
-        uint8 liquidityTokenDecimals = IERC20Metadata(address(liquidityToken)).decimals();
-        uint8 assetDecimals = IERC20Metadata(address(assetProvider.asset())).decimals();
-
-        rate = navProvider.rate(); // assumed to be in `assetDecimals`
-
-        dsTokenAmount = (liquidityAmountExcludingFee * (10 ** (2 * assetDecimals))) / (rate * (10 ** liquidityTokenDecimals));
-    }
-
-    function updateAssetProvider(address _assetProvider) external onlyOwner {
-        if (_assetProvider == address(0)) {
-            revert NonZeroAddressError();
-        }
-        address oldProvider = address(assetProvider);
-        assetProvider = IAssetProvider(_assetProvider);
-        emit AssetProviderUpdated(oldProvider, _assetProvider);
-    }
-
-    function updateNavProvider(address _navProvider) external onlyOwner {
-        if (_navProvider == address(0)) {
-            revert NonZeroAddressError();
-        }
-        address oldProvider = address(_navProvider);
-        navProvider = ISecuritizeNavProvider(_navProvider);
-        emit NavProviderUpdated(oldProvider, _navProvider);
-    }
-
-    function updateMinSubscriptionAmount(uint256 _minSubscriptionAmount) external onlyOwner {
-        uint256 oldValue = minSubscriptionAmount;
-        minSubscriptionAmount = _minSubscriptionAmount;
-        emit MinSubscriptionAmountUpdated(oldValue, minSubscriptionAmount);
-    }
-
-    function updateBridgeParams(uint16 _chainId, address _bridge) external onlyOwner {
-        bridgeChainId = _chainId;
-        USDCBridge = IUSDCBridge(_bridge);
-        emit BridgeParamsUpdated(_chainId, _bridge);
-    }
-
-    function toggleInvestorSubscription(bool _investorSubscription) external onlyOwner {
-        if (_investorSubscription == investorSubscriptionEnabled) {
-            revert SameValueError();
-        }
-        investorSubscriptionEnabled = _investorSubscription;
-        emit InvestorSubscriptionUpdated(investorSubscriptionEnabled);
-    }
-
-    function toggleTwoStepTransfer(bool _twoStepTransfer) external onlyOwner {
-        if (_twoStepTransfer == twoStepTransfer) {
-            revert SameValueError();
-        }
-        twoStepTransfer = _twoStepTransfer;
-        emit TwoStepTransferUpdated(twoStepTransfer);
-    }
-
-    function _executeLiquidityTransfer(address from, uint256 amount) private {
-        if (liquidityToken.balanceOf(from) < amount) {
-            revert InsufficientERC20BalanceError();
-        }
-
-        liquidityToken.transferFrom(from, address(this), amount);
-        uint256 fee = feeManager.getFee(amount);
-        if (fee > 0) {
-            liquidityToken.transfer(feeManager.feeCollector(), fee);
-        }
-
-        uint256 amountExcludingFee = amount - fee;
-        bool bridgeTransfer = bridgeChainId != 0 && address(USDCBridge) != address(0);
-        if (bridgeTransfer) {
-            liquidityToken.approve(address(USDCBridge), amountExcludingFee);
-            USDCBridge.sendUSDCCrossChainDeposit(bridgeChainId, custodianWallet, amountExcludingFee);
-        } else {
-            liquidityToken.transfer(custodianWallet, amountExcludingFee);
-        }
-    }
-
-    function _executeAssetTransfer(address to, uint256 amount) private {
-        if (twoStepTransfer) {
-            assetProvider.supplyTo(address(this), amount);
-            IERC20Metadata(address(dsToken)).transfer(to, amount);
-        } else {
-            assetProvider.supplyTo(to, amount);
-        }
     }
 
     function _registerInvestor(
