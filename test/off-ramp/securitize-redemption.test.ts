@@ -337,23 +337,44 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
         });
 
         describe('Registry Service Country Code Validation', function () {
-            it('Should fail with empty country code from registry', async function () {
-                const [_, investor] = await hre.ethers.getSigners();
-                const { redemption, mockRegistryService, dsTokenMock } = await loadFixture(deployRedemptionProtocol);
+            it.only('Should work with empty country code from registry', async function () {
+                const [securitizeWallet, investor] = await hre.ethers.getSigners();
+                const {
+                    redemption,
+                    liquidityProvider,
+                    dsTokenMock,
+                    dsTokenCollateralMock,
+                    usdcMock,
+                    externalRedemptionContractMock,
+                    mockRegistryService,
+                } = await loadFixture(deployRedemptionProtocol);
 
                 // Set registry to return empty country code
                 await mockRegistryService.updateInvestor(investorId, '0x', '', [investor.address], [], [], []);
 
                 // Set up for redemption
                 await dsTokenMock.mint(investor, ASSET_AMOUNT);
+                const dsTokenDecimals = await dsTokenMock.decimals();
+                // calculate collateral/usdc to redeem
+                const collateralToRedeem = (ASSET_AMOUNT * FIXED_RATE) / 10n ** dsTokenDecimals;
+
+                const externalRedemptionAddress = await externalRedemptionContractMock.getAddress();
+                // provide liquidity to external mock contract
+                await usdcMock.mint(externalRedemptionAddress, collateralToRedeem);
+
+                // provide collateral asset to securitize wallet
+                await dsTokenCollateralMock.mint(securitizeWallet, COLLATERAL_TREASURY);
+
+                // allow liquidity provider to take collateral assets from treasury
+                await dsTokenCollateralMock.approve(liquidityProvider, collateralToRedeem);
+
+                // allow securitize redemption contract to take assets from investor wallet
                 const dsTokenFromInvestor = await dsTokenMock.connect(investor);
                 await dsTokenFromInvestor.approve(await redemption.getAddress(), ASSET_AMOUNT);
 
-                // Redemption should fail with EmptyCountryCode error
+                // Redemption should work with EmptyCountryCode error
                 const redemptionFromInvestor = await redemption.connect(investor);
-                await expect(
-                    redemptionFromInvestor.redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT),
-                ).to.be.revertedWithCustomError(redemption, 'EmptyCountryCode');
+                await expect(redemptionFromInvestor.redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT)).to.not.be.reverted;
             });
 
             it('Should fail with invalid country code length from registry', async function () {

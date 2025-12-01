@@ -53,7 +53,8 @@ library CountryValidator {
      */
     function validateCountryCode(string memory _country) internal pure {
         if (bytes(_country).length == 0) {
-            revert ISecuritizeOffRampErrors.EmptyCountryCode();
+            // If not country is set, skip validation
+            return;
         }
 
         if (bytes(_country).length != 2 && bytes(_country).length != 3) {
