@@ -43,9 +43,9 @@ contract MockSecuritizeAmmNavProvider is ISecuritizeAmmNavProvider {
      *      It simply returns the fixed execution price and calculates output proportionally.
      */
     function quoteBuyBase(
-        uint256 amountInQuote,
+        uint256,
         uint256 anchorPriceWad,
-        uint8 marketStatus
+        uint8
     ) external view returns (uint256 baseOut, uint256 execPrice) {
         // If anchor price is 0, return 0 exec price (simulates invalid state)
         if (anchorPriceWad == 0) {
@@ -63,9 +63,9 @@ contract MockSecuritizeAmmNavProvider is ISecuritizeAmmNavProvider {
      * @dev For sell operations, returns the fixed execution price in base asset decimals
      */
     function quoteSellBase(
-        uint256 amountInBase,
+        uint256,
         uint256 anchorPriceWad,
-        uint8 marketStatus
+        uint8
     ) external view returns (uint256 quoteOut, uint256 execPrice) {
         // If anchor price is 0, return 0 exec price (simulates invalid state)
         if (anchorPriceWad == 0) {

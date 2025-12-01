@@ -337,7 +337,7 @@ describe('Securitize Redemption Protocol Unit Tests', function () {
         });
 
         describe('Registry Service Country Code Validation', function () {
-            it.only('Should work with empty country code from registry', async function () {
+            it('Should work with empty country code from registry', async function () {
                 const [securitizeWallet, investor] = await hre.ethers.getSigners();
                 const {
                     redemption,
