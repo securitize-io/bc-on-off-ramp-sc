@@ -42,15 +42,18 @@ interface IPublicStockOffRamp is IBaseOffRamp {
     ) external;
 
     /**
-     * @dev Calculates the amount of liquidity tokens to be received for a given asset amount
-     * @param _assetAmount Amount of asset tokens to convert
-     * @param _anchorPrice Anchor price for conversion (1e18 fixed-point)
+     * @notice Calculates the amount of liquidity tokens that would be received for a given amount of asset tokens
+     * @dev Uses the AMM NAV provider to get the execution price and calculates the token conversion
+     * @param _assetAmount The amount of asset tokens to be converted
+     * @param _anchorPrice The anchor price used for price calculation (1e18 fixed-point)
      * @param _marketStatus Current market status (0 = closed, 1 = open)
-     * @return The amount of liquidity tokens to be received (after fees)
+     * @return liquidityAmount The amount of liquidity tokens that would be received
+     * @return rate The execution price used for the conversion (token decimal fixed-point)
+     * @return fee The fee amount in liquidity tokens
      */
     function calculateLiquidityTokenAmount(
         uint256 _assetAmount,
         uint256 _anchorPrice,
         uint8 _marketStatus
-    ) external view returns (uint256);
+    ) external view returns (uint256 liquidityAmount, uint256 rate, uint256 fee);
 }

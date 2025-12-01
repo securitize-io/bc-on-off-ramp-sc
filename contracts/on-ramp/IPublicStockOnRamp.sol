@@ -45,10 +45,10 @@ interface IPublicStockOnRamp is IBaseOnRamp {
     /**
      * @dev Calculates the amount of DS tokens to be received for a given amount of liquidity tokens
      * @param _liquidityAmount Amount of liquidity tokens to convert
-     * @param _anchorPrice Current anchor price from external source
+     * @param _anchorPrice Current anchor price from external source (1e18 fixed-point)
      * @param _marketStatus Current market status (0=closed, 1=open)
      * @return dsTokenAmount Amount of DS tokens to be received
-     * @return rate Current exchange rate used in calculation (execution price from AMM)
+     * @return rate Current exchange rate used in calculation (token decimal fixed-point)
      * @return fee Fee amount deducted from the liquidity tokens
      */
     function calculateDsTokenAmount(uint256 _liquidityAmount, uint256 _anchorPrice, uint8 _marketStatus) external view returns (uint256 dsTokenAmount, uint256 rate, uint256 fee);

@@ -139,13 +139,21 @@ contract PublicStockOnRamp is IPublicStockOnRamp, BaseOnRamp {
         emit Swap(_msgSender(), dsTokenAmount, _liquidityAmount, _investorWallet, execPrice, fee, address(liquidityToken));
     }
 
-    function calculateDsTokenAmount(uint256 _liquidityAmount, uint256 _anchorPrice, uint8 _marketStatus)
-        public
-        view
-        initializedNavProvider
-        nonZeroAnchorPrice(_anchorPrice)
-        returns (uint256 dsTokenAmount, uint256 rate, uint256 fee)
-    {
+    /**
+     * Calculates the amount of DS tokens that would be received for a given amount of liquidity tokens
+     * Uses the AMM NAV provider to get the execution price and calculates the token conversion
+     * @param _liquidityAmount The amount of liquidity tokens to be converted
+     * @param _anchorPrice The anchor price used for price calculation (1e18 fixed-point)
+     * @param _marketStatus Current market status (0 = closed, 1 = open)
+     * @return dsTokenAmount The amount of DS tokens that would be received
+     * @return rate The execution price used for the conversion (token decimal fixed-point)
+     * @return fee The fee amount in liquidity tokens
+     */
+    function calculateDsTokenAmount(
+        uint256 _liquidityAmount,
+        uint256 _anchorPrice,
+        uint8 _marketStatus
+    ) public view initializedNavProvider nonZeroAnchorPrice(_anchorPrice) returns (uint256 dsTokenAmount, uint256 rate, uint256 fee) {
         // Calculate fee first
         fee = feeManager.getFee(_liquidityAmount);
         uint256 liquidityAmountExcludingFee = _liquidityAmount - fee;
@@ -166,13 +174,15 @@ contract PublicStockOnRamp is IPublicStockOnRamp, BaseOnRamp {
         dsTokenAmount = (_liquidityAmountExcludingFee * (10 ** (2 * assetDecimals))) / (_execPrice * (10 ** liquidityTokenDecimals));
     }
 
-    /// @notice Validates the EIP-712 signature provided by the investor for the swap transaction
-    /// @dev Uses EIP-712 signature verification to ensure the transaction is authorized by the investor
-    /// @param _liquidityAmount The amount of liquidity tokens to be swapped
-    /// @param _minOutAmount The minimum amount of DS tokens expected to receive
-    /// @param _investorWallet The wallet address of the investor
-    /// @param _investorSignature The EIP-712 signature of the investor
-    /// @custom:throws InvalidEIP712SignatureError if the signature is invalid or signer doesn't match investor wallet
+    /**
+     * @notice Validates the EIP-712 signature provided by the investor for the swap transaction
+     * @dev Uses EIP-712 signature verification to ensure the transaction is authorized by the investor
+     * @param _liquidityAmount The amount of liquidity tokens to be swapped
+     * @param _minOutAmount The minimum amount of DS tokens expected to receive
+     * @param _investorWallet The wallet address of the investor
+     * @param _investorSignature The EIP-712 signature of the investor
+     * @custom:throws InvalidEIP712SignatureError if the signature is invalid or signer doesn't match investor wallet
+     */
     function validateInvestorSignature(uint256 _liquidityAmount, uint256 _minOutAmount, address _investorWallet, bytes memory _investorSignature) private view {
         bytes32 digest = hashTx(_liquidityAmount, _minOutAmount);
         address signer = ECDSA.recover(digest, _investorSignature);

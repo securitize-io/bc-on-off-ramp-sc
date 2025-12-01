@@ -22,8 +22,22 @@ import {ISecuritizeNavProvider} from "@securitize/digital_securities/contracts/n
 
 interface ISecuritizeOnRamp is IBaseOnRamp {
 
+    /**
+     * @dev Thrown when the parameters provided have different lengths
+     * @custom:selector 0x257d48c7
+     */
     error IncorrectParamLength();
+
+    /**
+     * @dev Thrown when a pre-approved transaction has expired based on block number
+     * @custom:selector 0x2e16da03
+     */
     error TransactionTooOldError();
+
+    /**
+     * @dev Thrown when a function restricted to SecuritizeOnRamp is called by another address
+     * @custom:selector 0x2f105e64
+     */
     error OnlySecuritizeOnRampError();
 
     /**
