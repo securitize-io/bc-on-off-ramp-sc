@@ -65,7 +65,6 @@ task('deploy-public-stock-on-ramp', 'Deploy Public Stock on ramp protocol')
         //////////////////////////
 
         console.log('Please configure add hoc config parameters to align your requirements:');
-        console.log('investorSubscriptionEnabled - default false');
         console.log('twoStepTransfer - default false');
         console.log('USDCBridge - default 0x');
         console.log('bridgeChainId - default 0');

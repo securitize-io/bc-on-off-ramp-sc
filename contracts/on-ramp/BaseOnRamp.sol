@@ -60,9 +60,9 @@ abstract contract BaseOnRamp is IBaseOnRamp, EIP712Upgradeable, BaseContract {
         _;
     }
 
-    modifier investorExists() {
+    modifier investorExists(address _investorWallet) {
         IDSRegistryService registryService = IDSRegistryService(dsToken.getDSService(dsToken.REGISTRY_SERVICE()));
-        if (!registryService.isWallet(_msgSender())) {
+        if (!registryService.isWallet(_investorWallet)) {
             revert InvestorNotRegisteredError();
         }
         _;

@@ -151,7 +151,7 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, BaseOnRamp {
     )
         public
         whenNotPaused
-        investorExists
+        investorExists(_msgSender())
         nonZeroNavRate
         validateInvestorSubscription
         validateMinSubscriptionAmount(_liquidityAmount)
