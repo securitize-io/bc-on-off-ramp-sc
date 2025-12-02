@@ -31,13 +31,13 @@ export const eip712PublicStockOnRampSwap = async (
     const types = {
         Swap: [
             { name: 'liquidityAmount', type: 'uint256' },
-            { name: 'minOutAmount', type: 'uint256' },
+            { name: 'minOutputAmount', type: 'uint256' },
         ],
     };
 
     const message = {
         liquidityAmount: liquidityAmount.toString(),
-        minOutAmount: minOutAmount.toString(),
+        minOutputAmount: minOutAmount.toString(),
     };
 
     return signer.signTypedData(domainData, types, message);

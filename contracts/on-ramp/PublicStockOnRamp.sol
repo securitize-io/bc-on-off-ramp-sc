@@ -32,7 +32,7 @@ contract PublicStockOnRamp is IPublicStockOnRamp, BaseOnRamp {
     string public constant NAME = "PublicStockOnRamp";
     string public constant VERSION = "1";
 
-    bytes32 private constant TXTYPE_HASH = keccak256("Swap(uint256 liquidityAmount,uint256 minOutAmount)");
+    bytes32 private constant TXTYPE_HASH = keccak256("Swap(uint256 liquidityAmount,uint256 minOutputAmount)");
 
     ISecuritizeAmmNavProvider public navProvider;
 
