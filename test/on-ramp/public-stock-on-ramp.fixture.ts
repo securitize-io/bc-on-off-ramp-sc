@@ -42,8 +42,6 @@ export const deployPublicStockOnRamp = async (): Promise<{
     const MockRegistryService = await hre.ethers.getContractFactory('MockRegistryService');
     const mockRegistryService = await MockRegistryService.deploy();
     await mockRegistryService.updateInvestor(investorId, '0x', investorCountry, [investor.address], [], [], []);
-    // Register operator as investor (required by investorExists modifier)
-    await mockRegistryService.updateInvestor('operatorId', '0x', investorCountry, [operator.address], [], [], []);
     // Register unauthorized as investor (for negative access control tests)
     await mockRegistryService.updateInvestor('unauthorizedId', '0x', investorCountry, [unauthorized.address], [], [], []);
 

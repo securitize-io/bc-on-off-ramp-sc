@@ -106,7 +106,7 @@ contract PublicStockOnRamp is IPublicStockOnRamp, BaseOnRamp {
     )
         public
         whenNotPaused
-        investorExists
+        investorExists(_investorWallet)
         initializedNavProvider
         validateMinSubscriptionAmount(_liquidityAmount)
         nonZeroAnchorPrice(_anchorPrice)
