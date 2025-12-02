@@ -18,10 +18,22 @@
 pragma solidity ^0.8.22;
 
 interface Errors {
+    /// @notice Thrown when investor is not registered in whitelist or compliance service
+    /// @dev Selector: 0x2225ba19
     error InvestorNotRegisteredError();
+    /// @notice Thrown when NAV rate is zero
+    /// @dev Selector: 0x432c8777
     error NonZeroNavRateError();
+    /// @notice Thrown when amount is zero or negative
+    /// @dev Selector: 0x1bf7a6c5
     error NonPositiveAmountError();
+    /// @notice Thrown when slippage control check fails
+    /// @dev Selector: 0x6cca9a62
     error SlippageControlError();
+    /// @notice Thrown when an address parameter is zero
+    /// @dev Selector: 0x7ca2e690
     error NonZeroAddressError();
+    /// @notice Thrown when ERC20 balance is insufficient
+    /// @dev Selector: 0xd1d66863
     error InsufficientERC20BalanceError();
 }

@@ -24,6 +24,10 @@ import {ILiquidityProvider} from "./provider/ILiquidityProvider.sol";
 
 interface IBaseOffRamp is IOnOffRamp, ISecuritizeOffRampErrors {
 
+    /**
+     * @dev Thrown when EIP-712 signature verification fails during investor swap validation
+     * @custom:selector 0x6a567a1a
+     */
     error InvalidEIP712SignatureError();
 
     /**
