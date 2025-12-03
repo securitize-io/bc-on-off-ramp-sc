@@ -1,6 +1,4 @@
-import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
 import { ethers } from 'ethers';
-import hre from 'hardhat';
 
 export const EIP712_NAME_PUBLIC_STOCK_OFF_RAMP = 'PublicStockOffRamp';
 export const EIP712_VERSION = '1';
@@ -19,14 +17,22 @@ export const DOMAIN_DATA = {
  * @returns Signature bytes
  */
 export const eip712PublicStockOffRampRedeem = async (
-    signer: HardhatEthersSigner,
+    signer: ethers.Signer,
     contractAddress: string,
     assetAmount: bigint,
     minOutputAmount: bigint,
     domainData: ethers.TypedDataDomain = DOMAIN_DATA,
 ) => {
-    domainData.verifyingContract = contractAddress;
-    domainData.chainId = (await hre.ethers.provider.getNetwork()).chainId;
+    const provider = signer.provider;
+    if (!provider) {
+        throw new Error('Signer must be connected to a provider to resolve chainId');
+    }
+
+    const domain: ethers.TypedDataDomain = {
+        ...domainData,
+        verifyingContract: contractAddress,
+        chainId: domainData.chainId ?? (await provider.getNetwork()).chainId,
+    };
 
     const types = {
         Redeem: [
@@ -40,5 +46,5 @@ export const eip712PublicStockOffRampRedeem = async (
         minOutputAmount: minOutputAmount.toString(),
     };
 
-    return signer.signTypedData(domainData, types, message);
+    return signer.signTypedData(domain, types, message);
 };
