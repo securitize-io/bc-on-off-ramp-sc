@@ -68,6 +68,12 @@ npx hardhat deploy-mbps-fee-manager --network arbitrum --mbps 2000 --collector {
 npx hardhat deploy-on-ramp --network arbitrum --token {dsToken} --liquidity {liquidityToken} --nav {navProvider} --fee {feeManager} --custodian {custodian} --type ALLOWANCE --provider {allowanceProviderWallet}
 ```
 
+#### Public Stock On Ramp
+
+```sh
+npx hardhat deploy-public-stock-on-ramp --network arbitrum --token {dsToken} --liquidity {liquidityToken} --nav {navProvider} --fee {feeManager} --custodian {custodian} --type {ALLOWANCE|MINTING} --provider {allowanceProviderWallet}
+```
+
 #### Off Ramp
 
 ##### Allowance Implementation
@@ -80,6 +86,32 @@ npx hardhat deploy-redemption-allowance-protocol --network arbitrum --asset {dsT
 
 ```sh
 npx hardhat deploy-redemption-collateral-protocol --network arbitrum --asset {dsToken} --nav-provider {navProvider} --fee-manager {feeManager} --asset-burn false --recipient {recipientWallet} --liquidity-token {liquidityToken} --provider-wallet {providerWallet} --external-collateral-redemption {externalCollateralRedemption}
+```
+
+##### Public Stock Off Ramp (Allowance)
+
+```sh
+npx hardhat deploy-public-stock-offramp-allowance-protocol --network arbitrum --asset {dsToken} --nav-provider {navProvider} --fee-manager {feeManager} --asset-burn false --recipient {recipientWallet} --liquidity-token {liquidityToken} --provider-wallet {providerWallet} --verify
+```
+
+##### Public Stock Off Ramp (Collateral)
+
+```sh
+npx hardhat deploy-public-stock-offramp-collateral-protocol --network arbitrum --asset {dsToken} --nav-provider {navProvider} --fee-manager {feeManager} --asset-burn false --recipient {recipientWallet} --liquidity-token {liquidityToken} --provider-wallet {providerWallet} --external-collateral-redemption {externalCollateralRedemption} --verify
+```
+
+### EIP-712 Signing Helpers
+
+- Public Stock On Ramp swap
+
+```sh
+npx hardhat sign-public-stock-on-ramp --network arbitrum --contract {onRampAddress} --liquidityamount {liquidity} --minoutamount {minOut} [--private-key {hexPrivateKey}]
+```
+
+- Public Stock Off Ramp redeem
+
+```sh
+npx hardhat sign-public-stock-off-ramp --network arbitrum --contract {offRampAddress} --assetamount {assetAmount} --minoutputamount {minOutput} [--private-key {hexPrivateKey}]
 ```
 
 ### Test
