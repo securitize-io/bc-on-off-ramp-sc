@@ -31,6 +31,7 @@ interface IPublicStockOnRamp is IBaseOnRamp {
      * @param _marketStatus Current market status (0=closed, 1=open)
      * @param _anchorPrice Current anchor price from external source
      * @param _anchorPriceExpiresAt Timestamp when the anchor price expires
+     * @param _deadline Timestamp after which the signature is no longer valid.
      */
     function swap(
         uint256 _liquidityAmount,
@@ -39,7 +40,8 @@ interface IPublicStockOnRamp is IBaseOnRamp {
         bytes memory _investorSignature,
         uint8 _marketStatus,
         uint256 _anchorPrice,
-        uint256 _anchorPriceExpiresAt
+        uint256 _anchorPriceExpiresAt,
+        uint256 _deadline
     ) external;
 
     /**

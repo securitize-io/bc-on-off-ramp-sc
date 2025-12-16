@@ -32,7 +32,7 @@ contract PublicStockOnRamp is IPublicStockOnRamp, BaseOnRamp {
     string public constant NAME = "PublicStockOnRamp";
     string public constant VERSION = "1";
 
-    bytes32 private constant TXTYPE_HASH = keccak256("Swap(uint256 liquidityAmount,uint256 minOutputAmount)");
+    bytes32 private constant TXTYPE_HASH = keccak256("Swap(uint256 liquidityAmount,uint256 minOutputAmount,uint256 nonce,uint256 deadline)");
 
     ISecuritizeAmmNavProvider public navProvider;
 
@@ -91,6 +91,17 @@ contract PublicStockOnRamp is IPublicStockOnRamp, BaseOnRamp {
         navProvider = ISecuritizeAmmNavProvider(_navProvider);
     }
 
+    /**
+     * @notice Swaps liquidity tokens for DS tokens
+     * @param _liquidityAmount Amount of liquidity tokens to swap
+     * @param _minOutAmount Minimum amount of DS tokens expected to receive
+     * @param _investorWallet Address of the investor's wallet
+     * @param _investorSignature EIP-712 signature from investor authorizing the swap
+     * @param _marketStatus Current market status (0 = closed, 1 = open)
+     * @param _anchorPrice The anchor price used for swap calculation (1e18 fixed-point)
+     * @param _anchorPriceExpiresAt Timestamp when anchor price expires
+     * @param _deadline Timestamp after which transaction is invalid
+     */
     function swap(
         uint256 _liquidityAmount,
         uint256 _minOutAmount,
@@ -98,7 +109,8 @@ contract PublicStockOnRamp is IPublicStockOnRamp, BaseOnRamp {
         bytes memory _investorSignature,
         uint8 _marketStatus,
         uint256 _anchorPrice,
-        uint256 _anchorPriceExpiresAt
+        uint256 _anchorPriceExpiresAt,
+        uint256 _deadline
     )
         public
         whenNotPaused
@@ -114,7 +126,7 @@ contract PublicStockOnRamp is IPublicStockOnRamp, BaseOnRamp {
         }
 
         // Validate investor signature
-        validateInvestorSignature(_liquidityAmount, _minOutAmount, _investorWallet, _investorSignature);
+        validateInvestorSignature(_liquidityAmount, _minOutAmount, _investorWallet, _deadline, _investorSignature);
 
         // Calculate fee first
         uint256 fee = feeManager.getFee(_liquidityAmount);
@@ -175,21 +187,39 @@ contract PublicStockOnRamp is IPublicStockOnRamp, BaseOnRamp {
      * @param _liquidityAmount The amount of liquidity tokens to be swapped
      * @param _minOutAmount The minimum amount of DS tokens expected to receive
      * @param _investorWallet The wallet address of the investor
+     * @param _deadline Timestamp after which the transaction is invalid
      * @param _investorSignature The EIP-712 signature of the investor
      * @custom:throws InvalidEIP712SignatureError if the signature is invalid or signer doesn't match investor wallet
      */
-    function validateInvestorSignature(uint256 _liquidityAmount, uint256 _minOutAmount, address _investorWallet, bytes memory _investorSignature) private view {
-        bytes32 digest = hashTx(_liquidityAmount, _minOutAmount);
+    function validateInvestorSignature(
+        uint256 _liquidityAmount,
+        uint256 _minOutAmount,
+        address _investorWallet,
+        uint256 _deadline,
+        bytes memory _investorSignature
+    ) private {
+        if (block.timestamp > _deadline) {
+            revert SignatureDeadlineExpiredError();
+        }
+        bytes32 digest = hashTx(_liquidityAmount, _minOutAmount, _investorWallet, _deadline);
         address signer = ECDSA.recover(digest, _investorSignature);
         if (signer != _investorWallet) {
             revert InvalidEIP712SignatureError();
         }
     }
 
-    /// @dev Computes the digest to sign (EIP-712)
-    function hashTx(uint256 _liquidityAmount, uint256 _minOutAmount) private view returns (bytes32) {
+    /**
+     * @notice Generates EIP-712 compliant hash for a swap transaction
+     * @dev Combines transaction parameters into a structured hash following EIP-712 standard
+     * @param _liquidityAmount Amount of liquidity tokens to be swapped
+     * @param _minOutAmount Minimum amount of DS tokens expected from the swap
+     * @param _investorWallet Address of the investor's wallet
+     * @param _deadline Timestamp after which the transaction is invalid
+     * @return bytes32 EIP-712 typed data hash of the swap transaction
+     */
+    function hashTx(uint256 _liquidityAmount, uint256 _minOutAmount, address _investorWallet, uint256 _deadline) private returns (bytes32) {
         bytes32 structHash = keccak256(
-            abi.encode(TXTYPE_HASH, _liquidityAmount, _minOutAmount)
+            abi.encode(TXTYPE_HASH, _liquidityAmount, _minOutAmount, _useNonce(_investorWallet), _deadline)
         );
 
         return _hashTypedDataV4(structHash);

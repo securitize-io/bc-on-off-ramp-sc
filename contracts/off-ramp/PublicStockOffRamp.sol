@@ -28,7 +28,7 @@ contract PublicStockOffRamp is IPublicStockOffRamp, BaseOffRamp {
     string public constant NAME = "PublicStockOffRamp";
     string public constant VERSION = "1";
 
-    bytes32 private constant TXTYPE_HASH = keccak256("Redeem(uint256 assetAmount,uint256 minOutputAmount)");
+    bytes32 private constant TXTYPE_HASH = keccak256("Redeem(uint256 assetAmount,uint256 minOutputAmount,uint256 nonce,uint256 deadline)");
 
     ISecuritizeAmmNavProvider public navProvider;
 
@@ -96,6 +96,7 @@ contract PublicStockOffRamp is IPublicStockOffRamp, BaseOffRamp {
      * @param _marketStatus Current market status (0 = closed, 1 = open).
      * @param _anchorPrice NAV price used for redemption (1e18 fixed-point).
      * @param _anchorPriceExpiresAt Timestamp when the anchor price expires.
+     * @param _deadline Timestamp after which the signature is no longer valid.
      */
     function redeem(
         uint256 _assetAmount,
@@ -104,7 +105,8 @@ contract PublicStockOffRamp is IPublicStockOffRamp, BaseOffRamp {
         bytes memory _investorSignature,
         uint8 _marketStatus,
         uint256 _anchorPrice,
-        uint256 _anchorPriceExpiresAt
+        uint256 _anchorPriceExpiresAt,
+        uint256 _deadline
     )
         public
         override
@@ -116,7 +118,11 @@ contract PublicStockOffRamp is IPublicStockOffRamp, BaseOffRamp {
             revert PriceExpiredError();
         }
 
-        bytes32 digest = hashTx(_assetAmount, _minOutputAmount);
+        if (block.timestamp > _deadline) {
+            revert SignatureDeadlineExpiredError();
+        }
+
+        bytes32 digest = hashTx(_assetAmount, _minOutputAmount, _investorWallet, _deadline);
         address signer = ECDSA.recover(digest, _investorSignature);
         if (signer != _investorWallet) {
             revert InvalidEIP712SignatureError();
@@ -151,17 +157,16 @@ contract PublicStockOffRamp is IPublicStockOffRamp, BaseOffRamp {
         uint256 _anchorPrice,
         uint8 _marketStatus
     ) public view override nonZeroLiquidityProvider initializedNavProvider nonZeroAnchorPrice(_anchorPrice) returns (uint256 liquidityAmount, uint256 rate, uint256 fee) {
-        (, uint256 execPrice) = navProvider.quoteSellBase(_assetAmount, _anchorPrice, _marketStatus);
+        (, rate) = navProvider.quoteSellBase(_assetAmount, _anchorPrice, _marketStatus);
 
         uint256 amountBeforeFee = TokenCalculator.calculateLiquidityTokenAmountBeforeFee(
             _assetAmount,
-            execPrice,
+            rate,
             liquidityDecimals,
             assetDecimals
         );
         uint256 effectiveAmount = liquidityProvider.calculateEffectiveLiquidityTokenAmount(amountBeforeFee);
         fee = TokenCalculator.calculateFee(feeManager, effectiveAmount);
-        rate = execPrice;
         liquidityAmount = effectiveAmount - fee;
     }
 
@@ -169,11 +174,13 @@ contract PublicStockOffRamp is IPublicStockOffRamp, BaseOffRamp {
      * @dev Computes the digest to sign (EIP-712).
      * @param _assetAmount Asset amount to redeem.
      * @param _minOutputAmount Minimum liquidity tokens expected (slippage guard).
-     * @return Digest ready for signature verification.
+     * @param _investorWallet Address of the investor signing the transaction.
+     * @param _deadline Timestamp after which the signature is no longer valid.
+     * @return _Digest ready for signature verification.
      */
-    function hashTx(uint256 _assetAmount, uint256 _minOutputAmount) private view returns (bytes32) {
+    function hashTx(uint256 _assetAmount, uint256 _minOutputAmount, address _investorWallet, uint256 _deadline) private returns (bytes32) {
         bytes32 structHash = keccak256(
-            abi.encode(TXTYPE_HASH, _assetAmount, _minOutputAmount)
+            abi.encode(TXTYPE_HASH, _assetAmount, _minOutputAmount, _useNonce(_investorWallet), _deadline)
         );
 
         return _hashTypedDataV4(structHash);

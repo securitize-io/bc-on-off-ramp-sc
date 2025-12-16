@@ -18,14 +18,15 @@
 pragma solidity ^0.8.22;
 
 import {BaseContract} from "../common/BaseContract.sol";
+import {IOnOffRamp} from "./IOnOffRamp.sol";
 import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {ERC1967Utils} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
-import {IOnOffRamp} from "./IOnOffRamp.sol";
+import {NoncesUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/NoncesUpgradeable.sol";
 
-abstract contract BaseOnOffRamp is IOnOffRamp, EIP712Upgradeable, BaseContract {
+abstract contract BaseOnOffRamp is IOnOffRamp, EIP712Upgradeable, NoncesUpgradeable, BaseContract {
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
 
     bool public twoStepTransfer;
@@ -34,6 +35,7 @@ abstract contract BaseOnOffRamp is IOnOffRamp, EIP712Upgradeable, BaseContract {
 
     function __BaseOnOffRamp_init(string memory name, string memory version) internal onlyInitializing {
         __EIP712_init(name, version);
+        __Nonces_init();
         __BaseContract_init();
     }
 

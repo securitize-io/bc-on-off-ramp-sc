@@ -25,11 +25,19 @@ task('sign-public-stock-off-ramp', 'Generate EIP-712 signature for PublicStockOf
 
         consoleYellow(`Using signer: ${signer.address}`);
 
+        const deadline = BigInt(Math.floor(Date.now() / 1000) + 3600);
+        const contract = await hre.ethers.getContractAt(
+          'PublicStockOffRamp',
+          args.contract
+        );
+
         const signature = await eip712PublicStockOffRampRedeem(
             signer,
             args.contract,
             assetAmount,
             minOutputAmount,
+            await contract.nonces(signer.address),
+            deadline,
         );
 
         consoleGreen(`Signature: ${signature}`);
