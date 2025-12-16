@@ -107,7 +107,7 @@ abstract contract BaseOffRamp is IBaseOffRamp, BaseOnOffRamp {
      * @param _isRestricted Whether the countries are restricted.
      */
     function updateCountriesRestriction(string[] memory _countries, bool _isRestricted) external override onlyRole(DEFAULT_ADMIN_ROLE) {
-        for (uint256 i = 0; i < _countries.length; i++) {
+        for (uint256 i; i < _countries.length; i++) {
             _updateCountryRestriction(_countries[i], _isRestricted);
         }
     }
