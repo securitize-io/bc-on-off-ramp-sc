@@ -155,11 +155,10 @@ contract PublicStockOnRamp is IPublicStockOnRamp, BaseOnRamp {
         uint256 liquidityAmountExcludingFee = _liquidityAmount - fee;
 
         // Get execution price from AMM with net amount
-        (, uint256 execPrice) = navProvider.quoteBuyBase(liquidityAmountExcludingFee, _anchorPrice, _marketStatus);
+        (, rate) = navProvider.quoteBuyBase(liquidityAmountExcludingFee, _anchorPrice, _marketStatus);
 
         uint8 liquidityTokenDecimals = IERC20Metadata(address(liquidityToken)).decimals();
         uint8 assetDecimals = IERC20Metadata(address(assetProvider.asset())).decimals();
-        rate = execPrice;
         dsTokenAmount = (liquidityAmountExcludingFee * (10 ** (2 * assetDecimals))) / (rate * (10 ** liquidityTokenDecimals));
     }
 

@@ -35,16 +35,15 @@ library CountryValidator {
      * @dev Returns the country code for a redeemer
      * @param _redeemer Address of the redeemer
      * @param _dsServiceConsumer DS service consumer contract
-     * @return Country code string
+     * @return country code string
      */
-    function getCountry(address _redeemer, IDSServiceConsumer _dsServiceConsumer) internal view returns (string memory) {
+    function getCountry(address _redeemer, IDSServiceConsumer _dsServiceConsumer) internal view returns (string memory country) {
         IDSRegistryService registryService = IDSRegistryService(
             _dsServiceConsumer.getDSService(_dsServiceConsumer.REGISTRY_SERVICE())
         );
 
-        string memory country = registryService.getCountry(registryService.getInvestor(_redeemer));
+        country = registryService.getCountry(registryService.getInvestor(_redeemer));
         validateCountryCode(country);
-        return country;
     }
 
     /**
