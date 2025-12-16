@@ -170,7 +170,8 @@ abstract contract BaseOffRamp is IBaseOffRamp, BaseOnOffRamp {
             revert NonZeroNavRateError();
         }
 
-        RedemptionValidator.validateRedemption(_redeemer, _assetAmount, asset);
+        IDSToken _asset = asset;
+        RedemptionValidator.validateRedemption(_redeemer, _assetAmount, _asset);
         CountryValidator.validateCountryRestriction(_redeemer, dsServiceConsumer, restrictedCountries);
 
         uint256 liquidityTokenAmount = TokenCalculator.calculateLiquidityTokenAmountBeforeFee(
@@ -181,7 +182,7 @@ abstract contract BaseOffRamp is IBaseOffRamp, BaseOnOffRamp {
         );
 
         RedemptionManager.RedemptionParams memory params = RedemptionManager.RedemptionParams({
-            asset: asset,
+            asset: _asset,
             liquidityProvider: liquidityProvider,
             feeManager: feeManager,
             assetAmount: _assetAmount,

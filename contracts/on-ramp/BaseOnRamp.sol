@@ -107,23 +107,27 @@ abstract contract BaseOnRamp is IBaseOnRamp, BaseOnOffRamp {
     }
 
     function _executeLiquidityTransfer(address from, uint256 amount) internal {
-        if (liquidityToken.balanceOf(from) < amount) {
+        IERC20Metadata _liquidityToken = liquidityToken;
+        if (_liquidityToken.balanceOf(from) < amount) {
             revert InsufficientERC20BalanceError();
         }
 
-        liquidityToken.transferFrom(from, address(this), amount);
-        uint256 fee = feeManager.getFee(amount);
+        _liquidityToken.transferFrom(from, address(this), amount);
+        IFeeManager _feeManager = feeManager;
+        uint256 fee = _feeManager.getFee(amount);
         if (fee > 0) {
-            liquidityToken.transfer(feeManager.feeCollector(), fee);
+            _liquidityToken.transfer(_feeManager.feeCollector(), fee);
         }
 
         uint256 amountExcludingFee = amount - fee;
-        bool bridgeTransfer = bridgeChainId != 0 && address(USDCBridge) != address(0);
+        uint16 _bridgeChainId = bridgeChainId;
+        IUSDCBridge _USDCBridge = USDCBridge;
+        bool bridgeTransfer = _bridgeChainId != 0 && address(_USDCBridge) != address(0);
         if (bridgeTransfer) {
-            liquidityToken.approve(address(USDCBridge), amountExcludingFee);
-            USDCBridge.sendUSDCCrossChainDeposit(bridgeChainId, custodianWallet, amountExcludingFee);
+            _liquidityToken.approve(address(_USDCBridge), amountExcludingFee);
+            _USDCBridge.sendUSDCCrossChainDeposit(_bridgeChainId, custodianWallet, amountExcludingFee);
         } else {
-            liquidityToken.transfer(custodianWallet, amountExcludingFee);
+            _liquidityToken.transfer(custodianWallet, amountExcludingFee);
         }
     }
 

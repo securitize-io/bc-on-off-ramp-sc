@@ -114,11 +114,13 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
      * @return Minimum between balance and allowance from provider wallet.
      */
     function _availableLiquidity() private view returns (uint256) {
+        IERC20Metadata _liquidityToken = liquidityToken;
+        address _liquidityProviderWallet = liquidityProviderWallet;
         // Minimum between balance and allowance
         return
             Math.min(
-                liquidityToken.balanceOf(liquidityProviderWallet),
-                liquidityToken.allowance(liquidityProviderWallet, address(this))
+                liquidityToken.balanceOf(_liquidityProviderWallet),
+                liquidityToken.allowance(_liquidityProviderWallet, address(this))
             );
     }
 
