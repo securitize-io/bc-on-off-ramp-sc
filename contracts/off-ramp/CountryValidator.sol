@@ -23,7 +23,7 @@ library CountryValidator {
     function validateCountryRestriction(
         address _redeemer,
         IDSServiceConsumer _dsServiceConsumer,
-        mapping(string => bool) storage _restrictedCountries
+        mapping(string country => bool isRestricted) storage _restrictedCountries
     ) internal view {
         string memory redeemerCountry = getCountry(_redeemer, _dsServiceConsumer);
         if (_restrictedCountries[redeemerCountry]) {

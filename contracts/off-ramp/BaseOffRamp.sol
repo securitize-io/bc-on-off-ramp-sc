@@ -39,7 +39,7 @@ abstract contract BaseOffRamp is IBaseOffRamp, BaseOnOffRamp {
 
     IDSServiceConsumer public dsServiceConsumer;
 
-    mapping(string => bool) public restrictedCountries;
+    mapping(string country => bool isRestricted) public restrictedCountries;
 
     address public feeManager;
     address public assetAddress;

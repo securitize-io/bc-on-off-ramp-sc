@@ -38,7 +38,7 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, BaseOnRamp {
     bytes32 private constant TXTYPE_HASH =
         keccak256("ExecutePreApprovedTransaction(string senderInvestor,address destination,bytes data,uint256 nonce)");
 
-    mapping(string => uint256) internal noncePerInvestor;
+    mapping(string investor => uint256 nonce) internal noncePerInvestor;
 
     ISecuritizeNavProvider public navProvider;
 
