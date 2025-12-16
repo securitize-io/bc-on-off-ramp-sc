@@ -97,7 +97,7 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
         if (_liquidityProviderWallet == address(0)) {
             revert NonZeroAddressError();
         }
-        emit AllowanceLiquidityProviderWalletUpdated(liquidityProviderWallet, liquidityProviderWallet);
+        emit AllowanceLiquidityProviderWalletUpdated(liquidityProviderWallet, _liquidityProviderWallet);
         liquidityProviderWallet = _liquidityProviderWallet;
     }
 
@@ -119,8 +119,8 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
         // Minimum between balance and allowance
         return
             Math.min(
-                liquidityToken.balanceOf(_liquidityProviderWallet),
-                liquidityToken.allowance(_liquidityProviderWallet, address(this))
+                _liquidityToken.balanceOf(_liquidityProviderWallet),
+                _liquidityToken.allowance(_liquidityProviderWallet, address(this))
             );
     }
 

@@ -103,7 +103,7 @@ abstract contract BaseOnRamp is IBaseOnRamp, BaseOnOffRamp {
             revert SameValueError();
         }
         investorSubscriptionEnabled = _investorSubscription;
-        emit InvestorSubscriptionUpdated(investorSubscriptionEnabled);
+        emit InvestorSubscriptionUpdated(_investorSubscriptionEnabled);
     }
 
     function _executeLiquidityTransfer(address from, uint256 amount) internal {

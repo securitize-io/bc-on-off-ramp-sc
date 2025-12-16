@@ -46,7 +46,7 @@ abstract contract BaseOnOffRamp is IOnOffRamp, EIP712Upgradeable, BaseContract {
             revert SameValueError();
         }
         twoStepTransfer = _twoStepTransfer;
-        emit TwoStepTransferUpdated(twoStepTransfer);
+        emit TwoStepTransferUpdated(_twoStepTransfer);
     }
 
     /**

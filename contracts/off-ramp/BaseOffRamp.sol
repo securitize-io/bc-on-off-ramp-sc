@@ -77,7 +77,7 @@ abstract contract BaseOffRamp is IBaseOffRamp, BaseOnOffRamp {
         emit LiquidityProviderUpdated(address(liquidityProvider), _liquidityProvider);
         liquidityProvider = ILiquidityProvider(_liquidityProvider);
 
-        uint256 _liquidityDecimals = IERC20Metadata(address(liquidityProvider.liquidityToken())).decimals();
+        uint256 _liquidityDecimals = IERC20Metadata(address(ILiquidityProvider(_liquidityProvider).liquidityToken())).decimals();
         if (_liquidityDecimals > 18) {
             revert ExcessiveDecimals(_liquidityDecimals, 18);
         }
