@@ -39,8 +39,6 @@ contract PublicStockOnRamp is IPublicStockOnRamp, BaseOnRamp {
     error PriceExpiredError();
     error NavProviderNotSetError();
 
-    event NavProviderUpdated(address indexed oldProvider, address indexed newProvider);
-
     modifier initializedNavProvider() {
         if (address(navProvider) == address(0)) {
             revert NavProviderNotSetError();
@@ -67,8 +65,7 @@ contract PublicStockOnRamp is IPublicStockOnRamp, BaseOnRamp {
         address _feeManager,
         address _custodianWallet
     ) public override initializer onlyProxy {
-        __EIP712_init(NAME, VERSION);
-        __BaseContract_init();
+        __BaseOnRamp_init(NAME, VERSION);
 
         dsToken = IDSServiceConsumer(_dsToken);
         liquidityToken = IERC20Metadata(_liquidity);
@@ -90,9 +87,8 @@ contract PublicStockOnRamp is IPublicStockOnRamp, BaseOnRamp {
         if (_navProvider == address(0)) {
             revert NonZeroAddressError();
         }
-        address oldProvider = address(navProvider);
+        emit NavProviderUpdated(address(navProvider), _navProvider);
         navProvider = ISecuritizeAmmNavProvider(_navProvider);
-        emit NavProviderUpdated(oldProvider, _navProvider);
     }
 
     function swap(

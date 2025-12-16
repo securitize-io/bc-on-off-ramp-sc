@@ -58,10 +58,4 @@ interface IPublicStockOnRamp is IBaseOnRamp {
      * @return The address of the AMM NAV provider
      */
     function navProvider() external view returns (ISecuritizeAmmNavProvider);
-
-    /**
-     * @dev Update the AMM NAV provider
-     * @param _navProvider The new AMM NAV provider address
-     */
-    function updateNavProvider(address _navProvider) external;
 }

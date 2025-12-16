@@ -67,8 +67,7 @@ contract PublicStockOffRamp is IPublicStockOffRamp, BaseOffRamp {
         address _feeManager,
         bool _assetBurn
     ) public override initializer onlyProxy {
-        __EIP712_init(NAME, VERSION);
-        _initializeBaseOffRamp(_asset, _feeManager, _assetBurn);
+        __BaseOffRamp_init(_asset, _feeManager, _assetBurn, NAME, VERSION);
 
         if (_navProvider == address(0)) {
             revert NonZeroAddressError();
@@ -84,9 +83,8 @@ contract PublicStockOffRamp is IPublicStockOffRamp, BaseOffRamp {
         if (_navProvider == address(0)) {
             revert NonZeroAddressError();
         }
-        address oldProvider = address(navProvider);
+        emit NavProviderUpdated(address(navProvider), _navProvider);
         navProvider = ISecuritizeAmmNavProvider(_navProvider);
-        emit NavProviderUpdated(oldProvider, address(navProvider));
     }
 
     /**

@@ -88,9 +88,8 @@ contract AllowanceAssetProvider is IAllowanceAssetProvider, BaseContract {
         if (_assetProviderWallet == address(0)) {
             revert NonZeroAddressError();
         }
-        address oldAddress = assetProviderWallet;
+        emit AllowanceAssetProviderWalletUpdated(assetProviderWallet, _assetProviderWallet);
         assetProviderWallet = _assetProviderWallet;
-        emit AllowanceAssetProviderWalletUpdated(oldAddress, assetProviderWallet);
     }
 
     function supplyTo(address _buyer, uint256 _amount) public whenNotPaused onlySecuritizeOnRamp {

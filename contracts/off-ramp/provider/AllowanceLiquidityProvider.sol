@@ -97,9 +97,8 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
         if (_liquidityProviderWallet == address(0)) {
             revert NonZeroAddressError();
         }
-        address oldAddress = liquidityProviderWallet;
+        emit AllowanceLiquidityProviderWalletUpdated(liquidityProviderWallet, liquidityProviderWallet);
         liquidityProviderWallet = _liquidityProviderWallet;
-        emit AllowanceLiquidityProviderWalletUpdated(oldAddress, liquidityProviderWallet);
     }
 
     /**

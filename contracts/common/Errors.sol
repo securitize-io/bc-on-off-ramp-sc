@@ -36,4 +36,10 @@ interface Errors {
     /// @notice Thrown when ERC20 balance is insufficient
     /// @dev Selector: 0xd1d66863
     error InsufficientERC20BalanceError();
+    /// @notice Thrown when trying to replace a value with the same existing value
+    /// @dev Selector: 0x4559ff5c
+    error SameValueError();
+    ///@notice Thrown when EIP-712 signature verification fails during investor swap validation
+    ///@dev 0x6a567a1a
+    error InvalidEIP712SignatureError();
 }

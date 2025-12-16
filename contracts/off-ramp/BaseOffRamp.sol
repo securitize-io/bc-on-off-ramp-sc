@@ -18,8 +18,6 @@
 pragma solidity ^0.8.22;
 
 import {IBaseOffRamp} from "./IBaseOffRamp.sol";
-import {BaseContract} from "../common/BaseContract.sol";
-import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {IDSToken} from "@securitize/digital_securities/contracts/token/IDSToken.sol";
 import {ILiquidityProvider} from "./provider/ILiquidityProvider.sol";
@@ -29,8 +27,9 @@ import {RedemptionManager} from "./RedemptionManager.sol";
 import {CountryValidator} from "./CountryValidator.sol";
 import {RedemptionValidator} from "./RedemptionValidator.sol";
 import {TokenCalculator} from "./TokenCalculator.sol";
+import {BaseOnOffRamp} from "../common/BaseOnOffRamp.sol";
 
-abstract contract BaseOffRamp is IBaseOffRamp, EIP712Upgradeable, BaseContract {
+abstract contract BaseOffRamp is IBaseOffRamp, BaseOnOffRamp {
 
     IDSToken public asset;
     uint256 internal assetDecimals;
@@ -41,8 +40,6 @@ abstract contract BaseOffRamp is IBaseOffRamp, EIP712Upgradeable, BaseContract {
     IDSServiceConsumer public dsServiceConsumer;
 
     mapping(string => bool) public restrictedCountries;
-
-    bool public twoStepTransfer;
 
     address public feeManager;
     address public assetAddress;
@@ -65,9 +62,9 @@ abstract contract BaseOffRamp is IBaseOffRamp, EIP712Upgradeable, BaseContract {
         _;
     }
 
-    /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor() {
-        _disableInitializers();
+    function __BaseOnRamp_init(string memory name, string memory version) internal onlyInitializing {
+        __BaseOnOffRamp_init(name, version);
+        __BaseContract_init();
     }
 
     /**
@@ -77,7 +74,7 @@ abstract contract BaseOffRamp is IBaseOffRamp, EIP712Upgradeable, BaseContract {
     function updateLiquidityProvider(
         address _liquidityProvider
     ) public virtual override onlyRole(DEFAULT_ADMIN_ROLE) addressNonZero(_liquidityProvider) {
-        address oldProvider = address(liquidityProvider);
+        emit LiquidityProviderUpdated(address(liquidityProvider), _liquidityProvider);
         liquidityProvider = ILiquidityProvider(_liquidityProvider);
 
         uint256 _liquidityDecimals = IERC20Metadata(address(liquidityProvider.liquidityToken())).decimals();
@@ -85,8 +82,6 @@ abstract contract BaseOffRamp is IBaseOffRamp, EIP712Upgradeable, BaseContract {
             revert ExcessiveDecimals(_liquidityDecimals, 18);
         }
         liquidityDecimals = _liquidityDecimals;
-
-        emit LiquidityProviderUpdated(oldProvider, _liquidityProvider);
     }
 
     /**
@@ -95,15 +90,6 @@ abstract contract BaseOffRamp is IBaseOffRamp, EIP712Upgradeable, BaseContract {
      */
     function availableLiquidity() external view override nonZeroLiquidityProvider returns (uint256) {
         return liquidityProvider.availableLiquidity();
-    }
-
-    /**
-     * @notice Enables or disables the two-step transfer flow.
-     * @param _twoStepTransfer Desired two-step transfer flag.
-     */
-    function toggleTwoStepTransfer(bool _twoStepTransfer) external override onlyRole(DEFAULT_ADMIN_ROLE) {
-        twoStepTransfer = _twoStepTransfer;
-        emit TwoStepTransferUpdated(twoStepTransfer);
     }
 
     /**
@@ -143,12 +129,14 @@ abstract contract BaseOffRamp is IBaseOffRamp, EIP712Upgradeable, BaseContract {
      * @param _feeManager Fee manager address.
      * @param _assetBurn Whether redeemed asset is burned.
      */
-    function _initializeBaseOffRamp(
+    function __BaseOffRamp_init(
         address _asset,
         address _feeManager,
-        bool _assetBurn
+        bool _assetBurn,
+        string memory name,
+        string memory version
     ) internal onlyInitializing addressNonZero(_asset) addressNonZero(_feeManager) {
-        __BaseContract_init();
+        __BaseOnOffRamp_init(name, version);
 
         uint256 _assetDecimals = TokenDataStore(_asset).decimals();
         if (_assetDecimals > 18) {

@@ -126,9 +126,8 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
         ) {
             revert LiquidityTokenMismatch();
         }
-        address oldExternalCollateral = address(externalCollateralRedemption);
+        emit ExternalCollateralRedemptionUpdated(address(externalCollateralRedemption), address(_externalCollateralRedemption));
         externalCollateralRedemption = ISecuritizeOffRamp(_externalCollateralRedemption);
-        emit ExternalCollateralRedemptionUpdated(oldExternalCollateral, address(externalCollateralRedemption));
     }
 
     /**
@@ -139,9 +138,8 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
         if (_collateralProvider == address(0)) {
             revert NonZeroAddressError();
         }
-        address oldAddress = collateralProvider;
+        emit CollateralProviderUpdated(collateralProvider, address(_collateralProvider));
         collateralProvider = _collateralProvider;
-        emit CollateralProviderUpdated(oldAddress, address(collateralProvider));
     }
 
     /**

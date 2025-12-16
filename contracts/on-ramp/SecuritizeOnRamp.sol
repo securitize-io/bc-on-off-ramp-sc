@@ -42,7 +42,6 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, BaseOnRamp {
 
     ISecuritizeNavProvider public navProvider;
 
-    event NavProviderUpdated(address indexed oldProvider, address indexed newProvider);
 
     modifier nonZeroNavRate() {
         if (navProvider.rate() <= 0) {
@@ -63,8 +62,7 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, BaseOnRamp {
         address _feeManager,
         address _custodianWallet
     ) public override initializer onlyProxy {
-        __EIP712_init(NAME, VERSION);
-        __BaseContract_init();
+        __BaseOnRamp_init(NAME, VERSION);
 
         dsToken = IDSServiceConsumer(_dsToken);
         liquidityToken = IERC20Metadata(_liquidity);
@@ -86,9 +84,8 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, BaseOnRamp {
         if (_navProvider == address(0)) {
             revert NonZeroAddressError();
         }
-        address oldProvider = address(navProvider);
+        emit NavProviderUpdated(address(navProvider), _navProvider);
         navProvider = ISecuritizeNavProvider(_navProvider);
-        emit NavProviderUpdated(oldProvider, _navProvider);
     }
 
     modifier onlySecuritizeOnRamp() {
