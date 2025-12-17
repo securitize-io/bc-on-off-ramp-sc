@@ -40,9 +40,11 @@ abstract contract BaseOnRamp is IBaseOnRamp, BaseOnOffRamp {
 
     // adhoc configuration variables
     uint256 public minSubscriptionAmount;
-    bool public investorSubscriptionEnabled;
     IUSDCBridge public USDCBridge;
     uint16 public bridgeChainId;
+    bool public investorSubscriptionEnabled;
+
+    uint256[42] private __gap;
 
     modifier validateMinSubscriptionAmount(uint256 _amount) {
         if (_amount < minSubscriptionAmount) {
