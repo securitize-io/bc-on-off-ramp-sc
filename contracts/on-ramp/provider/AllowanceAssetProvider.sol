@@ -26,6 +26,7 @@ import {IBaseOnRamp} from "../IBaseOnRamp.sol";
  * @title AllowanceAssetProvider
  */
 contract AllowanceAssetProvider is IAllowanceAssetProvider, BaseContract {
+
     /**
      * @dev asset.
      */

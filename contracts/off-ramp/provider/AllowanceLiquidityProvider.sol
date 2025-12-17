@@ -21,9 +21,12 @@ import {BaseContract} from "../../common/BaseContract.sol";
 import {IAllowanceLiquidityProvider} from "./IAllowanceLiquidityProvider.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IBaseOffRamp} from "../IBaseOffRamp.sol";
 
 contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract {
+    using SafeERC20 for IERC20Metadata;
+
     /**
      * @dev liquidity asset.
      */
@@ -139,7 +142,7 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
         }
 
         // transfer liquidity token from liquidity provider wallet to redeemer
-        liquidityToken.transferFrom(liquidityProviderWallet, _redeemer, _liquidityAmount);
+        liquidityToken.safeTransferFrom(liquidityProviderWallet, _redeemer, _liquidityAmount);
 
         return _liquidityAmount;
     }

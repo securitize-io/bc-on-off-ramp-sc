@@ -18,8 +18,7 @@
 pragma solidity ^0.8.22;
 
 import {IBaseOnRamp} from "./IBaseOnRamp.sol";
-import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import {Address} from "@openzeppelin/contracts/utils/Address.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IFeeManager} from "../fee/IFeeManager.sol";
 import {IAssetProvider} from "./provider/IAssetProvider.sol";
 import {IDSRegistryService} from "@securitize/digital_securities/contracts/registry/IDSRegistryService.sol";
@@ -30,6 +29,7 @@ import {IUSDCBridge} from "./cttp/IUSDCBridge.sol";
 import {BaseOnOffRamp} from "../common/BaseOnOffRamp.sol";
 
 abstract contract BaseOnRamp is IBaseOnRamp, BaseOnOffRamp {
+    using SafeERC20 for IERC20Metadata;
 
     // init params
     IDSServiceConsumer public dsToken;
@@ -114,11 +114,11 @@ abstract contract BaseOnRamp is IBaseOnRamp, BaseOnOffRamp {
             revert InsufficientERC20BalanceError();
         }
 
-        _liquidityToken.transferFrom(from, address(this), amount);
+        _liquidityToken.safeTransferFrom(from, address(this), amount);
         IFeeManager _feeManager = feeManager;
         uint256 fee = _feeManager.getFee(amount);
         if (fee > 0) {
-            _liquidityToken.transfer(_feeManager.feeCollector(), fee);
+            _liquidityToken.safeTransfer(_feeManager.feeCollector(), fee);
         }
 
         uint256 amountExcludingFee = amount - fee;
@@ -126,10 +126,10 @@ abstract contract BaseOnRamp is IBaseOnRamp, BaseOnOffRamp {
         IUSDCBridge _USDCBridge = USDCBridge;
         bool bridgeTransfer = _bridgeChainId != 0 && address(_USDCBridge) != address(0);
         if (bridgeTransfer) {
-            _liquidityToken.approve(address(_USDCBridge), amountExcludingFee);
+            _liquidityToken.forceApprove(address(_USDCBridge), amountExcludingFee);
             _USDCBridge.sendUSDCCrossChainDeposit(_bridgeChainId, custodianWallet, amountExcludingFee);
         } else {
-            _liquidityToken.transfer(custodianWallet, amountExcludingFee);
+            _liquidityToken.safeTransfer(custodianWallet, amountExcludingFee);
         }
     }
 
