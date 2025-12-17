@@ -102,6 +102,12 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
         recipient = _recipient;
         liquidityToken = IERC20Metadata(_liquidityToken);
         securitizeOffRamp = IBaseOffRamp(_securitizeOffRamp);
+        if (
+            address(ILiquidityProvider(address(ISecuritizeOffRamp(_externalCollateralRedemption).liquidityProvider())).liquidityToken())
+            != _liquidityToken
+        ) {
+            revert LiquidityTokenMismatch();
+        }
         externalCollateralRedemption = ISecuritizeOffRamp(_externalCollateralRedemption);
         collateralProvider = _collateralProvider;
 
@@ -119,10 +125,8 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
         }
 
         if (
-            address(
-                ILiquidityProvider(address(ISecuritizeOffRamp(_externalCollateralRedemption).liquidityProvider()))
-                    .liquidityToken()
-            ) != address(liquidityToken)
+            address(ILiquidityProvider(address(ISecuritizeOffRamp(_externalCollateralRedemption).liquidityProvider())).liquidityToken())
+            != address(liquidityToken)
         ) {
             revert LiquidityTokenMismatch();
         }
