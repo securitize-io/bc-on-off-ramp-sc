@@ -126,7 +126,6 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, BaseOffRamp {
         override
         whenNotPaused
         nonZeroNavRate
-        onlyRole(OPERATOR_ROLE)
     {
         uint256 rate = navProvider.rate();
         (uint256 fee, uint256 liquidityValue) = _redeem(_assetAmount, _minOutputAmount, rate, _msgSender());

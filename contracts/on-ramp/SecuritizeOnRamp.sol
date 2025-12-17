@@ -152,7 +152,6 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, BaseOnRamp {
         nonZeroNavRate
         validateInvestorSubscription
         validateMinSubscriptionAmount(_liquidityAmount)
-        onlyRole(OPERATOR_ROLE)
     {
         (uint256 dsTokenAmount, uint256 rate, uint256 fee) = calculateDsTokenAmount(_liquidityAmount); // calculate dsToken using liquidityAmount - fee
 
