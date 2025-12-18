@@ -62,9 +62,32 @@ abstract contract BaseOffRamp is IBaseOffRamp, BaseOnOffRamp {
         _;
     }
 
-    function __BaseOnRamp_init(string memory name, string memory version) internal onlyInitializing {
+    /**
+     * @dev Internal initializer shared by off-ramp implementations.
+     * @param _asset Address of the DS asset token.
+     * @param _feeManager Fee manager address.
+     * @param _assetBurn Whether redeemed asset is burned.
+     */
+    function __BaseOffRamp_init(
+        address _asset,
+        address _feeManager,
+        bool _assetBurn,
+        string memory name,
+        string memory version
+    ) internal onlyInitializing addressNonZero(_asset) addressNonZero(_feeManager) {
         __BaseOnOffRamp_init(name, version);
-        __BaseContract_init();
+
+        uint256 _assetDecimals = TokenDataStore(_asset).decimals();
+        if (_assetDecimals > 18) {
+            revert ExcessiveDecimals(_assetDecimals, 18);
+        }
+
+        asset = IDSToken(_asset);
+        dsServiceConsumer = IDSServiceConsumer(_asset);
+        feeManager = _feeManager;
+        assetBurn = _assetBurn;
+        assetDecimals = _assetDecimals;
+        assetAddress = _asset;
     }
 
     /**
@@ -121,34 +144,6 @@ abstract contract BaseOffRamp is IBaseOffRamp, BaseOnOffRamp {
         CountryValidator.validateCountryCode(_country);
         restrictedCountries[_country] = _isRestricted;
         emit CountryRestrictionUpdated(_country, _isRestricted);
-    }
-
-    /**
-     * @dev Internal initializer shared by off-ramp implementations.
-     * @param _asset Address of the DS asset token.
-     * @param _feeManager Fee manager address.
-     * @param _assetBurn Whether redeemed asset is burned.
-     */
-    function __BaseOffRamp_init(
-        address _asset,
-        address _feeManager,
-        bool _assetBurn,
-        string memory name,
-        string memory version
-    ) internal onlyInitializing addressNonZero(_asset) addressNonZero(_feeManager) {
-        __BaseOnOffRamp_init(name, version);
-
-        uint256 _assetDecimals = TokenDataStore(_asset).decimals();
-        if (_assetDecimals > 18) {
-            revert ExcessiveDecimals(_assetDecimals, 18);
-        }
-
-        asset = IDSToken(_asset);
-        dsServiceConsumer = IDSServiceConsumer(_asset);
-        feeManager = _feeManager;
-        assetBurn = _assetBurn;
-        assetDecimals = _assetDecimals;
-        assetAddress = _asset;
     }
 
     /**
