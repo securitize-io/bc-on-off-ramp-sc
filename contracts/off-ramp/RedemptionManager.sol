@@ -10,12 +10,16 @@ import {TokenCalculator} from "./TokenCalculator.sol";
 import {ILiquidityProvider} from "./provider/ILiquidityProvider.sol";
 import {IFeeManager} from "../fee/IFeeManager.sol";
 import {Errors} from "../common/Errors.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 /**
  * @title RedemptionManager
  * @dev Handles the core redemption logic for both single-step and two-step transfers
  */
 library RedemptionManager {
+    using SafeERC20 for IERC20Metadata;
+
     struct RedemptionParams {
         IDSToken asset;
         ILiquidityProvider liquidityProvider;
@@ -93,11 +97,11 @@ library RedemptionManager {
         }
 
         // Transfer liquidity tokens from contract to redeemer
-        _params.liquidityProvider.liquidityToken().transfer(_params.redeemer, userSuppliedAmount);
+        _params.liquidityProvider.liquidityToken().safeTransfer(_params.redeemer, userSuppliedAmount);
 
         // Transfer fee from contract to fee collector
         if (fee > 0) {
-            _params.liquidityProvider.liquidityToken().transfer(IFeeManager(_params.feeManager).feeCollector(), fee);
+            _params.liquidityProvider.liquidityToken().safeTransfer(IFeeManager(_params.feeManager).feeCollector(), fee);
         }
     }
 }

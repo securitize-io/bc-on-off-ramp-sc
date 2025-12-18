@@ -25,12 +25,6 @@ import {ILiquidityProvider} from "./provider/ILiquidityProvider.sol";
 interface IBaseOffRamp is IOnOffRamp, ISecuritizeOffRampErrors {
 
     /**
-     * @dev Thrown when EIP-712 signature verification fails during investor swap validation
-     * @custom:selector 0x6a567a1a
-     */
-    error InvalidEIP712SignatureError();
-
-    /**
      * @dev Emitted when redemption is completed.
      * @param redeemer Initiator of redemption transaction
      * @param dsTokenValue The amount being redeemed
@@ -54,13 +48,6 @@ interface IBaseOffRamp is IOnOffRamp, ISecuritizeOffRampErrors {
      * @param newProvider New provider address
      */
     event LiquidityProviderUpdated(address indexed oldProvider, address indexed newProvider);
-
-    /**
-     * @dev Emitted when NAV rate provider is updated
-     * @param oldProvider Old provider address
-     * @param newProvider New provider address
-     */
-    event NavProviderUpdated(address indexed oldProvider, address indexed newProvider);
 
     /**
      * @dev Emitted when a country restriction status is updated

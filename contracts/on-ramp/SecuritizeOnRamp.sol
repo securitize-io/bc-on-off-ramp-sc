@@ -38,11 +38,10 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, BaseOnRamp {
     bytes32 private constant TXTYPE_HASH =
         keccak256("ExecutePreApprovedTransaction(string senderInvestor,address destination,bytes data,uint256 nonce)");
 
-    mapping(string => uint256) internal noncePerInvestor;
+    mapping(string investor => uint256 nonce) internal noncePerInvestor;
 
     ISecuritizeNavProvider public navProvider;
 
-    event NavProviderUpdated(address indexed oldProvider, address indexed newProvider);
 
     modifier nonZeroNavRate() {
         if (navProvider.rate() <= 0) {
@@ -63,8 +62,7 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, BaseOnRamp {
         address _feeManager,
         address _custodianWallet
     ) public override initializer onlyProxy {
-        __EIP712_init(NAME, VERSION);
-        __BaseContract_init();
+        __BaseOnRamp_init(NAME, VERSION);
 
         dsToken = IDSServiceConsumer(_dsToken);
         liquidityToken = IERC20Metadata(_liquidity);
@@ -86,9 +84,8 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, BaseOnRamp {
         if (_navProvider == address(0)) {
             revert NonZeroAddressError();
         }
-        address oldProvider = address(navProvider);
+        emit NavProviderUpdated(address(navProvider), _navProvider);
         navProvider = ISecuritizeNavProvider(_navProvider);
-        emit NavProviderUpdated(oldProvider, _navProvider);
     }
 
     modifier onlySecuritizeOnRamp() {
@@ -155,7 +152,6 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, BaseOnRamp {
         nonZeroNavRate
         validateInvestorSubscription
         validateMinSubscriptionAmount(_liquidityAmount)
-        onlyRole(OPERATOR_ROLE)
     {
         (uint256 dsTokenAmount, uint256 rate, uint256 fee) = calculateDsTokenAmount(_liquidityAmount); // calculate dsToken using liquidityAmount - fee
 

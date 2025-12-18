@@ -23,8 +23,6 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/U
 import {ERC1967Utils} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
 
 abstract contract BaseContract is UUPSUpgradeable, PausableUpgradeable, AccessControlUpgradeable {
-    bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
-
     uint256[50] private __gap;
 
     function __BaseContract_init() internal onlyInitializing {
@@ -59,39 +57,5 @@ abstract contract BaseContract is UUPSUpgradeable, PausableUpgradeable, AccessCo
      */
     function getInitializedVersion() external view returns (uint64) {
         return _getInitializedVersion();
-    }
-
-    /**
-     * @dev Checks if an address has the admin role
-     * @param account Address to check
-     * @return bool True if the address has admin role
-     */
-    function isAdmin(address account) public view returns (bool) {
-        return hasRole(DEFAULT_ADMIN_ROLE, account);
-    }
-
-    /**
-     * @dev Checks if an address has the operator role
-     * @param account Address to check
-     * @return bool True if the address has operator role
-     */
-    function isOperator(address account) public view returns (bool) {
-        return hasRole(OPERATOR_ROLE, account);
-    }
-
-    /**
-     * @dev Grants operator role to an address
-     * @param operator Address to grant operator role
-     */
-    function addOperator(address operator) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        grantRole(OPERATOR_ROLE, operator);
-    }
-
-    /**
-     * @dev Revokes operator role from an address
-     * @param operator Address to revoke operator role
-     */
-    function removeOperator(address operator) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        revokeRole(OPERATOR_ROLE, operator);
     }
 }

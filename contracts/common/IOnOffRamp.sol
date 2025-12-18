@@ -20,11 +20,24 @@ pragma solidity ^0.8.22;
 import {Errors} from "./Errors.sol";
 
 interface IOnOffRamp is Errors {
+
+    /**
+     * @dev Emitted when the NAV provider address is updated
+     * @param oldProvider Address of the previous NAV provider
+     * @param newProvider Address of the new NAV provider
+     */
+    event NavProviderUpdated(address indexed oldProvider, address indexed newProvider);
     /**
      * @dev Emitted when the twoStepTransfer is updated
      * @param newValue New value
      */
     event TwoStepTransferUpdated(bool newValue);
+
+    /**
+     * @dev Update the AMM NAV provider
+     * @param _navProvider The new AMM NAV provider address
+     */
+    function updateNavProvider(address _navProvider) external;
 
     /**
      * @notice This method enable/disable two step transfer feature

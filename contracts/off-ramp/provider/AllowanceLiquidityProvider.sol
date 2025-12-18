@@ -21,9 +21,12 @@ import {BaseContract} from "../../common/BaseContract.sol";
 import {IAllowanceLiquidityProvider} from "./IAllowanceLiquidityProvider.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IBaseOffRamp} from "../IBaseOffRamp.sol";
 
 contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract {
+    using SafeERC20 for IERC20Metadata;
+
     /**
      * @dev liquidity asset.
      */
@@ -97,9 +100,8 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
         if (_liquidityProviderWallet == address(0)) {
             revert NonZeroAddressError();
         }
-        address oldAddress = liquidityProviderWallet;
+        emit AllowanceLiquidityProviderWalletUpdated(liquidityProviderWallet, _liquidityProviderWallet);
         liquidityProviderWallet = _liquidityProviderWallet;
-        emit AllowanceLiquidityProviderWalletUpdated(oldAddress, liquidityProviderWallet);
     }
 
     /**
@@ -115,11 +117,13 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
      * @return Minimum between balance and allowance from provider wallet.
      */
     function _availableLiquidity() private view returns (uint256) {
+        IERC20Metadata _liquidityToken = liquidityToken;
+        address _liquidityProviderWallet = liquidityProviderWallet;
         // Minimum between balance and allowance
         return
             Math.min(
-                liquidityToken.balanceOf(liquidityProviderWallet),
-                liquidityToken.allowance(liquidityProviderWallet, address(this))
+                _liquidityToken.balanceOf(_liquidityProviderWallet),
+                _liquidityToken.allowance(_liquidityProviderWallet, address(this))
             );
     }
 
@@ -138,7 +142,7 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
         }
 
         // transfer liquidity token from liquidity provider wallet to redeemer
-        liquidityToken.transferFrom(liquidityProviderWallet, _redeemer, _liquidityAmount);
+        liquidityToken.safeTransferFrom(liquidityProviderWallet, _redeemer, _liquidityAmount);
 
         return _liquidityAmount;
     }

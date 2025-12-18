@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { loadFixture } from '@nomicfoundation/hardhat-network-helpers';
+import { loadFixture, time } from '@nomicfoundation/hardhat-network-helpers';
 import hre from 'hardhat';
 import {
     deployPublicStockOffRamp,
@@ -59,15 +59,19 @@ describe('PublicStockOffRamp Unit Tests', function () {
             const assetAmount = ASSET_AMOUNT;
             const minOutputAmount = MIN_OUTPUT_AMOUNT;
             const anchorPrice = FIXED_AMM_PRICE;
-            const anchorPriceExpiresAt = (await hre.ethers.provider.getBlock('latest'))!.timestamp + 3600;
+            const anchorPriceExpiresAt = await time.latest() + 1000;
 
             await dsToken.connect(investor).approve(await offRamp.getAddress(), assetAmount);
+
+            const deadline = await time.latest() + 1000;
 
             const signature = await eip712PublicStockOffRampRedeem(
                 investor,
                 await offRamp.getAddress(),
                 assetAmount,
                 minOutputAmount,
+                await offRamp.nonces(investor.address),
+                deadline,
             );
 
             await expect(
@@ -81,6 +85,7 @@ describe('PublicStockOffRamp Unit Tests', function () {
                         MARKET_STATUS_OPEN,
                         anchorPrice,
                         anchorPriceExpiresAt,
+                        deadline
                     ),
             ).revertedWithCustomError(offRamp, 'AccessControlUnauthorizedAccount');
         });
@@ -109,15 +114,19 @@ describe('PublicStockOffRamp Unit Tests', function () {
             const assetAmount = ASSET_AMOUNT;
             const minOutputAmount = MIN_OUTPUT_AMOUNT;
             const anchorPrice = FIXED_AMM_PRICE;
-            const anchorPriceExpiresAt = (await hre.ethers.provider.getBlock('latest'))!.timestamp + 3600;
+            const anchorPriceExpiresAt = await time.latest() + 1000;
 
             await dsToken.connect(investor).approve(await offRamp.getAddress(), assetAmount);
 
+            const deadline = await time.latest() + 1000;
+
             const signature = await eip712PublicStockOffRampRedeem(
-                investor,
-                await offRamp.getAddress(),
-                assetAmount,
-                minOutputAmount,
+              investor,
+              await offRamp.getAddress(),
+              assetAmount,
+              minOutputAmount,
+              await offRamp.nonces(investor.address),
+              deadline,
             );
 
             await offRamp.pause();
@@ -133,6 +142,7 @@ describe('PublicStockOffRamp Unit Tests', function () {
                         MARKET_STATUS_OPEN,
                         anchorPrice,
                         anchorPriceExpiresAt,
+                        deadline,
                     ),
             ).revertedWithCustomError(offRamp, 'EnforcedPause');
         });
@@ -146,15 +156,19 @@ describe('PublicStockOffRamp Unit Tests', function () {
             const assetAmount = ASSET_AMOUNT;
             const minOutputAmount = MIN_OUTPUT_AMOUNT;
             const anchorPrice = FIXED_AMM_PRICE;
-            const anchorPriceExpiresAt = (await hre.ethers.provider.getBlock('latest'))!.timestamp + 3600;
+            const anchorPriceExpiresAt = await time.latest() + 1000;
 
             await dsToken.connect(investor).approve(await offRamp.getAddress(), assetAmount);
 
+            const deadline = await time.latest() + 1000;
+
             const signature = await eip712PublicStockOffRampRedeem(
-                investor,
-                await offRamp.getAddress(),
-                assetAmount,
-                minOutputAmount,
+              investor,
+              await offRamp.getAddress(),
+              assetAmount,
+              minOutputAmount,
+              await offRamp.nonces(investor.address),
+              deadline,
             );
 
             await expect(
@@ -168,11 +182,50 @@ describe('PublicStockOffRamp Unit Tests', function () {
                         MARKET_STATUS_OPEN,
                         anchorPrice,
                         anchorPriceExpiresAt,
+                        deadline,
                     ),
             ).to.emit(offRamp, 'RedemptionCompleted');
 
             expect(await liquidityToken.balanceOf(investor.address)).to.equal(20000000n);
         });
+
+      it('Should reject if the deadline is expired', async function () {
+        const { offRamp, investor, operator, dsToken, liquidityToken } =
+          await loadFixture(deployPublicStockOffRamp);
+
+        const assetAmount = ASSET_AMOUNT;
+        const minOutputAmount = MIN_OUTPUT_AMOUNT;
+        const anchorPrice = FIXED_AMM_PRICE;
+        const anchorPriceExpiresAt = await time.latest() + 1000;
+
+        await dsToken.connect(investor).approve(await offRamp.getAddress(), assetAmount);
+
+        const deadline = await time.latest() - 1000;
+
+        const signature = await eip712PublicStockOffRampRedeem(
+          investor,
+          await offRamp.getAddress(),
+          assetAmount,
+          minOutputAmount,
+          await offRamp.nonces(investor.address),
+          deadline,
+        );
+
+        await expect(
+          offRamp
+            .connect(operator)
+            .redeem(
+              assetAmount,
+              minOutputAmount,
+              investor.address,
+              signature,
+              MARKET_STATUS_OPEN,
+              anchorPrice,
+              anchorPriceExpiresAt,
+              deadline,
+            ),
+        ).revertedWithCustomError(offRamp, 'SignatureDeadlineExpiredError');
+      });
 
         it('Should reject signature from wrong signer', async function () {
             const { offRamp, investor, operator, unauthorized, dsToken } =
@@ -181,16 +234,20 @@ describe('PublicStockOffRamp Unit Tests', function () {
             const assetAmount = ASSET_AMOUNT;
             const minOutputAmount = MIN_OUTPUT_AMOUNT;
             const anchorPrice = FIXED_AMM_PRICE;
-            const anchorPriceExpiresAt = (await hre.ethers.provider.getBlock('latest'))!.timestamp + 3600;
+            const anchorPriceExpiresAt = await time.latest() + 1000;
 
             await dsToken.connect(investor).approve(await offRamp.getAddress(), assetAmount);
 
             // Sign with unauthorized wallet instead of investor
+            const deadline = await time.latest() + 1000;
+
             const signature = await eip712PublicStockOffRampRedeem(
-                unauthorized,
-                await offRamp.getAddress(),
-                assetAmount,
-                minOutputAmount,
+              unauthorized,
+              await offRamp.getAddress(),
+              assetAmount,
+              minOutputAmount,
+              await offRamp.nonces(investor.address),
+              deadline,
             );
 
             await expect(
@@ -204,6 +261,7 @@ describe('PublicStockOffRamp Unit Tests', function () {
                         MARKET_STATUS_OPEN,
                         anchorPrice,
                         anchorPriceExpiresAt,
+                        deadline,
                     ),
             ).revertedWithCustomError(offRamp, 'InvalidEIP712SignatureError');
         });
@@ -215,16 +273,20 @@ describe('PublicStockOffRamp Unit Tests', function () {
             const modifiedAssetAmount = assetAmount * 2n;
             const minOutputAmount = MIN_OUTPUT_AMOUNT;
             const anchorPrice = FIXED_AMM_PRICE;
-            const anchorPriceExpiresAt = (await hre.ethers.provider.getBlock('latest'))!.timestamp + 3600;
+            const anchorPriceExpiresAt = await time.latest() + 1000;
 
             await dsToken.connect(investor).approve(await offRamp.getAddress(), modifiedAssetAmount);
 
             // Sign with original amount
+            const deadline = await time.latest() + 1000;
+
             const signature = await eip712PublicStockOffRampRedeem(
-                investor,
-                await offRamp.getAddress(),
-                assetAmount,
-                minOutputAmount,
+              investor,
+              await offRamp.getAddress(),
+              assetAmount,
+              minOutputAmount,
+              await offRamp.nonces(investor.address),
+              deadline,
             );
 
             // Execute with modified amount
@@ -239,6 +301,7 @@ describe('PublicStockOffRamp Unit Tests', function () {
                         MARKET_STATUS_OPEN,
                         anchorPrice,
                         anchorPriceExpiresAt,
+                        deadline
                     ),
             ).revertedWithCustomError(offRamp, 'InvalidEIP712SignatureError');
         });
@@ -250,16 +313,20 @@ describe('PublicStockOffRamp Unit Tests', function () {
             const minOutputAmount = MIN_OUTPUT_AMOUNT;
             const modifiedMinOutputAmount = 5000000n;
             const anchorPrice = FIXED_AMM_PRICE;
-            const anchorPriceExpiresAt = (await hre.ethers.provider.getBlock('latest'))!.timestamp + 3600;
+            const anchorPriceExpiresAt = await time.latest() + 1000;
 
             await dsToken.connect(investor).approve(await offRamp.getAddress(), assetAmount);
 
             // Sign with original minOutputAmount
+            const deadline = await time.latest() + 1000;
+
             const signature = await eip712PublicStockOffRampRedeem(
-                investor,
-                await offRamp.getAddress(),
-                assetAmount,
-                minOutputAmount,
+              investor,
+              await offRamp.getAddress(),
+              assetAmount,
+              minOutputAmount,
+              await offRamp.nonces(investor.address),
+              deadline,
             );
 
             // Execute with modified minOutputAmount
@@ -274,6 +341,7 @@ describe('PublicStockOffRamp Unit Tests', function () {
                         MARKET_STATUS_OPEN,
                         anchorPrice,
                         anchorPriceExpiresAt,
+                        deadline,
                     ),
             ).revertedWithCustomError(offRamp, 'InvalidEIP712SignatureError');
         });
@@ -287,15 +355,19 @@ describe('PublicStockOffRamp Unit Tests', function () {
             const assetAmount = ASSET_AMOUNT;
             const minOutputAmount = MIN_OUTPUT_AMOUNT;
             const anchorPrice = FIXED_AMM_PRICE;
-            const anchorPriceExpiresAt = (await hre.ethers.provider.getBlock('latest'))!.timestamp + 3600;
+            const anchorPriceExpiresAt = await time.latest() + 1000;
 
             await dsToken.connect(investor).approve(await offRamp.getAddress(), assetAmount);
 
+            const deadline = await time.latest() + 1000;
+
             const signature = await eip712PublicStockOffRampRedeem(
-                investor,
-                await offRamp.getAddress(),
-                assetAmount,
-                minOutputAmount,
+              investor,
+              await offRamp.getAddress(),
+              assetAmount,
+              minOutputAmount,
+              await offRamp.nonces(investor.address),
+              deadline,
             );
 
             await offRamp
@@ -308,6 +380,7 @@ describe('PublicStockOffRamp Unit Tests', function () {
                     MARKET_STATUS_OPEN,
                     anchorPrice,
                     anchorPriceExpiresAt,
+                    deadline
                 );
 
             expect(await liquidityToken.balanceOf(investor.address)).to.equal(20000000n);
@@ -323,11 +396,15 @@ describe('PublicStockOffRamp Unit Tests', function () {
 
             await dsToken.connect(investor).approve(await offRamp.getAddress(), assetAmount);
 
+            const deadline = await time.latest() + 1000;
+
             const signature = await eip712PublicStockOffRampRedeem(
-                investor,
-                await offRamp.getAddress(),
-                assetAmount,
-                minOutputAmount,
+              investor,
+              await offRamp.getAddress(),
+              assetAmount,
+              minOutputAmount,
+              await offRamp.nonces(investor.address),
+              deadline,
             );
 
             await expect(
@@ -341,6 +418,7 @@ describe('PublicStockOffRamp Unit Tests', function () {
                         MARKET_STATUS_OPEN,
                         anchorPrice,
                         anchorPriceExpiresAt,
+                        deadline
                     ),
             ).revertedWithCustomError(offRamp, 'PriceExpiredError');
         });
@@ -354,17 +432,21 @@ describe('PublicStockOffRamp Unit Tests', function () {
             const assetAmount = ASSET_AMOUNT;
             const minOutputAmount = MIN_OUTPUT_AMOUNT;
             const anchorPrice = FIXED_AMM_PRICE;
-            const anchorPriceExpiresAt = (await hre.ethers.provider.getBlock('latest'))!.timestamp + 3600;
+            const anchorPriceExpiresAt = await time.latest() + 1000;
 
             const initialDsBalance = await dsToken.balanceOf(investor.address);
 
             await dsToken.connect(investor).approve(await offRamp.getAddress(), assetAmount);
 
+            const deadline = await time.latest() + 1000;
+
             const signature = await eip712PublicStockOffRampRedeem(
-                investor,
-                await offRamp.getAddress(),
-                assetAmount,
-                minOutputAmount,
+              investor,
+              await offRamp.getAddress(),
+              assetAmount,
+              minOutputAmount,
+              await offRamp.nonces(investor.address),
+              deadline,
             );
 
             await offRamp
@@ -377,6 +459,7 @@ describe('PublicStockOffRamp Unit Tests', function () {
                     MARKET_STATUS_OPEN,
                     anchorPrice,
                     anchorPriceExpiresAt,
+                    deadline,
                 );
 
             expect(await dsToken.balanceOf(investor.address)).to.equal(initialDsBalance - assetAmount);
@@ -389,15 +472,19 @@ describe('PublicStockOffRamp Unit Tests', function () {
             const assetAmount = ASSET_AMOUNT;
             const minOutputAmount = MIN_OUTPUT_AMOUNT;
             const anchorPrice = FIXED_AMM_PRICE;
-            const anchorPriceExpiresAt = (await hre.ethers.provider.getBlock('latest'))!.timestamp + 3600;
+            const anchorPriceExpiresAt = await time.latest() + 1000;
 
             await dsToken.connect(investor).approve(await offRamp.getAddress(), assetAmount);
 
+            const deadline = await time.latest() + 1000;
+
             const signature = await eip712PublicStockOffRampRedeem(
-                investor,
-                await offRamp.getAddress(),
-                assetAmount,
-                minOutputAmount,
+              investor,
+              await offRamp.getAddress(),
+              assetAmount,
+              minOutputAmount,
+              await offRamp.nonces(investor.address),
+              deadline,
             );
 
             const tx = await offRamp
@@ -410,6 +497,7 @@ describe('PublicStockOffRamp Unit Tests', function () {
                     MARKET_STATUS_OPEN,
                     anchorPrice,
                     anchorPriceExpiresAt,
+                    deadline
                 );
 
             const receipt = await tx.wait();
@@ -440,15 +528,19 @@ describe('PublicStockOffRamp Unit Tests', function () {
             const assetAmount = ASSET_AMOUNT;
             const minOutputAmount = MIN_OUTPUT_AMOUNT;
             const anchorPrice = FIXED_AMM_PRICE;
-            const anchorPriceExpiresAt = (await hre.ethers.provider.getBlock('latest'))!.timestamp + 3600;
+            const anchorPriceExpiresAt = await time.latest() + 1000;
 
             await dsToken.connect(investor).approve(await offRamp.getAddress(), assetAmount);
 
+            const deadline = await time.latest() + 1000;
+
             const signature = await eip712PublicStockOffRampRedeem(
-                investor,
-                await offRamp.getAddress(),
-                assetAmount,
-                minOutputAmount,
+              investor,
+              await offRamp.getAddress(),
+              assetAmount,
+              minOutputAmount,
+              await offRamp.nonces(investor.address),
+              deadline,
             );
 
             await offRamp
@@ -461,6 +553,7 @@ describe('PublicStockOffRamp Unit Tests', function () {
                     MARKET_STATUS_CLOSED,
                     anchorPrice,
                     anchorPriceExpiresAt,
+                    deadline,
                 );
 
             expect(await liquidityToken.balanceOf(investor.address)).to.equal(20000000n);
@@ -474,15 +567,19 @@ describe('PublicStockOffRamp Unit Tests', function () {
             const assetAmount = ASSET_AMOUNT;
             const minOutputAmount = MIN_OUTPUT_AMOUNT;
             const anchorPrice = 0n;
-            const anchorPriceExpiresAt = (await hre.ethers.provider.getBlock('latest'))!.timestamp + 3600;
+            const anchorPriceExpiresAt = await time.latest() + 1000;
 
             await dsToken.connect(investor).approve(await offRamp.getAddress(), assetAmount);
 
+            const deadline = await time.latest() + 1000;
+
             const signature = await eip712PublicStockOffRampRedeem(
-                investor,
-                await offRamp.getAddress(),
-                assetAmount,
-                minOutputAmount,
+              investor,
+              await offRamp.getAddress(),
+              assetAmount,
+              minOutputAmount,
+              await offRamp.nonces(investor.address),
+              deadline,
             );
 
             await expect(
@@ -496,6 +593,7 @@ describe('PublicStockOffRamp Unit Tests', function () {
                         MARKET_STATUS_OPEN,
                         anchorPrice,
                         anchorPriceExpiresAt,
+                        deadline
                     ),
             ).revertedWithCustomError(offRamp, 'NonZeroNavRateError');
         });
@@ -506,15 +604,19 @@ describe('PublicStockOffRamp Unit Tests', function () {
             const assetAmount = ASSET_AMOUNT * 1000n; // More than investor has
             const minOutputAmount = MIN_OUTPUT_AMOUNT;
             const anchorPrice = FIXED_AMM_PRICE;
-            const anchorPriceExpiresAt = (await hre.ethers.provider.getBlock('latest'))!.timestamp + 3600;
+            const anchorPriceExpiresAt = await time.latest() + 1000;
 
             await dsToken.connect(investor).approve(await offRamp.getAddress(), assetAmount);
 
+            const deadline = await time.latest() + 1000;
+
             const signature = await eip712PublicStockOffRampRedeem(
-                investor,
-                await offRamp.getAddress(),
-                assetAmount,
-                minOutputAmount,
+              investor,
+              await offRamp.getAddress(),
+              assetAmount,
+              minOutputAmount,
+              await offRamp.nonces(investor.address),
+              deadline,
             );
 
             await expect(
@@ -528,6 +630,7 @@ describe('PublicStockOffRamp Unit Tests', function () {
                         MARKET_STATUS_OPEN,
                         anchorPrice,
                         anchorPriceExpiresAt,
+                        deadline,
                     ),
             ).revertedWithCustomError(offRamp, 'InsufficientRedeemerBalance');
         });
@@ -544,15 +647,19 @@ describe('PublicStockOffRamp Unit Tests', function () {
             const assetAmount = ASSET_AMOUNT;
             const minOutputAmount = MIN_OUTPUT_AMOUNT;
             const anchorPrice = 3000000000000000000n; // 3.0 in WAD (for anchor price parameter)
-            const anchorPriceExpiresAt = (await hre.ethers.provider.getBlock('latest'))!.timestamp + 3600;
+            const anchorPriceExpiresAt = await time.latest() + 1000;
 
             await dsToken.connect(investor).approve(await offRamp.getAddress(), assetAmount);
 
+            const deadline = await time.latest() + 1000;
+
             const signature = await eip712PublicStockOffRampRedeem(
-                investor,
-                await offRamp.getAddress(),
-                assetAmount,
-                minOutputAmount,
+              investor,
+              await offRamp.getAddress(),
+              assetAmount,
+              minOutputAmount,
+              await offRamp.nonces(investor.address),
+              deadline,
             );
 
             await offRamp
@@ -565,6 +672,7 @@ describe('PublicStockOffRamp Unit Tests', function () {
                     MARKET_STATUS_OPEN,
                     anchorPrice,
                     anchorPriceExpiresAt,
+                    deadline
                 );
 
             // With higher price (3.0 vs 2.0), should receive more liquidity tokens
@@ -581,15 +689,19 @@ describe('PublicStockOffRamp Unit Tests', function () {
             const assetAmount = ASSET_AMOUNT;
             const minOutputAmount = MIN_OUTPUT_AMOUNT;
             const anchorPrice = FIXED_AMM_PRICE;
-            const anchorPriceExpiresAt = (await hre.ethers.provider.getBlock('latest'))!.timestamp + 3600;
+            const anchorPriceExpiresAt = await time.latest() + 1000;
 
             await dsToken.connect(investor).approve(await offRamp.getAddress(), assetAmount);
 
+            const deadline = await time.latest() + 1000;
+
             const signature = await eip712PublicStockOffRampRedeem(
-                investor,
-                await offRamp.getAddress(),
-                assetAmount,
-                minOutputAmount,
+              investor,
+              await offRamp.getAddress(),
+              assetAmount,
+              minOutputAmount,
+              await offRamp.nonces(investor.address),
+              deadline,
             );
 
             await offRamp
@@ -602,6 +714,7 @@ describe('PublicStockOffRamp Unit Tests', function () {
                     MARKET_STATUS_OPEN,
                     anchorPrice,
                     anchorPriceExpiresAt,
+                    deadline
                 );
 
             expect(await liquidityToken.balanceOf(investor.address)).to.equal(20000000n);
@@ -628,15 +741,19 @@ describe('PublicStockOffRamp Unit Tests', function () {
             const assetAmount = ASSET_AMOUNT;
             const minOutputAmount = MIN_OUTPUT_AMOUNT;
             const anchorPrice = FIXED_AMM_PRICE;
-            const anchorPriceExpiresAt = (await hre.ethers.provider.getBlock('latest'))!.timestamp + 3600;
+            const anchorPriceExpiresAt = await time.latest() + 1000;
 
             await dsToken.connect(investor).approve(await offRamp.getAddress(), assetAmount);
 
+            const deadline = await time.latest() + 1000;
+
             const signature = await eip712PublicStockOffRampRedeem(
-                investor,
-                await offRamp.getAddress(),
-                assetAmount,
-                minOutputAmount,
+              investor,
+              await offRamp.getAddress(),
+              assetAmount,
+              minOutputAmount,
+              await offRamp.nonces(investor.address),
+              deadline,
             );
 
             await expect(
@@ -650,6 +767,7 @@ describe('PublicStockOffRamp Unit Tests', function () {
                         MARKET_STATUS_OPEN,
                         anchorPrice,
                         anchorPriceExpiresAt,
+                        deadline,
                     ),
             ).revertedWithCustomError(offRamp, 'RestrictedCountry');
         });

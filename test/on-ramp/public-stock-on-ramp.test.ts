@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { loadFixture } from '@nomicfoundation/hardhat-network-helpers';
+import { loadFixture, time } from '@nomicfoundation/hardhat-network-helpers';
 import hre from 'hardhat';
 import {
     deployPublicStockOnRamp,
@@ -63,16 +63,20 @@ describe('PublicStockOnRamp Unit Tests', function () {
             const liquidityAmount = LIQUIDITY_AMOUNT;
             const minOutAmount = MIN_OUT_AMOUNT;
             const anchorPrice = FIXED_AMM_PRICE;
-            const anchorPriceExpiresAt = (await hre.ethers.provider.getBlock('latest'))!.timestamp + 3600;
+            const anchorPriceExpiresAt = await time.latest() + 1000;
 
             await liquidityToken.mint(investor.address, liquidityAmount);
             await liquidityToken.connect(investor).approve(await onRamp.getAddress(), liquidityAmount);
+
+            const deadline = await time.latest() + 1000;
 
             const signature = await eip712PublicStockOnRampSwap(
                 investor,
                 await onRamp.getAddress(),
                 liquidityAmount,
                 minOutAmount,
+                await onRamp.nonces(investor.address),
+                deadline,
             );
 
             await expect(
@@ -86,6 +90,7 @@ describe('PublicStockOnRamp Unit Tests', function () {
                         MARKET_STATUS_OPEN,
                         anchorPrice,
                         anchorPriceExpiresAt,
+                        deadline
                     ),
             ).revertedWithCustomError(onRamp, 'AccessControlUnauthorizedAccount');
         });
@@ -114,16 +119,20 @@ describe('PublicStockOnRamp Unit Tests', function () {
             const liquidityAmount = LIQUIDITY_AMOUNT;
             const minOutAmount = MIN_OUT_AMOUNT;
             const anchorPrice = FIXED_AMM_PRICE;
-            const anchorPriceExpiresAt = (await hre.ethers.provider.getBlock('latest'))!.timestamp + 3600;
+            const anchorPriceExpiresAt = await time.latest() + 1000;
 
             await liquidityToken.mint(investor.address, liquidityAmount);
             await liquidityToken.connect(investor).approve(await onRamp.getAddress(), liquidityAmount);
 
+            const deadline = await time.latest() + 1000;
+
             const signature = await eip712PublicStockOnRampSwap(
-                investor,
-                await onRamp.getAddress(),
-                liquidityAmount,
-                minOutAmount,
+              investor,
+              await onRamp.getAddress(),
+              liquidityAmount,
+              minOutAmount,
+              await onRamp.nonces(investor.address),
+              deadline,
             );
 
             await onRamp.pause();
@@ -139,6 +148,7 @@ describe('PublicStockOnRamp Unit Tests', function () {
                         MARKET_STATUS_OPEN,
                         anchorPrice,
                         anchorPriceExpiresAt,
+                        deadline,
                     ),
             ).revertedWithCustomError(onRamp, 'EnforcedPause');
         });
@@ -152,16 +162,20 @@ describe('PublicStockOnRamp Unit Tests', function () {
             const liquidityAmount = LIQUIDITY_AMOUNT;
             const minOutAmount = MIN_OUT_AMOUNT;
             const anchorPrice = FIXED_AMM_PRICE;
-            const anchorPriceExpiresAt = (await hre.ethers.provider.getBlock('latest'))!.timestamp + 3600;
+            const anchorPriceExpiresAt = await time.latest() + 1000;
 
             await liquidityToken.mint(investor.address, liquidityAmount);
             await liquidityToken.connect(investor).approve(await onRamp.getAddress(), liquidityAmount);
 
+            const deadline = await time.latest() + 1000;
+
             const signature = await eip712PublicStockOnRampSwap(
-                investor,
-                await onRamp.getAddress(),
-                liquidityAmount,
-                minOutAmount,
+              investor,
+              await onRamp.getAddress(),
+              liquidityAmount,
+              minOutAmount,
+              await onRamp.nonces(investor.address),
+              deadline,
             );
 
             await expect(
@@ -175,6 +189,7 @@ describe('PublicStockOnRamp Unit Tests', function () {
                         MARKET_STATUS_OPEN,
                         anchorPrice,
                         anchorPriceExpiresAt,
+                        deadline
                     ),
             ).to.emit(onRamp, 'Swap');
 
@@ -188,17 +203,20 @@ describe('PublicStockOnRamp Unit Tests', function () {
             const liquidityAmount = LIQUIDITY_AMOUNT;
             const minOutAmount = MIN_OUT_AMOUNT;
             const anchorPrice = FIXED_AMM_PRICE;
-            const anchorPriceExpiresAt = (await hre.ethers.provider.getBlock('latest'))!.timestamp + 3600;
+            const anchorPriceExpiresAt = await time.latest() + 1000;
 
             await liquidityToken.mint(investor.address, liquidityAmount);
             await liquidityToken.connect(investor).approve(await onRamp.getAddress(), liquidityAmount);
 
-            // Sign with unauthorized wallet instead of investor
+            const deadline = await time.latest() + 1000;
+
             const signature = await eip712PublicStockOnRampSwap(
-                unauthorized,
-                await onRamp.getAddress(),
-                liquidityAmount,
-                minOutAmount,
+              unauthorized,
+              await onRamp.getAddress(),
+              liquidityAmount,
+              minOutAmount,
+              await onRamp.nonces(unauthorized.address),
+              deadline,
             );
 
             await expect(
@@ -212,6 +230,7 @@ describe('PublicStockOnRamp Unit Tests', function () {
                         MARKET_STATUS_OPEN,
                         anchorPrice,
                         anchorPriceExpiresAt,
+                        deadline,
                     ),
             ).revertedWithCustomError(onRamp, 'InvalidEIP712SignatureError');
         });
@@ -223,19 +242,21 @@ describe('PublicStockOnRamp Unit Tests', function () {
             const modifiedLiquidityAmount = liquidityAmount * 2n;
             const minOutAmount = MIN_OUT_AMOUNT;
             const anchorPrice = FIXED_AMM_PRICE;
-            const anchorPriceExpiresAt = (await hre.ethers.provider.getBlock('latest'))!.timestamp + 3600;
+            const anchorPriceExpiresAt = await time.latest() + 1000;
 
             await liquidityToken.mint(investor.address, modifiedLiquidityAmount);
             await liquidityToken.connect(investor).approve(await onRamp.getAddress(), modifiedLiquidityAmount);
 
+            const deadline = await time.latest() + 1000;
             // Sign with original amount
             const signature = await eip712PublicStockOnRampSwap(
-                investor,
-                await onRamp.getAddress(),
-                liquidityAmount,
-                minOutAmount,
+              investor,
+              await onRamp.getAddress(),
+              liquidityAmount,
+              minOutAmount,
+              await onRamp.nonces(investor.address),
+              deadline,
             );
-
             // Execute with modified amount
             await expect(
                 onRamp
@@ -248,9 +269,47 @@ describe('PublicStockOnRamp Unit Tests', function () {
                         MARKET_STATUS_OPEN,
                         anchorPrice,
                         anchorPriceExpiresAt,
+                        deadline,
                     ),
             ).revertedWithCustomError(onRamp, 'InvalidEIP712SignatureError');
         });
+
+      it('Should reject if the deadline is expired', async function () {
+        const { onRamp, investor, operator, liquidityToken } = await loadFixture(deployPublicStockOnRamp);
+
+        const liquidityAmount = LIQUIDITY_AMOUNT;
+        const minOutAmount = MIN_OUT_AMOUNT;
+        const anchorPrice = FIXED_AMM_PRICE;
+        const anchorPriceExpiresAt = await time.latest() + 1000;
+
+        await liquidityToken.mint(investor.address, liquidityAmount);
+        await liquidityToken.connect(investor).approve(await onRamp.getAddress(), liquidityAmount);
+
+        const deadline = await time.latest() - 1;
+        // Sign with original amount
+        const signature = await eip712PublicStockOnRampSwap(
+          investor,
+          await onRamp.getAddress(),
+          liquidityAmount,
+          minOutAmount,
+          await onRamp.nonces(investor.address),
+          deadline,
+        );
+        await expect(
+          onRamp
+            .connect(operator)
+            .swap(
+              liquidityAmount,
+              minOutAmount,
+              investor.address,
+              signature,
+              MARKET_STATUS_OPEN,
+              anchorPrice,
+              anchorPriceExpiresAt,
+              deadline,
+            ),
+        ).revertedWithCustomError(onRamp, 'SignatureDeadlineExpiredError');
+      });
 
         it('Should reject when minOutAmount is modified after signing', async function () {
             const { onRamp, investor, operator, liquidityToken } = await loadFixture(deployPublicStockOnRamp);
@@ -259,17 +318,21 @@ describe('PublicStockOnRamp Unit Tests', function () {
             const minOutAmount = MIN_OUT_AMOUNT;
             const modifiedMinOutAmount = 5000000n;
             const anchorPrice = FIXED_AMM_PRICE;
-            const anchorPriceExpiresAt = (await hre.ethers.provider.getBlock('latest'))!.timestamp + 3600;
+            const anchorPriceExpiresAt = await time.latest() + 1000;
 
             await liquidityToken.mint(investor.address, liquidityAmount);
             await liquidityToken.connect(investor).approve(await onRamp.getAddress(), liquidityAmount);
 
+
+            const deadline = await time.latest() + 1000;
             // Sign with original minOutAmount
             const signature = await eip712PublicStockOnRampSwap(
-                investor,
-                await onRamp.getAddress(),
-                liquidityAmount,
-                minOutAmount,
+              investor,
+              await onRamp.getAddress(),
+              liquidityAmount,
+              minOutAmount,
+              await onRamp.nonces(investor.address),
+              deadline,
             );
 
             // Execute with modified minOutAmount
@@ -284,6 +347,7 @@ describe('PublicStockOnRamp Unit Tests', function () {
                         MARKET_STATUS_OPEN,
                         anchorPrice,
                         anchorPriceExpiresAt,
+                        deadline,
                     ),
             ).revertedWithCustomError(onRamp, 'InvalidEIP712SignatureError');
         });
@@ -297,16 +361,20 @@ describe('PublicStockOnRamp Unit Tests', function () {
             const liquidityAmount = LIQUIDITY_AMOUNT;
             const minOutAmount = MIN_OUT_AMOUNT;
             const anchorPrice = FIXED_AMM_PRICE;
-            const anchorPriceExpiresAt = (await hre.ethers.provider.getBlock('latest'))!.timestamp + 3600;
+            const anchorPriceExpiresAt = await time.latest() + 1000;
 
             await liquidityToken.mint(investor.address, liquidityAmount);
             await liquidityToken.connect(investor).approve(await onRamp.getAddress(), liquidityAmount);
 
+            const deadline = await time.latest() + 1000;
+
             const signature = await eip712PublicStockOnRampSwap(
-                investor,
-                await onRamp.getAddress(),
-                liquidityAmount,
-                minOutAmount,
+              investor,
+              await onRamp.getAddress(),
+              liquidityAmount,
+              minOutAmount,
+              await onRamp.nonces(investor.address),
+              deadline,
             );
 
             await onRamp
@@ -319,6 +387,7 @@ describe('PublicStockOnRamp Unit Tests', function () {
                     MARKET_STATUS_OPEN,
                     anchorPrice,
                     anchorPriceExpiresAt,
+                    deadline,
                 );
 
             expect(await dsToken.balanceOf(investor.address)).to.equal(5000000n);
@@ -335,11 +404,15 @@ describe('PublicStockOnRamp Unit Tests', function () {
             await liquidityToken.mint(investor.address, liquidityAmount);
             await liquidityToken.connect(investor).approve(await onRamp.getAddress(), liquidityAmount);
 
+            const deadline = await time.latest() + 1000;
+
             const signature = await eip712PublicStockOnRampSwap(
-                investor,
-                await onRamp.getAddress(),
-                liquidityAmount,
-                minOutAmount,
+              investor,
+              await onRamp.getAddress(),
+              liquidityAmount,
+              minOutAmount,
+              await onRamp.nonces(investor.address),
+              deadline,
             );
 
             await expect(
@@ -353,6 +426,7 @@ describe('PublicStockOnRamp Unit Tests', function () {
                         MARKET_STATUS_OPEN,
                         anchorPrice,
                         anchorPriceExpiresAt,
+                        deadline,
                     ),
             ).revertedWithCustomError(onRamp, 'PriceExpiredError');
         });
@@ -366,18 +440,22 @@ describe('PublicStockOnRamp Unit Tests', function () {
             const liquidityAmount = LIQUIDITY_AMOUNT;
             const minOutAmount = MIN_OUT_AMOUNT;
             const anchorPrice = FIXED_AMM_PRICE;
-            const anchorPriceExpiresAt = (await hre.ethers.provider.getBlock('latest'))!.timestamp + 3600;
+            const anchorPriceExpiresAt = await time.latest() + 1000;
 
             const initialLiquidityBalance = await liquidityToken.balanceOf(investor.address);
 
             await liquidityToken.mint(investor.address, liquidityAmount);
             await liquidityToken.connect(investor).approve(await onRamp.getAddress(), liquidityAmount);
 
+            const deadline = await time.latest() + 1000;
+
             const signature = await eip712PublicStockOnRampSwap(
-                investor,
-                await onRamp.getAddress(),
-                liquidityAmount,
-                minOutAmount,
+              investor,
+              await onRamp.getAddress(),
+              liquidityAmount,
+              minOutAmount,
+              await onRamp.nonces(investor.address),
+              deadline,
             );
 
             await onRamp
@@ -390,6 +468,7 @@ describe('PublicStockOnRamp Unit Tests', function () {
                     MARKET_STATUS_OPEN,
                     anchorPrice,
                     anchorPriceExpiresAt,
+                    deadline
                 );
 
             expect(await liquidityToken.balanceOf(investor.address)).to.equal(initialLiquidityBalance);
@@ -402,16 +481,20 @@ describe('PublicStockOnRamp Unit Tests', function () {
             const liquidityAmount = LIQUIDITY_AMOUNT;
             const minOutAmount = MIN_OUT_AMOUNT;
             const anchorPrice = FIXED_AMM_PRICE;
-            const anchorPriceExpiresAt = (await hre.ethers.provider.getBlock('latest'))!.timestamp + 3600;
+            const anchorPriceExpiresAt = await time.latest() + 1000;
 
             await liquidityToken.mint(investor.address, liquidityAmount);
             await liquidityToken.connect(investor).approve(await onRamp.getAddress(), liquidityAmount);
 
+            const deadline = await time.latest() + 1000;
+
             const signature = await eip712PublicStockOnRampSwap(
-                investor,
-                await onRamp.getAddress(),
-                liquidityAmount,
-                minOutAmount,
+              investor,
+              await onRamp.getAddress(),
+              liquidityAmount,
+              minOutAmount,
+              await onRamp.nonces(investor.address),
+              deadline,
             );
 
             const tx = await onRamp
@@ -424,6 +507,7 @@ describe('PublicStockOnRamp Unit Tests', function () {
                     MARKET_STATUS_OPEN,
                     anchorPrice,
                     anchorPriceExpiresAt,
+                    deadline
                 );
 
             const receipt = await tx.wait();
@@ -455,16 +539,20 @@ describe('PublicStockOnRamp Unit Tests', function () {
             const liquidityAmount = LIQUIDITY_AMOUNT;
             const minOutAmount = MIN_OUT_AMOUNT;
             const anchorPrice = FIXED_AMM_PRICE;
-            const anchorPriceExpiresAt = (await hre.ethers.provider.getBlock('latest'))!.timestamp + 3600;
+            const anchorPriceExpiresAt = await time.latest() + 1000;
 
             await liquidityToken.mint(investor.address, liquidityAmount);
             await liquidityToken.connect(investor).approve(await onRamp.getAddress(), liquidityAmount);
 
+            const deadline = await time.latest() + 1000;
+
             const signature = await eip712PublicStockOnRampSwap(
-                investor,
-                await onRamp.getAddress(),
-                liquidityAmount,
-                minOutAmount,
+              investor,
+              await onRamp.getAddress(),
+              liquidityAmount,
+              minOutAmount,
+              await onRamp.nonces(investor.address),
+              deadline,
             );
 
             await onRamp
@@ -477,6 +565,7 @@ describe('PublicStockOnRamp Unit Tests', function () {
                     MARKET_STATUS_CLOSED,
                     anchorPrice,
                     anchorPriceExpiresAt,
+                    deadline,
                 );
 
             expect(await dsToken.balanceOf(investor.address)).to.equal(5000000n);
@@ -490,16 +579,20 @@ describe('PublicStockOnRamp Unit Tests', function () {
             const liquidityAmount = LIQUIDITY_AMOUNT;
             const minOutAmount = MIN_OUT_AMOUNT;
             const anchorPrice = 0n;
-            const anchorPriceExpiresAt = (await hre.ethers.provider.getBlock('latest'))!.timestamp + 3600;
+            const anchorPriceExpiresAt = await time.latest() + 1000;
 
             await liquidityToken.mint(investor.address, liquidityAmount);
             await liquidityToken.connect(investor).approve(await onRamp.getAddress(), liquidityAmount);
 
+            const deadline = await time.latest() + 1000;
+
             const signature = await eip712PublicStockOnRampSwap(
-                investor,
-                await onRamp.getAddress(),
-                liquidityAmount,
-                minOutAmount,
+              investor,
+              await onRamp.getAddress(),
+              liquidityAmount,
+              minOutAmount,
+              await onRamp.nonces(investor.address),
+              deadline,
             );
 
             await expect(
@@ -513,6 +606,7 @@ describe('PublicStockOnRamp Unit Tests', function () {
                         MARKET_STATUS_OPEN,
                         anchorPrice,
                         anchorPriceExpiresAt,
+                        deadline,
                     ),
             ).to.be.revertedWithCustomError(onRamp, 'NonZeroNavRateError');
         });
@@ -523,16 +617,20 @@ describe('PublicStockOnRamp Unit Tests', function () {
             const liquidityAmount = LIQUIDITY_AMOUNT;
             const minOutAmount = MIN_OUT_AMOUNT;
             const anchorPrice = FIXED_AMM_PRICE;
-            const anchorPriceExpiresAt = (await hre.ethers.provider.getBlock('latest'))!.timestamp + 3600;
+            const anchorPriceExpiresAt = await time.latest() + 1000;
 
             // Don't mint tokens to investor
             await liquidityToken.connect(investor).approve(await onRamp.getAddress(), liquidityAmount);
 
+            const deadline = await time.latest() + 1000;
+
             const signature = await eip712PublicStockOnRampSwap(
-                investor,
-                await onRamp.getAddress(),
-                liquidityAmount,
-                minOutAmount,
+              investor,
+              await onRamp.getAddress(),
+              liquidityAmount,
+              minOutAmount,
+              await onRamp.nonces(investor.address),
+              deadline,
             );
 
             await expect(
@@ -546,6 +644,7 @@ describe('PublicStockOnRamp Unit Tests', function () {
                         MARKET_STATUS_OPEN,
                         anchorPrice,
                         anchorPriceExpiresAt,
+                        deadline,
                     ),
             ).revertedWithCustomError(onRamp, 'InsufficientERC20BalanceError');
         });
@@ -562,16 +661,20 @@ describe('PublicStockOnRamp Unit Tests', function () {
             const liquidityAmount = LIQUIDITY_AMOUNT;
             const minOutAmount = MIN_OUT_AMOUNT;
             const anchorPrice = 3000000000000000000n; // 3.0 in WAD (for anchor price parameter)
-            const anchorPriceExpiresAt = (await hre.ethers.provider.getBlock('latest'))!.timestamp + 3600;
+            const anchorPriceExpiresAt = await time.latest() + 1000;
 
             await liquidityToken.mint(investor.address, liquidityAmount);
             await liquidityToken.connect(investor).approve(await onRamp.getAddress(), liquidityAmount);
 
+            const deadline = await time.latest() + 1000;
+
             const signature = await eip712PublicStockOnRampSwap(
-                investor,
-                await onRamp.getAddress(),
-                liquidityAmount,
-                minOutAmount,
+              investor,
+              await onRamp.getAddress(),
+              liquidityAmount,
+              minOutAmount,
+              await onRamp.nonces(investor.address),
+              deadline,
             );
 
             await onRamp
@@ -584,6 +687,7 @@ describe('PublicStockOnRamp Unit Tests', function () {
                     MARKET_STATUS_OPEN,
                     anchorPrice,
                     anchorPriceExpiresAt,
+                    deadline,
                 );
 
             // With higher price (3.0 vs 2.0), should receive fewer DS tokens

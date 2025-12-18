@@ -21,6 +21,7 @@ import {ICollateralLiquidityProvider} from "./ICollateralLiquidityProvider.sol";
 import {BaseContract} from "../../common/BaseContract.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IBaseOffRamp} from "../IBaseOffRamp.sol";
 import {ISecuritizeOffRamp} from "../ISecuritizeOffRamp.sol";
 import {ILiquidityProvider} from "./ILiquidityProvider.sol";
@@ -28,6 +29,8 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {ISecuritizeNavProvider} from "@securitize/digital_securities/contracts/nav/ISecuritizeNavProvider.sol";
 
 contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContract {
+    using SafeERC20 for IERC20Metadata;
+
     /**
      * @dev liquidity token.
      */
@@ -102,6 +105,12 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
         recipient = _recipient;
         liquidityToken = IERC20Metadata(_liquidityToken);
         securitizeOffRamp = IBaseOffRamp(_securitizeOffRamp);
+        if (
+            address(ILiquidityProvider(address(ISecuritizeOffRamp(_externalCollateralRedemption).liquidityProvider())).liquidityToken())
+            != _liquidityToken
+        ) {
+            revert LiquidityTokenMismatch();
+        }
         externalCollateralRedemption = ISecuritizeOffRamp(_externalCollateralRedemption);
         collateralProvider = _collateralProvider;
 
@@ -119,16 +128,13 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
         }
 
         if (
-            address(
-                ILiquidityProvider(address(ISecuritizeOffRamp(_externalCollateralRedemption).liquidityProvider()))
-                    .liquidityToken()
-            ) != address(liquidityToken)
+            address(ILiquidityProvider(address(ISecuritizeOffRamp(_externalCollateralRedemption).liquidityProvider())).liquidityToken())
+            != address(liquidityToken)
         ) {
             revert LiquidityTokenMismatch();
         }
-        address oldExternalCollateral = address(externalCollateralRedemption);
+        emit ExternalCollateralRedemptionUpdated(address(externalCollateralRedemption), address(_externalCollateralRedemption));
         externalCollateralRedemption = ISecuritizeOffRamp(_externalCollateralRedemption);
-        emit ExternalCollateralRedemptionUpdated(oldExternalCollateral, address(externalCollateralRedemption));
     }
 
     /**
@@ -139,9 +145,8 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
         if (_collateralProvider == address(0)) {
             revert NonZeroAddressError();
         }
-        address oldAddress = collateralProvider;
+        emit CollateralProviderUpdated(collateralProvider, address(_collateralProvider));
         collateralProvider = _collateralProvider;
-        emit CollateralProviderUpdated(oldAddress, address(collateralProvider));
     }
 
     /**
@@ -195,7 +200,7 @@ contract CollateralLiquidityProvider is ICollateralLiquidityProvider, BaseContra
         amountToSupply = externalCollateralRedemption.calculateLiquidityTokenAmount(collateralAmount);
 
         // Supply redeemer
-        liquidityToken.transfer(_redeemer, amountToSupply);
+        liquidityToken.safeTransfer(_redeemer, amountToSupply);
     }
 
     /**

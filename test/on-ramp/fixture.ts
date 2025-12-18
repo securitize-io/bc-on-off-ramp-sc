@@ -58,10 +58,6 @@ const deployOnRamp = async (type: AssetProviderType, liquidityDecimals: number =
         provider: await assetProviderWallet.getAddress(), // only for asset allowance mode
     });
 
-    // Grant OPERATOR_ROLE to deployer for testing
-    const OPERATOR_ROLE = await contracts.onRamp.OPERATOR_ROLE();
-    await contracts.onRamp.grantRole(OPERATOR_ROLE, owner.address);
-
     return {
         ...contracts,
         dsTokenMock,

@@ -18,10 +18,7 @@
 pragma solidity ^0.8.22;
 
 import {IBaseOnRamp} from "./IBaseOnRamp.sol";
-import {BaseContract} from "../common/BaseContract.sol";
-import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
-import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import {Address} from "@openzeppelin/contracts/utils/Address.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IFeeManager} from "../fee/IFeeManager.sol";
 import {IAssetProvider} from "./provider/IAssetProvider.sol";
 import {IDSRegistryService} from "@securitize/digital_securities/contracts/registry/IDSRegistryService.sol";
@@ -29,8 +26,10 @@ import {IDSTrustService} from "@securitize/digital_securities/contracts/trust/ID
 import {IDSServiceConsumer} from "@securitize/digital_securities/contracts/service/IDSServiceConsumer.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {IUSDCBridge} from "./cttp/IUSDCBridge.sol";
+import {BaseOnOffRamp} from "../common/BaseOnOffRamp.sol";
 
-abstract contract BaseOnRamp is IBaseOnRamp, EIP712Upgradeable, BaseContract {
+abstract contract BaseOnRamp is IBaseOnRamp, BaseOnOffRamp {
+    using SafeERC20 for IERC20Metadata;
 
     // init params
     IDSServiceConsumer public dsToken;
@@ -41,10 +40,11 @@ abstract contract BaseOnRamp is IBaseOnRamp, EIP712Upgradeable, BaseContract {
 
     // adhoc configuration variables
     uint256 public minSubscriptionAmount;
-    bool public investorSubscriptionEnabled;
-    bool public twoStepTransfer;
     IUSDCBridge public USDCBridge;
     uint16 public bridgeChainId;
+    bool public investorSubscriptionEnabled;
+
+    uint256[42] private __gap;
 
     modifier validateMinSubscriptionAmount(uint256 _amount) {
         if (_amount < minSubscriptionAmount) {
@@ -68,6 +68,10 @@ abstract contract BaseOnRamp is IBaseOnRamp, EIP712Upgradeable, BaseContract {
         _;
     }
 
+    function __BaseOnRamp_init(string memory name, string memory version) internal onlyInitializing {
+        __BaseOnOffRamp_init(name, version);
+    }
+
     function _swap(uint256 _liquidityAmount, uint256 _dsTokenAmount, uint256 _minOutAmount, address _investorWallet) internal {
         if (_dsTokenAmount < _minOutAmount) {
             revert SlippageControlError();
@@ -81,15 +85,13 @@ abstract contract BaseOnRamp is IBaseOnRamp, EIP712Upgradeable, BaseContract {
         if (_assetProvider == address(0)) {
             revert NonZeroAddressError();
         }
-        address oldProvider = address(assetProvider);
+        emit AssetProviderUpdated(address(assetProvider), _assetProvider);
         assetProvider = IAssetProvider(_assetProvider);
-        emit AssetProviderUpdated(oldProvider, _assetProvider);
     }
 
     function updateMinSubscriptionAmount(uint256 _minSubscriptionAmount) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        uint256 oldValue = minSubscriptionAmount;
+        emit MinSubscriptionAmountUpdated(minSubscriptionAmount, _minSubscriptionAmount);
         minSubscriptionAmount = _minSubscriptionAmount;
-        emit MinSubscriptionAmountUpdated(oldValue, minSubscriptionAmount);
     }
 
     function updateBridgeParams(uint16 _chainId, address _bridge) external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -103,35 +105,31 @@ abstract contract BaseOnRamp is IBaseOnRamp, EIP712Upgradeable, BaseContract {
             revert SameValueError();
         }
         investorSubscriptionEnabled = _investorSubscription;
-        emit InvestorSubscriptionUpdated(investorSubscriptionEnabled);
-    }
-
-    function toggleTwoStepTransfer(bool _twoStepTransfer) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (_twoStepTransfer == twoStepTransfer) {
-            revert SameValueError();
-        }
-        twoStepTransfer = _twoStepTransfer;
-        emit TwoStepTransferUpdated(twoStepTransfer);
+        emit InvestorSubscriptionUpdated(_investorSubscription);
     }
 
     function _executeLiquidityTransfer(address from, uint256 amount) internal {
-        if (liquidityToken.balanceOf(from) < amount) {
+        IERC20Metadata _liquidityToken = liquidityToken;
+        if (_liquidityToken.balanceOf(from) < amount) {
             revert InsufficientERC20BalanceError();
         }
 
-        liquidityToken.transferFrom(from, address(this), amount);
-        uint256 fee = feeManager.getFee(amount);
+        _liquidityToken.safeTransferFrom(from, address(this), amount);
+        IFeeManager _feeManager = feeManager;
+        uint256 fee = _feeManager.getFee(amount);
         if (fee > 0) {
-            liquidityToken.transfer(feeManager.feeCollector(), fee);
+            _liquidityToken.safeTransfer(_feeManager.feeCollector(), fee);
         }
 
         uint256 amountExcludingFee = amount - fee;
-        bool bridgeTransfer = bridgeChainId != 0 && address(USDCBridge) != address(0);
+        uint16 _bridgeChainId = bridgeChainId;
+        IUSDCBridge _USDCBridge = USDCBridge;
+        bool bridgeTransfer = _bridgeChainId != 0 && address(_USDCBridge) != address(0);
         if (bridgeTransfer) {
-            liquidityToken.approve(address(USDCBridge), amountExcludingFee);
-            USDCBridge.sendUSDCCrossChainDeposit(bridgeChainId, custodianWallet, amountExcludingFee);
+            _liquidityToken.forceApprove(address(_USDCBridge), amountExcludingFee);
+            _USDCBridge.sendUSDCCrossChainDeposit(_bridgeChainId, custodianWallet, amountExcludingFee);
         } else {
-            liquidityToken.transfer(custodianWallet, amountExcludingFee);
+            _liquidityToken.safeTransfer(custodianWallet, amountExcludingFee);
         }
     }
 

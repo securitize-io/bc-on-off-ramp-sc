@@ -30,6 +30,7 @@ interface IPublicStockOffRamp is IBaseOffRamp {
      * @param _marketStatus Current market status (0 = closed, 1 = open)
      * @param _navPrice Current NAV price (1e18 fixed-point)
      * @param _anchorPriceExpiresAt Timestamp when the anchor price expires
+     * @param _deadline Timestamp after which the signature is no longer valid.
      */
     function redeem(
         uint256 _assetAmount,
@@ -38,7 +39,8 @@ interface IPublicStockOffRamp is IBaseOffRamp {
         bytes memory _investorSignature,
         uint8 _marketStatus,
         uint256 _navPrice,
-        uint256 _anchorPriceExpiresAt
+        uint256 _anchorPriceExpiresAt,
+        uint256 _deadline
     ) external;
 
     /**

@@ -21,9 +21,11 @@ import {IOnOffRamp} from "../common/IOnOffRamp.sol";
 
 interface IBaseOnRamp is IOnOffRamp {
 
-    error InvalidEIP712SignatureError();
+    /// @notice Thrown when investor subscription is not enabled
+    /// @dev Selector: 0x945002a6
     error InvestorSubscriptionDisabledError();
-    error SameValueError();
+    /// @notice Thrown on ramp value is under minimum subscription config
+    /// @dev Selector: 0xdd14a0b8
     error MinSubscriptionAmountError();
 
     /**
@@ -107,12 +109,6 @@ interface IBaseOnRamp is IOnOffRamp {
      * @param _investorSubscription new value
      */
     function toggleInvestorSubscription(bool _investorSubscription) external;
-
-    /**
-     * @notice This method enable/disable two step transfer feature
-     * @param _twoStepTransfer new value
-     */
-    function toggleTwoStepTransfer(bool _twoStepTransfer) external;
 
     /**
      * @notice Update bridge configuration

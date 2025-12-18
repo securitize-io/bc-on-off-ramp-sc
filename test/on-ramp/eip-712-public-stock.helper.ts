@@ -13,6 +13,8 @@ export const DOMAIN_DATA = {
  * @param contractAddress The PublicStockOnRamp contract address
  * @param liquidityAmount Amount of liquidity tokens being swapped
  * @param minOutAmount Minimum DS tokens expected (slippage protection)
+ * @param nonce investor nonce
+ * @param deadline
  * @param domainData Optional custom domain data
  * @returns Signature bytes
  */
@@ -21,6 +23,8 @@ export const eip712PublicStockOnRampSwap = async (
     contractAddress: string,
     liquidityAmount: bigint,
     minOutAmount: bigint,
+    nonce: bigint,
+    deadline: bigint,
     domainData: ethers.TypedDataDomain = DOMAIN_DATA,
 ) => {
     const provider = signer.provider;
@@ -38,12 +42,16 @@ export const eip712PublicStockOnRampSwap = async (
         Swap: [
             { name: 'liquidityAmount', type: 'uint256' },
             { name: 'minOutputAmount', type: 'uint256' },
+            { name: 'nonce', type: 'uint256' },
+            { name: 'deadline', type: 'uint256' },
         ],
     };
 
     const message = {
         liquidityAmount: liquidityAmount.toString(),
         minOutputAmount: minOutAmount.toString(),
+        nonce,
+        deadline,
     };
 
     return signer.signTypedData(domain, types, message);

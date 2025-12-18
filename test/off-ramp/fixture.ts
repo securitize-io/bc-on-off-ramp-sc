@@ -104,11 +104,6 @@ export const deployRedemptionProtocol = async () => {
         silenceLogs: true,
     });
 
-    // Grant OPERATOR_ROLE to deployer and investor for testing
-    const OPERATOR_ROLE = await contracts.redemption.OPERATOR_ROLE();
-    await contracts.redemption.grantRole(OPERATOR_ROLE, securitizeWallet.address);
-    await contracts.redemption.grantRole(OPERATOR_ROLE, investor.address);
-
     return {
         ...contracts,
         dsTokenMock,
@@ -187,11 +182,6 @@ export const deployRedemptionProtocolWithMultipleTokens = async () => {
         silenceLogs: true,
     });
 
-    // Grant OPERATOR_ROLE to deployer and investor for testing
-    const OPERATOR_ROLE = await contractsWith18DecimalsDsToken.redemption.OPERATOR_ROLE();
-    await contractsWith18DecimalsDsToken.redemption.grantRole(OPERATOR_ROLE, securitizeWallet.address);
-    await contractsWith18DecimalsDsToken.redemption.grantRole(OPERATOR_ROLE, investor.address);
-
     return {
         dsTokenCollateralMock,
         usdcMock,
@@ -239,11 +229,6 @@ export const deployRedemptionAllowanceProtocol = async () => {
         providerWallet: securitizeWallet.address,
         silenceLogs: true,
     });
-
-    // Grant OPERATOR_ROLE to deployer and investor for testing
-    const OPERATOR_ROLE = await contracts.redemption.OPERATOR_ROLE();
-    await contracts.redemption.grantRole(OPERATOR_ROLE, securitizeWallet.address);
-    await contracts.redemption.grantRole(OPERATOR_ROLE, investor.address);
 
     return {
         ...contracts,
@@ -347,11 +332,6 @@ export const deployRedemptionProtocolWithAssetBurn = async () => {
         externalCollateralRedemption: await externalRedemptionContractMock.getAddress(),
         silenceLogs: true,
     });
-
-    // Grant OPERATOR_ROLE to deployer and investor for testing
-    const OPERATOR_ROLE = await contracts.redemption.OPERATOR_ROLE();
-    await contracts.redemption.grantRole(OPERATOR_ROLE, securitizeWallet.address);
-    await contracts.redemption.grantRole(OPERATOR_ROLE, investor.address);
 
     return {
         ...contracts,
