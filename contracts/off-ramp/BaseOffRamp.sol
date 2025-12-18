@@ -39,7 +39,7 @@ abstract contract BaseOffRamp is IBaseOffRamp, BaseOnOffRamp {
 
     IDSServiceConsumer public dsServiceConsumer;
 
-    mapping(string country => bool isRestricted) public restrictedCountries;
+    mapping(string => bool) public restrictedCountries;
 
     address public feeManager;
     address public assetAddress;
@@ -77,7 +77,7 @@ abstract contract BaseOffRamp is IBaseOffRamp, BaseOnOffRamp {
         emit LiquidityProviderUpdated(address(liquidityProvider), _liquidityProvider);
         liquidityProvider = ILiquidityProvider(_liquidityProvider);
 
-        uint256 _liquidityDecimals = IERC20Metadata(address(ILiquidityProvider(_liquidityProvider).liquidityToken())).decimals();
+        uint256 _liquidityDecimals = IERC20Metadata(address(liquidityProvider.liquidityToken())).decimals();
         if (_liquidityDecimals > 18) {
             revert ExcessiveDecimals(_liquidityDecimals, 18);
         }
@@ -107,7 +107,7 @@ abstract contract BaseOffRamp is IBaseOffRamp, BaseOnOffRamp {
      * @param _isRestricted Whether the countries are restricted.
      */
     function updateCountriesRestriction(string[] memory _countries, bool _isRestricted) external override onlyRole(DEFAULT_ADMIN_ROLE) {
-        for (uint256 i; i < _countries.length; i++) {
+        for (uint256 i = 0; i < _countries.length; i++) {
             _updateCountryRestriction(_countries[i], _isRestricted);
         }
     }
@@ -170,8 +170,7 @@ abstract contract BaseOffRamp is IBaseOffRamp, BaseOnOffRamp {
             revert NonZeroNavRateError();
         }
 
-        IDSToken _asset = asset;
-        RedemptionValidator.validateRedemption(_redeemer, _assetAmount, _asset);
+        RedemptionValidator.validateRedemption(_redeemer, _assetAmount, asset);
         CountryValidator.validateCountryRestriction(_redeemer, dsServiceConsumer, restrictedCountries);
 
         uint256 liquidityTokenAmount = TokenCalculator.calculateLiquidityTokenAmountBeforeFee(
@@ -182,7 +181,7 @@ abstract contract BaseOffRamp is IBaseOffRamp, BaseOnOffRamp {
         );
 
         RedemptionManager.RedemptionParams memory params = RedemptionManager.RedemptionParams({
-            asset: _asset,
+            asset: asset,
             liquidityProvider: liquidityProvider,
             feeManager: feeManager,
             assetAmount: _assetAmount,
