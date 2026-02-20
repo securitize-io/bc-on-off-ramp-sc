@@ -21,9 +21,12 @@ import {BaseContract} from "../../common/BaseContract.sol";
 import {IAllowanceLiquidityProvider} from "./IAllowanceLiquidityProvider.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-import {ISecuritizeOffRamp} from "../ISecuritizeOffRamp.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IBaseOffRamp} from "../IBaseOffRamp.sol";
 
 contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract {
+    using SafeERC20 for IERC20Metadata;
+
     /**
      * @dev liquidity asset.
      */
@@ -32,7 +35,7 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
     /**
      * @dev securitize redemption contract.
      */
-    ISecuritizeOffRamp public securitizeOffRamp;
+    IBaseOffRamp public securitizeOffRamp;
 
     /**
      * @dev recipient wallet.
@@ -65,6 +68,9 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
         _disableInitializers();
     }
 
+    /**
+     * @inheritdoc IAllowanceLiquidityProvider
+     */
     function initialize(
         address _liquidityToken,
         address _recipient,
@@ -82,49 +88,76 @@ contract AllowanceLiquidityProvider is IAllowanceLiquidityProvider, BaseContract
         __BaseContract_init();
         recipient = _recipient;
         liquidityToken = IERC20Metadata(_liquidityToken);
-        securitizeOffRamp = ISecuritizeOffRamp(_securitizeOffRamp);
+        securitizeOffRamp = IBaseOffRamp(_securitizeOffRamp);
         liquidityProviderWallet = _liquidityProviderWallet;
     }
 
-    function setAllowanceProviderWallet(address _liquidityProviderWallet) external onlyOwner {
+    /**
+     * @notice Sets allowance provider wallet.
+     * @param _liquidityProviderWallet Wallet that provides liquidity.
+     */
+    function setAllowanceProviderWallet(address _liquidityProviderWallet) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (_liquidityProviderWallet == address(0)) {
             revert NonZeroAddressError();
         }
-        address oldAddress = liquidityProviderWallet;
+        emit AllowanceLiquidityProviderWalletUpdated(liquidityProviderWallet, _liquidityProviderWallet);
         liquidityProviderWallet = _liquidityProviderWallet;
-        emit AllowanceLiquidityProviderWalletUpdated(oldAddress, liquidityProviderWallet);
     }
 
+    /**
+     * @notice Returns the currently available liquidity.
+     * @return Available liquidity amount.
+     */
     function availableLiquidity() external view returns (uint256) {
         return _availableLiquidity();
     }
 
+    /**
+     * @dev Internal helper that returns current available liquidity.
+     * @return Minimum between balance and allowance from provider wallet.
+     */
     function _availableLiquidity() private view returns (uint256) {
+        IERC20Metadata _liquidityToken = liquidityToken;
+        address _liquidityProviderWallet = liquidityProviderWallet;
         // Minimum between balance and allowance
         return
             Math.min(
-                liquidityToken.balanceOf(liquidityProviderWallet),
-                liquidityToken.allowance(liquidityProviderWallet, address(this))
+                _liquidityToken.balanceOf(_liquidityProviderWallet),
+                _liquidityToken.allowance(_liquidityProviderWallet, address(this))
             );
     }
 
+    /**
+     * @notice Supplies liquidity tokens to a redeemer.
+     * @param _redeemer Recipient of liquidity tokens.
+     * @param _liquidityAmount Requested liquidity token amount.
+     * @return Liquidity actually supplied.
+     */
     function supplyTo(
-        address redeemer,
-        uint256 liquidityAmount
+        address _redeemer,
+        uint256 _liquidityAmount
     ) public whenNotPaused onlySecuritizeRedemption returns (uint256) {
-        if (liquidityAmount > _availableLiquidity()) {
-            revert InsufficientLiquidity(liquidityAmount, _availableLiquidity());
+        if (_liquidityAmount > _availableLiquidity()) {
+            revert InsufficientLiquidity(_liquidityAmount, _availableLiquidity());
         }
 
         // transfer liquidity token from liquidity provider wallet to redeemer
-        liquidityToken.transferFrom(liquidityProviderWallet, redeemer, liquidityAmount);
+        liquidityToken.safeTransferFrom(liquidityProviderWallet, _redeemer, _liquidityAmount);
 
-        return liquidityAmount;
+        return _liquidityAmount;
     }
 
+    /**
+     * @inheritdoc ILiquidityProvider
+     */
+    /**
+     * @notice Calculates effective liquidity token amount (1:1 in this provider).
+     * @param _initialLiquidityAmount Requested liquidity amount.
+     * @return amountToSupply Effective liquidity to supply.
+     */
     function calculateEffectiveLiquidityTokenAmount(
-        uint256 initialLiquidityAmount
+        uint256 _initialLiquidityAmount
     ) external pure returns (uint256 amountToSupply) {
-        return initialLiquidityAmount;
+        return _initialLiquidityAmount;
     }
 }

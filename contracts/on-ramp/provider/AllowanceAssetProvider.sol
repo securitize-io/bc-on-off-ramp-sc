@@ -20,12 +20,13 @@ pragma solidity 0.8.22;
 import {IDSToken} from "@securitize/digital_securities/contracts/token/IDSToken.sol";
 import {BaseContract} from "../../common/BaseContract.sol";
 import {IAllowanceAssetProvider} from "./IAllowanceAssetProvider.sol";
-import {ISecuritizeOnRamp} from "../ISecuritizeOnRamp.sol";
+import {IBaseOnRamp} from "../IBaseOnRamp.sol";
 
 /**
  * @title AllowanceAssetProvider
  */
 contract AllowanceAssetProvider is IAllowanceAssetProvider, BaseContract {
+
     /**
      * @dev asset.
      */
@@ -34,7 +35,7 @@ contract AllowanceAssetProvider is IAllowanceAssetProvider, BaseContract {
     /**
      * @dev securitize on ramp contract.
      */
-    ISecuritizeOnRamp public securitizeOnRamp;
+    IBaseOnRamp public securitizeOnRamp;
 
     /**
      * @dev asset provider wallet.
@@ -80,17 +81,16 @@ contract AllowanceAssetProvider is IAllowanceAssetProvider, BaseContract {
         }
         __BaseContract_init();
         asset = IDSToken(_asset);
-        securitizeOnRamp = ISecuritizeOnRamp(_securitizeOnRamp);
+        securitizeOnRamp = IBaseOnRamp(_securitizeOnRamp);
         assetProviderWallet = _assetProviderWallet;
     }
 
-    function setAllowanceProviderWallet(address _assetProviderWallet) external onlyOwner {
+    function setAllowanceProviderWallet(address _assetProviderWallet) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (_assetProviderWallet == address(0)) {
             revert NonZeroAddressError();
         }
-        address oldAddress = assetProviderWallet;
+        emit AllowanceAssetProviderWalletUpdated(assetProviderWallet, _assetProviderWallet);
         assetProviderWallet = _assetProviderWallet;
-        emit AllowanceAssetProviderWalletUpdated(oldAddress, assetProviderWallet);
     }
 
     function supplyTo(address _buyer, uint256 _amount) public whenNotPaused onlySecuritizeOnRamp {

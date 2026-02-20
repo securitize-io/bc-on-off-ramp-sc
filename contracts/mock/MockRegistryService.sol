@@ -24,6 +24,7 @@ uint256 constant REGISTRY_SERVICE = 4;
 contract MockRegistryService {
     mapping(address => string) private addressToInvestorId;
     mapping(string => string) private investorIdToCountry;
+    mapping(address => bool) private registeredWallets;
     address public wallet;
     string internal investorCountry;
 
@@ -40,15 +41,17 @@ contract MockRegistryService {
         addressToInvestorId[_wallets[0]] = _id;
         investorCountry = _country;
         investorIdToCountry[_id] = _country;
+        registeredWallets[_wallets[0]] = true;
         return true;
     }
 
     function addWallet(address _wallet) public {
         wallet = _wallet;
+        registeredWallets[_wallet] = true;
     }
 
     function isWallet(address _wallet) public view returns (bool) {
-        return wallet == _wallet;
+        return registeredWallets[_wallet];
     }
 
     function getInvestor(address _wallet) public view returns (string memory) {

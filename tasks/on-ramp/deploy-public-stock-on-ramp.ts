@@ -1,7 +1,7 @@
 import { task, types } from 'hardhat/config';
 import { AssetProviderType } from './types';
 
-task('deploy-on-ramp', 'Deploy on ramp protocol')
+task('deploy-public-stock-on-ramp', 'Deploy Public Stock on ramp protocol')
     .addParam('token', 'DS Token address', undefined, types.string, false)
     .addParam('liquidity', 'Liquidity token address', undefined, types.string, false)
     .addParam('nav', 'NAV rate provider address', undefined, types.string, false)
@@ -10,8 +10,8 @@ task('deploy-on-ramp', 'Deploy on ramp protocol')
     .addParam('type', 'Asset provider type', undefined, types.string, false)
     .addParam('provider', 'optional asset provider wallet', undefined, types.string, true)
     .setAction(async (args, hre) => {
-        // On Ramp deployment
-        const OnRamp = await hre.ethers.getContractFactory('SecuritizeOnRamp');
+        // Public Stock On Ramp deployment
+        const OnRamp = await hre.ethers.getContractFactory('PublicStockOnRamp');
         const onRamp = await hre.upgrades.deployProxy(OnRamp, [
             args.token,
             args.liquidity,
@@ -22,10 +22,10 @@ task('deploy-on-ramp', 'Deploy on ramp protocol')
         await onRamp.waitForDeployment();
 
         const onRampAddress = await onRamp.getAddress();
-        console.log(`On-Ramp Proxy address: ${onRampAddress}`);
+        console.log(`Public Stock On-Ramp Proxy address: ${onRampAddress}`);
 
         const onRampImpl = await hre.upgrades.erc1967.getImplementationAddress(onRampAddress);
-        console.log(`On-Ramp Implementation address: ${onRampImpl}`);
+        console.log(`Public Stock On-Ramp Implementation address: ${onRampImpl}`);
         //////////////////////////
 
         // Asset Provider deployment
@@ -65,8 +65,6 @@ task('deploy-on-ramp', 'Deploy on ramp protocol')
         //////////////////////////
 
         console.log('Please configure add hoc config parameters to align your requirements:');
-        console.log('minSubscriptionAmount - default 0');
-        console.log('investorSubscriptionEnabled - default false');
         console.log('twoStepTransfer - default false');
         console.log('USDCBridge - default 0x');
         console.log('bridgeChainId - default 0');

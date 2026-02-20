@@ -16,65 +16,65 @@ import {ISecuritizeOffRampErrors} from "./ISecuritizeOffRampErrors.sol";
 library CountryValidator {
     /**
      * @dev Validates if a user is from a restricted country
-     * @param redeemer Address of the redeemer
-     * @param dsServiceConsumer DS service consumer contract
-     * @param restrictedCountries Mapping of restricted countries
+     * @param _redeemer Address of the redeemer
+     * @param _dsServiceConsumer DS service consumer contract
+     * @param _restrictedCountries Mapping of restricted countries
      */
     function validateCountryRestriction(
-        address redeemer,
-        IDSServiceConsumer dsServiceConsumer,
-        mapping(string => bool) storage restrictedCountries
+        address _redeemer,
+        IDSServiceConsumer _dsServiceConsumer,
+        mapping(string country => bool isRestricted) storage _restrictedCountries
     ) internal view {
-        string memory redeemerCountry = getCountry(redeemer, dsServiceConsumer);
-        if (restrictedCountries[redeemerCountry]) {
+        string memory redeemerCountry = getCountry(_redeemer, _dsServiceConsumer);
+        if (_restrictedCountries[redeemerCountry]) {
             revert ISecuritizeOffRampErrors.RestrictedCountry(redeemerCountry);
         }
     }
 
     /**
      * @dev Returns the country code for a redeemer
-     * @param redeemer Address of the redeemer
-     * @param dsServiceConsumer DS service consumer contract
-     * @return Country code string
+     * @param _redeemer Address of the redeemer
+     * @param _dsServiceConsumer DS service consumer contract
+     * @return country code string
      */
-    function getCountry(address redeemer, IDSServiceConsumer dsServiceConsumer) internal view returns (string memory) {
+    function getCountry(address _redeemer, IDSServiceConsumer _dsServiceConsumer) internal view returns (string memory country) {
         IDSRegistryService registryService = IDSRegistryService(
-            dsServiceConsumer.getDSService(dsServiceConsumer.REGISTRY_SERVICE())
+            _dsServiceConsumer.getDSService(_dsServiceConsumer.REGISTRY_SERVICE())
         );
 
-        string memory country = registryService.getCountry(registryService.getInvestor(redeemer));
+        country = registryService.getCountry(registryService.getInvestor(_redeemer));
         validateCountryCode(country);
-        return country;
     }
 
     /**
      * @dev Validates country code format
-     * @param country Country code to validate
+     * @param _country Country code to validate
      */
-    function validateCountryCode(string memory country) internal pure {
-        if (bytes(country).length == 0) {
-            revert ISecuritizeOffRampErrors.EmptyCountryCode();
+    function validateCountryCode(string memory _country) internal pure {
+        if (bytes(_country).length == 0) {
+            // If not country is set, skip validation
+            return;
         }
 
-        if (bytes(country).length != 2 && bytes(country).length != 3) {
-            revert ISecuritizeOffRampErrors.InvalidCountryCodeLength(bytes(country).length);
+        if (bytes(_country).length != 2 && bytes(_country).length != 3) {
+            revert ISecuritizeOffRampErrors.InvalidCountryCodeLength(bytes(_country).length);
         }
 
         // Check first character
-        if (bytes(country)[0] < 0x41 || bytes(country)[0] > 0x5A) {
-            revert ISecuritizeOffRampErrors.NonUppercaseCountryCode(0, bytes(country)[0]);
+        if (bytes(_country)[0] < 0x41 || bytes(_country)[0] > 0x5A) {
+            revert ISecuritizeOffRampErrors.NonUppercaseCountryCode(0, bytes(_country)[0]);
         }
 
         // Check second character
-        if (bytes(country)[1] < 0x41 || bytes(country)[1] > 0x5A) {
-            revert ISecuritizeOffRampErrors.NonUppercaseCountryCode(1, bytes(country)[1]);
+        if (bytes(_country)[1] < 0x41 || bytes(_country)[1] > 0x5A) {
+            revert ISecuritizeOffRampErrors.NonUppercaseCountryCode(1, bytes(_country)[1]);
         }
 
         // Check third character if exists
-        if (bytes(country).length == 3) {
+        if (bytes(_country).length == 3) {
             // Check if third character is uppercase
-            if (bytes(country)[2] < 0x41 || bytes(country)[2] > 0x5A) {
-                revert ISecuritizeOffRampErrors.NonUppercaseCountryCode(2, bytes(country)[2]);
+            if (bytes(_country)[2] < 0x41 || bytes(_country)[2] > 0x5A) {
+                revert ISecuritizeOffRampErrors.NonUppercaseCountryCode(2, bytes(_country)[2]);
             }
         }
     }

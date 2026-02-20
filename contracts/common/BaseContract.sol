@@ -18,29 +18,30 @@
 pragma solidity ^0.8.22;
 
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
-import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {ERC1967Utils} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
 
-abstract contract BaseContract is UUPSUpgradeable, PausableUpgradeable, OwnableUpgradeable {
+abstract contract BaseContract is UUPSUpgradeable, PausableUpgradeable, AccessControlUpgradeable {
     uint256[50] private __gap;
 
     function __BaseContract_init() internal onlyInitializing {
         __UUPSUpgradeable_init();
         __Pausable_init();
-        __Ownable_init(_msgSender());
+        __AccessControl_init();
+        _grantRole(DEFAULT_ADMIN_ROLE, _msgSender());
     }
 
     /**
      * @dev required by the OZ UUPS module
      */
-    function _authorizeUpgrade(address) internal override onlyOwner {}
+    function _authorizeUpgrade(address) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
 
-    function pause() external onlyOwner {
+    function pause() external onlyRole(DEFAULT_ADMIN_ROLE) {
         _pause();
     }
 
-    function unpause() external onlyOwner {
+    function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
         _unpause();
     }
 

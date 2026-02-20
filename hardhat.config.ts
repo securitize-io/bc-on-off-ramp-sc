@@ -11,6 +11,7 @@ const config: HardhatUserConfig = {
     solidity: {
         version: '0.8.22',
         settings: {
+            viaIR: true,
             optimizer: {
                 enabled: true,
                 runs: 200,
@@ -41,16 +42,7 @@ const config: HardhatUserConfig = {
         },
     },
     etherscan: {
-        apiKey: {
-            mainnet: process.env.API_KEY_ETHERSCAN || '',
-            sepolia: process.env.API_KEY_ETHERSCAN || '',
-            arbitrumOne: process.env.API_KEY_ARBISCAN || '',
-            arbitrumSepolia: process.env.API_KEY_ARBISCAN || '',
-            optimisticEthereum: process.env.API_KEY_OPTIMISTIC || '',
-            optimisticSepolia: process.env.API_KEY_OPTIMISTIC || '',
-            avalanche: process.env.API_KEY_AVALANCHE || '',
-            avalancheFujiTestnet: process.env.API_KEY_AVALANCHE || '',
-        },
+        apiKey: process.env.API_KEY_ETHERSCAN,
     },
 };
 

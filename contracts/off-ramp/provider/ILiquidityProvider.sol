@@ -18,7 +18,7 @@
 pragma solidity ^0.8.22;
 
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import {ISecuritizeOffRamp} from "../ISecuritizeOffRamp.sol";
+import {IBaseOffRamp} from "../IBaseOffRamp.sol";
 import {Errors} from "../../common/Errors.sol";
 
 /**
@@ -39,11 +39,11 @@ interface ILiquidityProvider is Errors {
 
     /**
      * @dev Calculates the effective liquidity token amount to supply
-     * @param initialLiquidityAmount The initial liquidity amount
+     * @param _initialLiquidityAmount The initial liquidity amount
      * @return amountToSupply The effective liquidity token amount to supply
      */
     function calculateEffectiveLiquidityTokenAmount(
-        uint256 initialLiquidityAmount
+        uint256 _initialLiquidityAmount
     ) external view returns (uint256 amountToSupply);
 
     /**
@@ -56,7 +56,7 @@ interface ILiquidityProvider is Errors {
      * @dev The securitize off ramp contract.
      * @return The address of the securitize off ramp contract.
      */
-    function securitizeOffRamp() external view returns (ISecuritizeOffRamp);
+    function securitizeOffRamp() external view returns (IBaseOffRamp);
 
     /**
      * @dev Wallet address that receives digital assets.
