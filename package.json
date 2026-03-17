@@ -12,7 +12,10 @@
         "lint:sol": "solhint 'contracts/**/*.sol'",
         "lint:fix": "eslint . --ext .js,.ts --config eslint.config.mjs --fix",
         "format": "prettier --check \"contracts/**/*.sol\" \"contracts/**/**/*.sol\" \"**/*.{ts,js,md,yml}\" --ignore-path .gitignore --plugin prettier-plugin-solidity",
-        "format:fix": "prettier --write \"contracts/**/*.sol\" \"contracts/**/**/*.sol\" \"**/*.{ts,js,md,yml}\" --ignore-path .gitignore --plugin prettier-plugin-solidity"
+        "format:fix": "prettier --write \"contracts/**/*.sol\" \"contracts/**/**/*.sol\" \"**/*.{ts,js,md,yml}\" --ignore-path .gitignore --plugin prettier-plugin-solidity",
+        "tron:compile": "tronbox compile",
+        "tron:migrate:nile": "tronbox migrate --network nile",
+        "tron:poc": "ts-node tron/scripts/tip712-poc.ts"
     },
     "contributors": [
         {
@@ -25,7 +28,6 @@
         }
     ],
     "devDependencies": {
-        "@securitize/digital_securities": "^3.1.5",
         "@nomicfoundation/hardhat-chai-matchers": "^2.0.9",
         "@nomicfoundation/hardhat-ethers": "^3.0.9",
         "@nomicfoundation/hardhat-network-helpers": "^1.0.12",
@@ -34,6 +36,7 @@
         "@openzeppelin/contracts": "^5.4.0",
         "@openzeppelin/contracts-upgradeable": "^5.4.0",
         "@openzeppelin/hardhat-upgrades": "^3.9.1",
+        "@securitize/digital_securities": "^3.1.5",
         "@typechain/ethers-v6": "^0.5.1",
         "@types/chai": "^4.3.20",
         "@typescript-eslint/eslint-plugin": "^8.34.1",
@@ -46,6 +49,9 @@
         "prettier": "^3.6.0",
         "prettier-plugin-solidity": "^2.0.0",
         "solhint": "^5.1.0",
+        "tronbox": "^4.2.1",
+        "tronweb": "^6.2.2",
+        "ts-node": "^10.9.2",
         "typescript": "^5.8.3"
     }
 }
