@@ -14,7 +14,8 @@
         "format": "prettier --check \"contracts/**/*.sol\" \"contracts/**/**/*.sol\" \"**/*.{ts,js,md,yml}\" --ignore-path .gitignore --plugin prettier-plugin-solidity",
         "format:fix": "prettier --write \"contracts/**/*.sol\" \"contracts/**/**/*.sol\" \"**/*.{ts,js,md,yml}\" --ignore-path .gitignore --plugin prettier-plugin-solidity",
         "tron:compile": "tronbox compile",
-        "tron:migrate:nile": "tronbox migrate --network nile",
+        "tron:deploy:tip712-verifier:nile": "tronbox migrate --network nile --to 2",
+        "tron:deploy:on-ramp:nile": "tronbox migrate --network nile -f 3 --to 3",
         "tron:poc": "ts-node tron/scripts/tip712-poc.ts"
     },
     "contributors": [
@@ -36,6 +37,7 @@
         "@openzeppelin/contracts": "^5.4.0",
         "@openzeppelin/contracts-upgradeable": "^5.4.0",
         "@openzeppelin/hardhat-upgrades": "^3.9.1",
+        "@openzeppelin/truffle-upgrades": "^1.21.0",
         "@securitize/digital_securities": "^3.1.5",
         "@typechain/ethers-v6": "^0.5.1",
         "@types/chai": "^4.3.20",
