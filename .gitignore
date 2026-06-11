@@ -4,7 +4,8 @@
 # Logs
 logs
 *.log
-
+AGENTS.md
+CLAUDE.md
 # Runtime data
 pids
 *.pid
