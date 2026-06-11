@@ -17,10 +17,11 @@
  */
 pragma solidity ^0.8.22;
 
-import {IGroveBasin} from "../third-party-contracts/IGroveBasin.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IGroveBasin} from "../third-party-contracts/IGroveBasin.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-
 /**
  * @title  MockGroveBasin
  * @notice Minimal GroveBasin mock for external integration tests.
@@ -53,12 +54,35 @@ contract MockGroveBasin {
         pocket = newPocket == address(0) ? address(this) : newPocket;
     }
 
-    function previewSwapExactIn(address, address, uint256 amountIn)
+    /**
+     * @notice Previews the amount of `assetOut` received for an exact input swap.
+     * @dev The conversion rate between `assetIn` and `assetOut` is fixed at 1:1.
+     *      No pricing, fees, slippage, or exchange rate calculations are applied.
+     *      The returned amount is adjusted only to account for differences in the
+     *      decimal precision of the two tokens.
+     *
+     *      Formula:
+     *      amountOut = amountIn * 10^assetOut.decimals() / 10^assetIn.decimals()
+     *
+     * @param assetIn The token being provided as input.
+     * @param assetOut The token being received as output.
+     * @param amountIn The amount of `assetIn` to swap.
+     *
+     * @return amountOut The equivalent amount of `assetOut` at a 1:1 conversion rate,
+     *                   normalized to the decimal precision of `assetOut`.
+     */
+    function previewSwapExactIn(address assetIn, address assetOut, uint256 amountIn)
     public
-    pure
+    view
     returns (uint256 amountOut)
     {
-        amountOut = amountIn;
+        uint256 precisionIn  = 10 ** ERC20(assetIn).decimals();
+        uint256 precisionOut = 10 ** ERC20(assetOut).decimals();
+        amountOut = Math.mulDiv(
+            amountIn,
+            precisionOut,
+            precisionIn
+        );
     }
 
     function swapExactIn(
