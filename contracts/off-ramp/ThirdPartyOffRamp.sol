@@ -24,8 +24,8 @@ import {TokenCalculator} from "./TokenCalculator.sol";
 
 /**
  * @title ThirdPartyOffRamp
- * @notice Operator-gated off-ramp that redeems an asset (e.g. BUIDL) for a liquidity token
- *         (e.g. USDC) by routing an atomic 1:1 swap through a Grove Basin liquidity provider.
+ * @notice Operator-gated off-ramp that redeems an RWA asset for a liquidity token
+ *         by routing an atomic 1:1 swap through a Grove Basin liquidity provider.
  * @dev    Reuses the shared two-step redemption flow: the asset is pulled from the investor and
  *         handed to the liquidity provider, which swaps it via Grove Basin and forwards the
  *         liquidity token back to this contract for delivery to the investor (minus fee).
@@ -70,6 +70,7 @@ contract ThirdPartyOffRamp is IThirdPartyOffRamp, BaseOffRamp {
         __BaseOffRamp_init(_asset, _feeManager, false, NAME, VERSION);
         navProvider = ISecuritizeNavProvider(_navProvider);
 
+        //TODO: Implement one step version support
         // Grove Basin redemptions only support the two-step transfer flow.
         twoStepTransfer = true;
     }
@@ -141,6 +142,7 @@ contract ThirdPartyOffRamp is IThirdPartyOffRamp, BaseOffRamp {
         uint256 _minOutputAmount,
         address _investorWallet
     ) public override whenNotPaused onlyRole(OPERATOR_ROLE) nonZeroNavRate {
+        //TODO: Implement one step version
         if (!twoStepTransfer) {
             revert OneStepRedemptionNotSupportedError();
         }

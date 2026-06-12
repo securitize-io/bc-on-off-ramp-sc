@@ -141,6 +141,7 @@ contract GroveBasinLiquidityProvider is IThirdPartyLiquidityProvider, BaseContra
      * @return Liquidity token balance available in Grove Basin.
      */
     function _availableLiquidity() private view returns (uint256) {
+        //TODO: Check if we need to return from groveBasin
         return liquidityToken.balanceOf(address(groveBasin));
     }
 
