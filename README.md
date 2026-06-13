@@ -100,6 +100,12 @@ npx hardhat deploy-public-stock-offramp-allowance-protocol --network arbitrum --
 npx hardhat deploy-public-stock-offramp-collateral-protocol --network arbitrum --asset {dsToken} --nav-provider {navProvider} --fee-manager {feeManager} --asset-burn false --recipient {recipientWallet} --liquidity-token {liquidityToken} --provider-wallet {providerWallet} --external-collateral-redemption {externalCollateralRedemption} --verify
 ```
 
+##### Third Party Contract Off Ramp Integration
+
+```sh
+npx hardhat deploy-third-party-protocol --network sepolia --asset {dsToken} --nav-provider {navProvider} --fee-manager {feeManager} --liquidity-token {liquidityToken} --grove-basin {groveBasinContract} --operator {operator}
+```
+
 ### EIP-712 Signing Helpers
 
 - Public Stock On Ramp swap
