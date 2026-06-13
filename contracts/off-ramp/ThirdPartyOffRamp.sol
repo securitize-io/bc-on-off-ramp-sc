@@ -34,7 +34,24 @@ contract ThirdPartyOffRamp is IThirdPartyOffRamp, BaseOffRamp {
     string public constant NAME = "ThirdPartyOffRamp";
     string public constant VERSION = "1";
 
+    /**
+     * @dev Denominator for tolerance math; 100_000 represents 100% (1_000 == 1%).
+     */
+    uint256 public constant TOLERANCE_DENOMINATOR = 100_000;
+
+    /**
+     * @dev Default redeem tolerance applied on initialization (0 == exact NAV match required).
+     */
+    uint256 public constant DEFAULT_REDEEM_TOLERANCE = 0;
+
     ISecuritizeNavProvider public navProvider;
+
+    /**
+     * @dev Tolerance applied to the NAV-derived expected liquidity value, scaled to
+     *      TOLERANCE_DENOMINATOR. Bounds the liquidity value returned by Grove Basin to an
+     *      acceptable range around the Securitize NAV expectation.
+     */
+    uint256 public redeemTolerance;
 
     /**
      * @dev Throws if the NAV rate is zero or not set.
@@ -69,9 +86,24 @@ contract ThirdPartyOffRamp is IThirdPartyOffRamp, BaseOffRamp {
         }
         __BaseOffRamp_init(_asset, _feeManager, false, NAME, VERSION);
         navProvider = ISecuritizeNavProvider(_navProvider);
+        redeemTolerance = DEFAULT_REDEEM_TOLERANCE;
 
         // Grove Basin redemptions only support the two-step transfer flow.
         twoStepTransfer = true;
+    }
+
+    /**
+     * @notice Sets the redeem tolerance applied to the NAV-derived expected liquidity value.
+     * @dev The tolerance defines the accepted band [expected * (1 - t), expected * (1 + t)] around
+     *      the Securitize NAV expectation, where t = _tolerance / TOLERANCE_DENOMINATOR.
+     * @param _tolerance New tolerance scaled to TOLERANCE_DENOMINATOR (100_000 == 100%).
+     */
+    function setRedeemTolerance(uint256 _tolerance) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (_tolerance > TOLERANCE_DENOMINATOR) {
+            revert InvalidToleranceError(_tolerance);
+        }
+        emit RedeemToleranceUpdated(redeemTolerance, _tolerance);
+        redeemTolerance = _tolerance;
     }
 
     /**
@@ -151,6 +183,8 @@ contract ThirdPartyOffRamp is IThirdPartyOffRamp, BaseOffRamp {
         }
         (uint256 fee, uint256 liquidityValue) = _redeem(_assetAmount, _minOutputAmount, rate, _investorWallet);
 
+        _validateRedeemTolerance(_assetAmount, liquidityValue);
+
         emit RedemptionCompleted(
             _investorWallet,
             _assetAmount,
@@ -161,5 +195,28 @@ contract ThirdPartyOffRamp is IThirdPartyOffRamp, BaseOffRamp {
         );
 
         emit GroveBasinRedemption(_investorWallet, _assetAmount, liquidityValue, _msgSender());
+    }
+
+    /**
+     * @notice Validates the redeemed liquidity value against the NAV-derived tolerance band.
+     * @dev The expected value is the net (after fee) liquidity amount computed from the Securitize
+     *      NAV provider. The accepted band is [expected * (1 - t), expected * (1 + t)] where
+     *      t = redeemTolerance / TOLERANCE_DENOMINATOR. Reverts when the delivered value falls
+     *      outside the band so a divergent Grove Basin NAV cannot settle at unacceptable terms.
+     * @param _assetAmount Asset amount redeemed.
+     * @param _liquidityValue Net liquidity value delivered by the redemption.
+     */
+    function _validateRedeemTolerance(uint256 _assetAmount, uint256 _liquidityValue) private view {
+        uint256 expected = calculateLiquidityTokenAmount(_assetAmount);
+        uint256 tolerance = redeemTolerance;
+        uint256 maxTolerable = (expected * (TOLERANCE_DENOMINATOR + tolerance)) / TOLERANCE_DENOMINATOR;
+        uint256 minTolerable = (expected * (TOLERANCE_DENOMINATOR - tolerance)) / TOLERANCE_DENOMINATOR;
+
+        if (_liquidityValue > maxTolerable) {
+            revert RedeemMaxToleranceExceededError(_liquidityValue, maxTolerable);
+        }
+        if (_liquidityValue < minTolerable) {
+            revert RedeemMinToleranceExceededError(_liquidityValue, minTolerable);
+        }
     }
 }

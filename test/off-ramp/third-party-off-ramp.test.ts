@@ -425,6 +425,98 @@ describe('Grove Basin Off-Ramp Protocol Unit Tests', function () {
         });
     });
 
+    describe('Redeem Tolerance', function () {
+        it('Should initialize the redeem tolerance to the default value', async function () {
+            const { redemption } = await loadFixture(deployGroveBasinProtocol);
+            expect(await redemption.redeemTolerance()).to.equal(0n);
+            expect(await redemption.TOLERANCE_DENOMINATOR()).to.equal(100_000n);
+        });
+
+        it('Should update the redeem tolerance and emit event', async function () {
+            const { redemption } = await loadFixture(deployGroveBasinProtocol);
+            await expect(redemption.setRedeemTolerance(10_000n))
+                .to.emit(redemption, 'RedeemToleranceUpdated')
+                .withArgs(0n, 10_000n);
+            expect(await redemption.redeemTolerance()).to.equal(10_000n);
+        });
+
+        it('Should require an exact NAV match by default (zero tolerance)', async function () {
+            const ctx = await loadFixture(deployGroveBasinProtocol);
+            const { redemption, operator, investor, groveBasinMock, assetDecimals, liquidityDecimals } = ctx;
+            const expected = expectedOutput(ASSET_AMOUNT, assetDecimals, liquidityDecimals);
+            await prepareRedemption(ctx, ASSET_AMOUNT, expected * 2n);
+            // Even a 1% deviation must revert when the tolerance is zero.
+            await groveBasinMock.setOutputFactor(101n, 100n);
+            await expect(redemption.connect(operator).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT, investor.address))
+                .revertedWithCustomError(redemption, 'RedeemMaxToleranceExceededError')
+                .withArgs((expected * 101n) / 100n, expected);
+        });
+
+        it('Should allow setting the tolerance to the maximum (100_000)', async function () {
+            const { redemption } = await loadFixture(deployGroveBasinProtocol);
+            await redemption.setRedeemTolerance(100_000n);
+            expect(await redemption.redeemTolerance()).to.equal(100_000n);
+        });
+
+        it('Should revert when the tolerance exceeds the denominator', async function () {
+            const { redemption } = await loadFixture(deployGroveBasinProtocol);
+            await expect(redemption.setRedeemTolerance(100_001n))
+                .revertedWithCustomError(redemption, 'InvalidToleranceError')
+                .withArgs(100_001n);
+        });
+
+        it('Should fail to set the tolerance from a non-admin wallet', async function () {
+            const { redemption, stranger } = await loadFixture(deployGroveBasinProtocol);
+            await expect(redemption.connect(stranger).setRedeemTolerance(1_000n)).revertedWithCustomError(
+                redemption,
+                'AccessControlUnauthorizedAccount',
+            );
+        });
+
+        it('Should redeem when the delivered value is within the tolerance band', async function () {
+            const ctx = await loadFixture(deployGroveBasinProtocol);
+            const { redemption, operator, investor, usdcMock, groveBasinMock, assetDecimals, liquidityDecimals } = ctx;
+            const expected = expectedOutput(ASSET_AMOUNT, assetDecimals, liquidityDecimals);
+            await redemption.setRedeemTolerance(5_000n); // 5% band
+            // Deliver 102% of the expected value (inside the 5% band) and fund accordingly.
+            await prepareRedemption(ctx, ASSET_AMOUNT, expected * 2n);
+            await groveBasinMock.setOutputFactor(102n, 100n);
+
+            await redemption.connect(operator).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT, investor.address);
+            expect(await usdcMock.balanceOf(investor.address)).to.equal((expected * 102n) / 100n);
+        });
+
+        it('Should revert when the delivered value exceeds the maximum tolerable amount', async function () {
+            const ctx = await loadFixture(deployGroveBasinProtocol);
+            const { redemption, operator, investor, groveBasinMock, assetDecimals, liquidityDecimals } = ctx;
+            const expected = expectedOutput(ASSET_AMOUNT, assetDecimals, liquidityDecimals);
+            await redemption.setRedeemTolerance(5_000n); // 5% band
+            // Deliver 110% of the expected value, above the 5% upper bound.
+            await prepareRedemption(ctx, ASSET_AMOUNT, expected * 2n);
+            await groveBasinMock.setOutputFactor(110n, 100n);
+
+            const maxTolerable = (expected * 105_000n) / 100_000n;
+            await expect(redemption.connect(operator).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT, investor.address))
+                .revertedWithCustomError(redemption, 'RedeemMaxToleranceExceededError')
+                .withArgs((expected * 110n) / 100n, maxTolerable);
+        });
+
+        it('Should revert when the delivered value is below the minimum tolerable amount', async function () {
+            const ctx = await loadFixture(deployGroveBasinProtocol);
+            const { redemption, operator, investor, groveBasinMock, assetDecimals, liquidityDecimals } = ctx;
+            const expected = expectedOutput(ASSET_AMOUNT, assetDecimals, liquidityDecimals);
+            await redemption.setRedeemTolerance(5_000n); // 5% band
+            // Deliver 90% of the expected value, below the 5% lower bound.
+            await prepareRedemption(ctx, ASSET_AMOUNT, expected);
+            await groveBasinMock.setOutputFactor(90n, 100n);
+
+            const minTolerable = (expected * 95_000n) / 100_000n;
+            await expect(redemption.connect(operator).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT, investor.address))
+                .revertedWithCustomError(redemption, 'RedeemMinToleranceExceededError')
+                .withArgs((expected * 90n) / 100n, minTolerable);
+        });
+    });
+
     describe('Redeem with different decimals', function () {
         it('Should redeem at 1:1 when asset has 6 and liquidity has 18 decimals', async function () {
             const ctx = await loadFixture(deployGroveBasinProtocol6x18);

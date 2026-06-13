@@ -41,6 +41,13 @@ interface IThirdPartyOffRamp is IBaseOffRamp {
     );
 
     /**
+     * @dev Emitted when the admin updates the redeem tolerance.
+     * @param oldTolerance Previous redeem tolerance (scaled to TOLERANCE_DENOMINATOR).
+     * @param newTolerance New redeem tolerance (scaled to TOLERANCE_DENOMINATOR).
+     */
+    event RedeemToleranceUpdated(uint256 oldTolerance, uint256 newTolerance);
+
+    /**
      * @dev Thrown when redemption is attempted while two-step transfer is disabled.
      */
     error OneStepRedemptionNotSupportedError();
@@ -49,6 +56,28 @@ interface IThirdPartyOffRamp is IBaseOffRamp {
      * @dev Thrown when initialization is attempted with asset burn enabled.
      */
     error AssetBurnNotSupportedError();
+
+    /**
+     * @dev Thrown when a new tolerance value exceeds the allowed maximum (TOLERANCE_DENOMINATOR).
+     * @param tolerance The rejected tolerance value.
+     */
+    error InvalidToleranceError(uint256 tolerance);
+
+    /**
+     * @dev Thrown when the liquidity value returned by Grove Basin exceeds the maximum tolerable
+     *      amount derived from the Securitize NAV provider.
+     * @param liquidityValue The liquidity value delivered by the redemption.
+     * @param maxTolerable The maximum tolerable liquidity value.
+     */
+    error RedeemMaxToleranceExceededError(uint256 liquidityValue, uint256 maxTolerable);
+
+    /**
+     * @dev Thrown when the liquidity value returned by Grove Basin is below the minimum tolerable
+     *      amount derived from the Securitize NAV provider.
+     * @param liquidityValue The liquidity value delivered by the redemption.
+     * @param minTolerable The minimum tolerable liquidity value.
+     */
+    error RedeemMinToleranceExceededError(uint256 liquidityValue, uint256 minTolerable);
 
     /**
      * @notice Redeems an investor's asset for the liquidity token via Grove Basin.
@@ -77,4 +106,16 @@ interface IThirdPartyOffRamp is IBaseOffRamp {
      * @return The NAV rate provider address.
      */
     function navProvider() external view returns (ISecuritizeNavProvider);
+
+    /**
+     * @notice The redeem tolerance applied to the NAV-derived expected liquidity value.
+     * @return The tolerance scaled to TOLERANCE_DENOMINATOR (100_000 == 100%).
+     */
+    function redeemTolerance() external view returns (uint256);
+
+    /**
+     * @notice Sets the redeem tolerance applied to the NAV-derived expected liquidity value.
+     * @param _tolerance New tolerance scaled to TOLERANCE_DENOMINATOR (100_000 == 100%).
+     */
+    function setRedeemTolerance(uint256 _tolerance) external;
 }

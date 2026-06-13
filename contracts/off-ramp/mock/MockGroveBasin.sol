@@ -41,9 +41,17 @@ contract MockGroveBasin {
     /// @dev External pocket for swapToken custody. Defaults to `address(this)`.
     address public pocket;
 
+    /// @dev Numerator of the output deviation factor applied on top of the 1:1 preview.
+    uint256 public outputNumerator;
+
+    /// @dev Denominator of the output deviation factor applied on top of the 1:1 preview.
+    uint256 public outputDenominator;
+
     constructor(address swapToken_) {
         swapToken = swapToken_;
         pocket    = address(this);
+        outputNumerator   = 1;
+        outputDenominator = 1;
     }
 
     function setSwapToken(address newSwapToken) external {
@@ -52,6 +60,19 @@ contract MockGroveBasin {
 
     function setPocket(address newPocket) external {
         pocket = newPocket == address(0) ? address(this) : newPocket;
+    }
+
+    /**
+     * @notice Configures a deviation factor applied to the swap output, simulating a Grove Basin
+     *         NAV that diverges from the 1:1 preview. The delivered amount becomes
+     *         `previewSwapExactIn(...) * numerator / denominator`.
+     * @param numerator Output deviation numerator (must be non-zero through denominator).
+     * @param denominator Output deviation denominator (must be non-zero).
+     */
+    function setOutputFactor(uint256 numerator, uint256 denominator) external {
+        require(denominator != 0, "denominator=0");
+        outputNumerator   = numerator;
+        outputDenominator = denominator;
     }
 
     /**
@@ -99,7 +120,7 @@ contract MockGroveBasin {
         if (amountIn == 0)          revert IGroveBasin.ZeroAmountIn();
         if (receiver == address(0)) revert IGroveBasin.ZeroReceiver();
 
-        amountOut = previewSwapExactIn(assetIn, assetOut, amountIn);
+        amountOut = Math.mulDiv(previewSwapExactIn(assetIn, assetOut, amountIn), outputNumerator, outputDenominator);
         _pullAsset(assetIn, amountIn);
         _pushAsset(assetOut, receiver, amountOut);
 

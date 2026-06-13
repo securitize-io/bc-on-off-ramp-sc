@@ -25,6 +25,9 @@ task('deploy-third-party-protocol', 'Deploy Grove Basin Off-Ramp Protocol (insta
     // Access control
     .addOptionalParam('operator', 'Wallet granted the OPERATOR_ROLE to trigger swaps')
 
+    // Redeem tolerance (scaled to 100_000 == 100%); defaults to the contract value when omitted
+    .addOptionalParam('redeemTolerance', 'Redeem tolerance scaled to 100_000 (e.g. 5000 == 5%)')
+
     // Verification flag
     .addFlag('verify', 'Verify contracts on Etherscan')
     .addFlag('silenceLogs', 'Verbose output')
@@ -38,6 +41,7 @@ task('deploy-third-party-protocol', 'Deploy Grove Basin Off-Ramp Protocol (insta
             console.log(`- Liquidity Token: ${args.liquidityToken}`);
             console.log(`- Grove Basin: ${args.groveBasin}`);
             console.log(`- Operator: ${args.operator}`);
+            console.log(`- Redeem Tolerance: ${args.redeemTolerance ?? '(contract default)'}`);
             console.log(`- Verify: ${args.verify}`);
         }
 
@@ -71,6 +75,15 @@ task('deploy-third-party-protocol', 'Deploy Grove Basin Off-Ramp Protocol (insta
         // Set liquidity provider on the off-ramp contract
         const tx = await redemption.updateLiquidityProvider(liquidityProviderAddress);
         await tx.wait(1);
+
+        // Override the redeem tolerance when explicitly provided
+        if (args.redeemTolerance !== undefined) {
+            const toleranceTx = await redemption.setRedeemTolerance(args.redeemTolerance);
+            await toleranceTx.wait(1);
+            if (!args.silenceLogs) {
+                console.log(`Set redeem tolerance to ${args.redeemTolerance}`);
+            }
+        }
 
         // Grant the operator role so it can trigger swaps
         if (args.operator) {
