@@ -72,6 +72,11 @@ contract GroveBasinLiquidityProvider is IThirdPartyLiquidityProvider, BaseContra
     error RedemptionUnauthorizedAccount(address account);
 
     /**
+     * @dev Thrown when Grove Basin reports a zero-address pocket while a token transfer is required.
+     */
+    error PocketZeroAddressError();
+
+    /**
      * @dev Throws if called by any account other than the off-ramp contract.
      */
     modifier onlySecuritizeRedemption() {
@@ -135,14 +140,14 @@ contract GroveBasinLiquidityProvider is IThirdPartyLiquidityProvider, BaseContra
     }
 
     /**
-     * @dev Best-effort available liquidity held by Grove Basin for the liquidity token.
+     * @dev Best-effort available liquidity held by the Grove Basin pocket for the liquidity token.
      *      The hard guarantee is enforced by Grove Basin reverting the swap when the pool
-     *      cannot satisfy the requested output.
-     * @return Liquidity token balance available in Grove Basin.
+     *      cannot satisfy the requested output. The pocket is read fresh because Grove Basin is a
+     *      third-party contract whose configuration may change at any time.
+     * @return Liquidity token balance available in the Grove Basin pocket.
      */
     function _availableLiquidity() private view returns (uint256) {
-        //TODO: Check if we need to return from groveBasin
-        return liquidityToken.balanceOf(address(groveBasin));
+        return liquidityToken.balanceOf(groveBasin.pocket());
     }
 
     /**
@@ -164,12 +169,16 @@ contract GroveBasinLiquidityProvider is IThirdPartyLiquidityProvider, BaseContra
             revert ZeroAmountToSwap();
         }
 
+        IGroveBasin _groveBasin = groveBasin;
+        if (_groveBasin.pocket() == address(0)) {
+            revert PocketZeroAddressError();
+        }
+
         uint256 available = _availableLiquidity();
         if (_minOut > available) {
             revert InsufficientLiquidity(_minOut, available);
         }
 
-        IGroveBasin _groveBasin = groveBasin;
         _assetToken.forceApprove(address(_groveBasin), amountIn);
 
         amountOut = _groveBasin.swapExactIn(

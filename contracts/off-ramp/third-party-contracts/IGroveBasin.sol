@@ -72,4 +72,13 @@ interface IGroveBasin {
      */
     function previewSwapExactIn(address assetIn, address assetOut, uint256 amountIn)
     external view returns (uint256 amountOut);
+
+    /**
+     * @notice Wallet that custodies the liquidity used to settle swaps.
+     * @dev    Grove Basin transfers the swapped-out asset from this address, so it must hold a
+     *         sufficient balance for the swap to succeed. Read fresh on every call because this
+     *         is a third-party contract and the value may change at any time.
+     * @return The pocket address holding the swappable liquidity.
+     */
+    function pocket() external view returns (address);
 }

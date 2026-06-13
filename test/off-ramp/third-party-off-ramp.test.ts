@@ -298,6 +298,18 @@ describe('Grove Basin Off-Ramp Protocol Unit Tests', function () {
             expect(await liquidityProvider.availableLiquidity()).to.equal(1234n);
             expect(await redemption.availableLiquidity()).to.equal(1234n);
         });
+
+        it('Should read available liquidity from the Grove Basin pocket, not the basin itself', async function () {
+            const ctx = await loadFixture(deployGroveBasinProtocol);
+            const { redemption, liquidityProvider, usdcMock, groveBasinMock, stranger } = ctx;
+            // Fund the basin directly; this balance must be ignored once a pocket is configured.
+            await usdcMock.mint(await groveBasinMock.getAddress(), 1n);
+            // Configure an external pocket holding the real liquidity.
+            await groveBasinMock.setPocket(stranger.address);
+            await usdcMock.mint(stranger.address, 5000n);
+            expect(await liquidityProvider.availableLiquidity()).to.equal(5000n);
+            expect(await redemption.availableLiquidity()).to.equal(5000n);
+        });
     });
 
     describe('Redeem', function () {
@@ -398,6 +410,18 @@ describe('Grove Basin Off-Ramp Protocol Unit Tests', function () {
             await expect(
                 redemption.connect(operator).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT, investor.address),
             ).revertedWithCustomError(redemption, 'OneStepRedemptionNotSupportedError');
+        });
+
+        it('Should revert with PocketZeroAddressError when the Grove Basin pocket is the zero address', async function () {
+            const ctx = await loadFixture(deployGroveBasinProtocol);
+            const { liquidityProvider, redemption, operator, investor } = ctx;
+            await prepareRedemption(ctx);
+            // Point the provider at a Grove Basin whose pocket resolves to address(0).
+            const zeroPocketBasin = await hre.ethers.deployContract('MockGroveBasinZeroPocket');
+            await liquidityProvider.setGroveBasin(await zeroPocketBasin.getAddress());
+            await expect(
+                redemption.connect(operator).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT, investor.address),
+            ).revertedWithCustomError(liquidityProvider, 'PocketZeroAddressError');
         });
     });
 
