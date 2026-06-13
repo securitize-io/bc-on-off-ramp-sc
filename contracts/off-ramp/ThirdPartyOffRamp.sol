@@ -40,7 +40,7 @@ contract ThirdPartyOffRamp is IThirdPartyOffRamp, BaseOffRamp {
      * @dev Throws if the NAV rate is zero or not set.
      */
     modifier nonZeroNavRate() {
-        if (navProvider.rate() <= 0) {
+        if (navProvider.rate() == 0) {
             revert NonZeroNavRateError();
         }
         _;
@@ -141,13 +141,15 @@ contract ThirdPartyOffRamp is IThirdPartyOffRamp, BaseOffRamp {
         uint256 _assetAmount,
         uint256 _minOutputAmount,
         address _investorWallet
-    ) public override whenNotPaused onlyRole(OPERATOR_ROLE) nonZeroNavRate {
-        //TODO: Implement one step version
+    ) public override whenNotPaused onlyRole(OPERATOR_ROLE) {
         if (!twoStepTransfer) {
             revert OneStepRedemptionNotSupportedError();
         }
 
         uint256 rate = navProvider.rate();
+        if (rate == 0) {
+            revert NonZeroNavRateError();
+        }
         (uint256 fee, uint256 liquidityValue) = _redeem(_assetAmount, _minOutputAmount, rate, _investorWallet);
 
         emit RedemptionCompleted(
