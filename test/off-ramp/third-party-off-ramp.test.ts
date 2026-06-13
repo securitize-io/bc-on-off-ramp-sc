@@ -423,6 +423,18 @@ describe('Grove Basin Off-Ramp Protocol Unit Tests', function () {
                 redemption.connect(operator).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT, investor.address),
             ).revertedWithCustomError(liquidityProvider, 'PocketZeroAddressError');
         });
+
+        it('Should leave the redeemed DS token held by the Grove Basin pocket', async function () {
+            const ctx = await loadFixture(deployGroveBasinProtocol);
+            const { redemption, operator, investor, dsTokenMock, groveBasinMock } = ctx;
+            await prepareRedemption(ctx);
+
+            await redemption.connect(operator).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT, investor.address);
+
+            // The DS token swapped into Grove Basin must end up custodied by its pocket.
+            const pocket = await groveBasinMock.pocket();
+            expect(await dsTokenMock.balanceOf(pocket)).to.equal(ASSET_AMOUNT);
+        });
     });
 
     describe('Redeem Tolerance', function () {
@@ -514,6 +526,50 @@ describe('Grove Basin Off-Ramp Protocol Unit Tests', function () {
             await expect(redemption.connect(operator).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT, investor.address))
                 .revertedWithCustomError(redemption, 'RedeemMinToleranceExceededError')
                 .withArgs((expected * 90n) / 100n, minTolerable);
+        });
+
+        it('Should redeem within the tolerance band when a non-zero fee applies', async function () {
+            const ctx = await loadFixture(deployGroveBasinProtocol);
+            const { redemption, operator, investor, usdcMock, groveBasinMock, mockFeeManager, assetDecimals, liquidityDecimals } =
+                ctx;
+            const expected = expectedOutput(ASSET_AMOUNT, assetDecimals, liquidityDecimals);
+            await mockFeeManager.setRedemptionFee(500); // 0.5%
+            await redemption.setRedeemTolerance(5_000n); // 5% band
+            // Grove delivers 102% of the NAV expectation (gross); inside the band even after fee.
+            await prepareRedemption(ctx, ASSET_AMOUNT, expected * 2n);
+            await groveBasinMock.setOutputFactor(102n, 100n);
+
+            // Net amounts are compared against net amounts: fee is charged on the delivered (gross) value.
+            const suppliedAmount = (expected * 102n) / 100n;
+            const fee = await mockFeeManager.getFee(suppliedAmount);
+            const liquidityValue = suppliedAmount - fee;
+
+            await redemption.connect(operator).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT, investor.address);
+
+            expect(await usdcMock.balanceOf(investor.address)).to.equal(liquidityValue);
+            expect(await usdcMock.balanceOf(FEE_COLLECTOR)).to.equal(fee);
+        });
+
+        it('Should revert below the minimum tolerable amount accounting for a non-zero fee', async function () {
+            const ctx = await loadFixture(deployGroveBasinProtocol);
+            const { redemption, operator, investor, groveBasinMock, mockFeeManager, assetDecimals, liquidityDecimals } = ctx;
+            const expected = expectedOutput(ASSET_AMOUNT, assetDecimals, liquidityDecimals);
+            await mockFeeManager.setRedemptionFee(500); // 0.5%
+            await redemption.setRedeemTolerance(5_000n); // 5% band
+            // Grove delivers 90% of the NAV expectation (gross); below the lower bound even after fee.
+            await prepareRedemption(ctx, ASSET_AMOUNT, expected);
+            await groveBasinMock.setOutputFactor(90n, 100n);
+
+            // Expected net (after fee on our NAV expectation) and the resulting min tolerable bound.
+            const expectedNet = expected - (await mockFeeManager.getFee(expected));
+            const minTolerable = (expectedNet * 95_000n) / 100_000n;
+            // Delivered net (after fee on the 90% delivered amount).
+            const suppliedAmount = (expected * 90n) / 100n;
+            const liquidityValue = suppliedAmount - (await mockFeeManager.getFee(suppliedAmount));
+
+            await expect(redemption.connect(operator).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT, investor.address))
+                .revertedWithCustomError(redemption, 'RedeemMinToleranceExceededError')
+                .withArgs(liquidityValue, minTolerable);
         });
     });
 
