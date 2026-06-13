@@ -299,16 +299,16 @@ describe('Grove Basin Off-Ramp Protocol Unit Tests', function () {
             expect(await redemption.availableLiquidity()).to.equal(1234n);
         });
 
-        it('Should read available liquidity from the Grove Basin pocket, not the basin itself', async function () {
+        it('Should report the Grove Basin balance and ignore any external pocket', async function () {
             const ctx = await loadFixture(deployGroveBasinProtocol);
             const { redemption, liquidityProvider, usdcMock, groveBasinMock, stranger } = ctx;
-            // Fund the basin directly; this balance must be ignored once a pocket is configured.
-            await usdcMock.mint(await groveBasinMock.getAddress(), 1n);
-            // Configure an external pocket holding the real liquidity.
+            // Fund the basin itself; this is the balance availableLiquidity must report.
+            await usdcMock.mint(await groveBasinMock.getAddress(), 1234n);
+            // Configure an external pocket with a different balance; it must be ignored.
             await groveBasinMock.setPocket(stranger.address);
             await usdcMock.mint(stranger.address, 5000n);
-            expect(await liquidityProvider.availableLiquidity()).to.equal(5000n);
-            expect(await redemption.availableLiquidity()).to.equal(5000n);
+            expect(await liquidityProvider.availableLiquidity()).to.equal(1234n);
+            expect(await redemption.availableLiquidity()).to.equal(1234n);
         });
     });
 

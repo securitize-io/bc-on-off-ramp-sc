@@ -140,14 +140,13 @@ contract GroveBasinLiquidityProvider is IThirdPartyLiquidityProvider, BaseContra
     }
 
     /**
-     * @dev Best-effort available liquidity held by the Grove Basin pocket for the liquidity token.
+     * @dev Best-effort available liquidity held by Grove Basin for the liquidity token.
      *      The hard guarantee is enforced by Grove Basin reverting the swap when the pool
-     *      cannot satisfy the requested output. The pocket is read fresh because Grove Basin is a
-     *      third-party contract whose configuration may change at any time.
-     * @return Liquidity token balance available in the Grove Basin pocket.
+     *      cannot satisfy the requested output.
+     * @return Liquidity token balance available in Grove Basin.
      */
     function _availableLiquidity() private view returns (uint256) {
-        return liquidityToken.balanceOf(groveBasin.pocket());
+        return liquidityToken.balanceOf(address(groveBasin));
     }
 
     /**
