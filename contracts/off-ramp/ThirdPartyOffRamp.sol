@@ -70,7 +70,6 @@ contract ThirdPartyOffRamp is IThirdPartyOffRamp, BaseOffRamp {
         __BaseOffRamp_init(_asset, _feeManager, false, NAME, VERSION);
         navProvider = ISecuritizeNavProvider(_navProvider);
 
-        //TODO: Implement one step version support
         // Grove Basin redemptions only support the two-step transfer flow.
         twoStepTransfer = true;
     }
