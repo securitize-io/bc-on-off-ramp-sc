@@ -24,11 +24,11 @@ import {TokenCalculator} from "./TokenCalculator.sol";
 
 /**
  * @title ThirdPartyOffRamp
- * @notice Operator-gated off-ramp that redeems an RWA asset for a liquidity token
- *         by routing an atomic 1:1 swap through a Grove Basin liquidity provider.
- * @dev    Reuses the shared two-step redemption flow: the asset is pulled from the investor and
+ * @notice Self-service off-ramp that allows any RWA token holder to redeem their asset for a
+ *         liquidity token by routing an atomic 1:1 swap through a Grove Basin liquidity provider.
+ * @dev    Reuses the shared two-step redemption flow: the asset is pulled from the caller and
  *         handed to the liquidity provider, which swaps it via Grove Basin and forwards the
- *         liquidity token back to this contract for delivery to the investor (minus fee).
+ *         liquidity token back to this contract for delivery to the caller (minus fee).
  */
 contract ThirdPartyOffRamp is IThirdPartyOffRamp, BaseOffRamp {
     string public constant NAME = "ThirdPartyOffRamp";
@@ -160,19 +160,17 @@ contract ThirdPartyOffRamp is IThirdPartyOffRamp, BaseOffRamp {
     }
 
     /**
-     * @notice Redeems an investor's asset for the liquidity token via Grove Basin.
-     * @dev Operator-gated: the investor authorizes the redemption off-chain and grants this
-     *      contract an allowance over the asset. The swap delivers the liquidity token in the
-     *      same block.
+     * @notice Redeems the caller's asset for the liquidity token via Grove Basin.
+     * @dev Any RWA token holder may call this function directly. The caller must have granted this
+     *      contract an ERC-20 allowance over the asset before invoking. The swap delivers the
+     *      liquidity token to the caller (minus fee) within the same block.
      * @param _assetAmount Asset amount to redeem.
-     * @param _minOutputAmount Minimum liquidity token the investor must receive (slippage guard).
-     * @param _investorWallet Wallet that owns the asset and receives the liquidity token.
+     * @param _minOutputAmount Minimum liquidity token the caller must receive (slippage guard).
      */
     function redeem(
         uint256 _assetAmount,
-        uint256 _minOutputAmount,
-        address _investorWallet
-    ) public override whenNotPaused onlyRole(OPERATOR_ROLE) {
+        uint256 _minOutputAmount
+    ) public override whenNotPaused {
         if (!twoStepTransfer) {
             revert OneStepRedemptionNotSupportedError();
         }
@@ -181,12 +179,12 @@ contract ThirdPartyOffRamp is IThirdPartyOffRamp, BaseOffRamp {
         if (rate == 0) {
             revert NonZeroNavRateError();
         }
-        (uint256 fee, uint256 liquidityValue) = _redeem(_assetAmount, _minOutputAmount, rate, _investorWallet);
+        (uint256 fee, uint256 liquidityValue) = _redeem(_assetAmount, _minOutputAmount, rate, _msgSender());
 
         _validateRedeemTolerance(_assetAmount, liquidityValue);
 
         emit RedemptionCompleted(
-            _investorWallet,
+            _msgSender(),
             _assetAmount,
             liquidityValue,
             rate,
@@ -194,7 +192,7 @@ contract ThirdPartyOffRamp is IThirdPartyOffRamp, BaseOffRamp {
             address(liquidityProvider.liquidityToken())
         );
 
-        emit GroveBasinRedemption(_investorWallet, _assetAmount, liquidityValue, _msgSender());
+        emit GroveBasinRedemption(_msgSender(), _assetAmount, liquidityValue, _msgSender());
     }
 
     /**

@@ -8,7 +8,7 @@ an atomic swap through the third-party **Grove Basin (PSM3)** protocol.
 
 | File | Role |
 | --- | --- |
-| `contracts/off-ramp/ThirdPartyOffRamp.sol` | Operator-gated off-ramp. Orchestrates the redemption, computes the NAV expectation, and enforces the tolerance band. |
+| `contracts/off-ramp/ThirdPartyOffRamp.sol` | Self-service off-ramp. Any RWA token holder can redeem directly. Orchestrates the redemption, computes the NAV expectation, and enforces the tolerance band. |
 | `contracts/off-ramp/IThirdPartyOffRamp.sol` | External interface for `ThirdPartyOffRamp` (events, errors, getters). |
 | `contracts/off-ramp/provider/GroveBasinLiquidityProvider.sol` | Liquidity provider that performs the asset → liquidity token swap through Grove Basin. |
 | `contracts/off-ramp/provider/IThirdPartyLiquidityProvider.sol` | External interface for `GroveBasinLiquidityProvider`. |
@@ -25,8 +25,8 @@ Supporting shared code (not specific to this module): `BaseOffRamp`, `Redemption
 ## Architecture overview
 
 ```
-                 (1) redeem(assetAmount, minOut, investor)
- Operator ───────────────────────────────────────────────► ThirdPartyOffRamp
+                 (1) redeem(assetAmount, minOut)
+ Investor ───────────────────────────────────────────────► ThirdPartyOffRamp
                                                                  │
                           (2) two-step redemption via _redeem()  │
                                                                  ▼
@@ -53,10 +53,10 @@ or the liquidity token beyond the duration of a single `redeem` transaction.
 
 ## `ThirdPartyOffRamp`
 
-Operator-gated off-ramp. It only supports the **two-step transfer flow**
-(`twoStepTransfer = true`); single-step redemption reverts with
-`OneStepRedemptionNotSupportedError`. Asset burning is not supported
-(`AssetBurnNotSupportedError`) because the asset is the swap input.
+Self-service off-ramp. Any RWA token holder can call `redeem` directly without needing a
+special role. It only supports the **two-step transfer flow** (`twoStepTransfer = true`);
+single-step redemption reverts with `OneStepRedemptionNotSupportedError`. Asset burning is
+not supported (`AssetBurnNotSupportedError`) because the asset is the swap input.
 
 ### Storage / constants
 
@@ -85,19 +85,23 @@ function initialize(address _asset, address _navProvider, address _feeManager, b
 ### Redemption flow — `redeem`
 
 ```solidity
-function redeem(uint256 _assetAmount, uint256 _minOutputAmount, address _investorWallet)
-    external onlyRole(OPERATOR_ROLE) whenNotPaused
+function redeem(uint256 _assetAmount, uint256 _minOutputAmount)
+    external whenNotPaused
 ```
+
+The caller (`msg.sender`) must be the RWA token holder: they must hold at least
+`_assetAmount` of the asset and must have granted this contract an ERC-20 allowance over it
+before calling.
 
 1. Requires `twoStepTransfer == true`, otherwise `OneStepRedemptionNotSupportedError`.
 2. Reads `navProvider.rate()`; reverts `NonZeroNavRateError` if zero.
 3. Calls the shared `_redeem(...)` (from `BaseOffRamp` → `RedemptionManager.executeTwoStepRedemption`):
-   - Pulls the asset from the investor into the off-ramp, then forwards it to the
+   - Pulls the asset from the caller into the off-ramp, then forwards it to the
      liquidity provider's `recipient()`.
    - Calls `liquidityProvider.supplyTo(...)` which swaps the asset for the liquidity token.
    - Computes `fee` on the **delivered** amount and applies the **slippage guard**
      (`SlippageControlError` if `netDelivered < _minOutputAmount`).
-   - Delivers the net liquidity token to the investor and the fee to the fee collector.
+   - Delivers the net liquidity token to the caller and the fee to the fee collector.
 4. Calls `_validateRedeemTolerance(_assetAmount, liquidityValue)` (see below).
 5. Emits `RedemptionCompleted` and `GroveBasinRedemption`.
 
@@ -134,7 +138,7 @@ Emits `RedeemToleranceUpdated(old, new)`.
 #### Interaction with the slippage guard
 
 The per-call `_minOutputAmount` (slippage) and the `minTolerable` bound both protect the
-downside, but the **slippage guard runs first** inside `_redeem`. If the operator passes
+downside, but the **slippage guard runs first** inside `_redeem`. If the caller passes
 `_minOutputAmount >= minTolerable`, a shortfall reverts with `SlippageControlError` before
 the tolerance check is reached. To exercise `RedeemMinToleranceExceededError`, set
 `_minOutputAmount` low enough (e.g. `0`) so the slippage guard passes. The upper bound
@@ -154,7 +158,7 @@ liquidity provider (`nonZeroLiquidityProvider`).
 ### Events
 
 - `RedemptionCompleted(investor, assetAmount, liquidityValue, rate, fee, liquidityToken)` (from `BaseOffRamp`).
-- `GroveBasinRedemption(investor, assetAmountIn, liquidityAmountOut, operator)`.
+- `GroveBasinRedemption(investor, assetAmountIn, liquidityAmountOut, redeemer)` — `redeemer` is `msg.sender` (same as `investor` in the self-service flow).
 - `RedeemToleranceUpdated(oldTolerance, newTolerance)`.
 - `NavProviderUpdated(oldProvider, newProvider)`.
 
@@ -317,7 +321,8 @@ npx hardhat deploy-third-party-protocol \
 ```
 
 The task deploys both proxies, links the liquidity provider to the off-ramp, optionally sets
-the redeem tolerance, and grants `OPERATOR_ROLE` to `--operator`. After deployment, register
+the redeem tolerance, and grants `OPERATOR_ROLE` to `--operator` (reserved for admin
+operations; `redeem` itself is open to any RWA token holder). After deployment, register
 the platform wallets as described above before enabling redemptions.
 
 ---
@@ -342,7 +347,7 @@ To decode it, use a static call and the contract interface:
 
 ```js
 try {
-  await offRamp.redeem.staticCall(assetAmount, 0, investorWallet);
+  await offRamp.redeem.staticCall(assetAmount, 0);
 } catch (e) {
   const data = e.data ?? e.info?.error?.data;
   console.log(offRamp.interface.parseError(data));

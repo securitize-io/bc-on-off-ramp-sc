@@ -137,11 +137,12 @@ describe('Grove Basin Off-Ramp Protocol Unit Tests', function () {
             expect(await redemption.isOperator(operator.address)).to.equal(true);
         });
 
-        it('Should fail to redeem from a non-operator wallet', async function () {
-            const { redemption, investor } = await loadFixture(deployGroveBasinProtocol);
-            await expect(
-                redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT, investor.address),
-            ).revertedWithCustomError(redemption, 'AccessControlUnauthorizedAccount');
+        it('Should allow any RWA token holder to call redeem directly', async function () {
+            const ctx = await loadFixture(deployGroveBasinProtocol);
+            const { redemption, investor } = ctx;
+            await prepareRedemption(ctx);
+            // A holder with balance and allowance can redeem without any special role.
+            await expect(redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT)).to.not.be.reverted;
         });
 
         it('Should fail to set Grove Basin from a non-admin wallet', async function () {
@@ -207,11 +208,11 @@ describe('Grove Basin Off-Ramp Protocol Unit Tests', function () {
     describe('Pause / Unpause', function () {
         it('Should fail to redeem when off-ramp is paused', async function () {
             const ctx = await loadFixture(deployGroveBasinProtocol);
-            const { redemption, operator, investor } = ctx;
+            const { redemption, investor } = ctx;
             await prepareRedemption(ctx);
             await redemption.pause();
             await expect(
-                redemption.connect(operator).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT, investor.address),
+                redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT),
             ).revertedWithCustomError(redemption, 'EnforcedPause');
         });
 
@@ -315,10 +316,10 @@ describe('Grove Basin Off-Ramp Protocol Unit Tests', function () {
     describe('Redeem', function () {
         it('Should redeem instantly at 1:1 and deliver USDC to the investor', async function () {
             const ctx = await loadFixture(deployGroveBasinProtocol);
-            const { redemption, operator, investor, dsTokenMock, usdcMock, groveBasinMock, navProviderMock } = ctx;
+            const { redemption, investor, dsTokenMock, usdcMock, groveBasinMock, navProviderMock } = ctx;
             const { expected } = await prepareRedemption(ctx);
 
-            await expect(redemption.connect(operator).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT, investor.address))
+            await expect(redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT))
                 .to.emit(redemption, 'RedemptionCompleted')
                 .withArgs(
                     investor.address,
@@ -329,7 +330,7 @@ describe('Grove Basin Off-Ramp Protocol Unit Tests', function () {
                     await usdcMock.getAddress(),
                 )
                 .to.emit(redemption, 'GroveBasinRedemption')
-                .withArgs(investor.address, ASSET_AMOUNT, expected, operator.address)
+                .withArgs(investor.address, ASSET_AMOUNT, expected, investor.address)
                 .to.emit(groveBasinMock, 'Swap');
 
             expect(await usdcMock.balanceOf(investor.address)).to.equal(expected);
@@ -342,12 +343,12 @@ describe('Grove Basin Off-Ramp Protocol Unit Tests', function () {
 
         it('Should deduct a non-zero fee and send it to the fee collector', async function () {
             const ctx = await loadFixture(deployGroveBasinProtocol);
-            const { redemption, operator, investor, usdcMock, mockFeeManager } = ctx;
+            const { redemption, investor, usdcMock, mockFeeManager } = ctx;
             const { expected } = await prepareRedemption(ctx);
             await mockFeeManager.setRedemptionFee(500); // 0.5%
             const fee = await mockFeeManager.getFee(expected);
 
-            await redemption.connect(operator).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT, investor.address);
+            await redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT);
 
             expect(await usdcMock.balanceOf(investor.address)).to.equal(expected - fee);
             expect(await usdcMock.balanceOf(FEE_COLLECTOR)).to.equal(fee);
@@ -355,81 +356,81 @@ describe('Grove Basin Off-Ramp Protocol Unit Tests', function () {
 
         it('Should revert with slippage error when min output is not met', async function () {
             const ctx = await loadFixture(deployGroveBasinProtocol);
-            const { redemption, operator, investor } = ctx;
+            const { redemption, investor } = ctx;
             const { expected } = await prepareRedemption(ctx);
             await expect(
-                redemption.connect(operator).redeem(ASSET_AMOUNT, expected + 1n, investor.address),
+                redemption.connect(investor).redeem(ASSET_AMOUNT, expected + 1n),
             ).revertedWithCustomError(redemption, 'SlippageControlError');
         });
 
         it('Should revert with InsufficientLiquidity when Grove Basin has no liquidity', async function () {
             const ctx = await loadFixture(deployGroveBasinProtocol);
-            const { redemption, operator, investor, dsTokenMock } = ctx;
+            const { redemption, investor, dsTokenMock } = ctx;
             // Mint asset and approve, but do NOT fund Grove Basin
             await dsTokenMock.mint(investor.address, ASSET_AMOUNT);
             await dsTokenMock.connect(investor).approve(await redemption.getAddress(), ASSET_AMOUNT);
             await expect(
-                redemption.connect(operator).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT, investor.address),
+                redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT),
             ).revertedWithCustomError(ctx.liquidityProvider, 'InsufficientLiquidity');
         });
 
         it('Should revert when the investor has insufficient asset balance', async function () {
             const ctx = await loadFixture(deployGroveBasinProtocol);
-            const { redemption, operator, investor } = ctx;
+            const { redemption, investor } = ctx;
             await expect(
-                redemption.connect(operator).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT, investor.address),
+                redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT),
             ).revertedWithCustomError(redemption, 'InsufficientRedeemerBalance');
         });
 
         it('Should revert when the investor country is restricted', async function () {
             const ctx = await loadFixture(deployGroveBasinProtocol);
-            const { redemption, operator, investor } = ctx;
+            const { redemption, investor } = ctx;
             await prepareRedemption(ctx);
             await redemption.updateCountryRestriction(restrictedCountry, true);
             await ctx.mockRegistryService.setCountry(investorId, restrictedCountry);
             await expect(
-                redemption.connect(operator).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT, investor.address),
+                redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT),
             ).revertedWithCustomError(redemption, 'RestrictedCountry');
         });
 
         it('Should revert when the NAV rate is zero', async function () {
             const ctx = await loadFixture(deployGroveBasinProtocol);
-            const { redemption, operator, investor, zeroRateNavProviderMock } = ctx;
+            const { redemption, investor, zeroRateNavProviderMock } = ctx;
             await prepareRedemption(ctx);
             await redemption.updateNavProvider(await zeroRateNavProviderMock.getAddress());
             await expect(
-                redemption.connect(operator).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT, investor.address),
+                redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT),
             ).revertedWithCustomError(redemption, 'NonZeroNavRateError');
         });
 
         it('Should revert when two-step transfer is disabled', async function () {
             const ctx = await loadFixture(deployGroveBasinProtocol);
-            const { redemption, operator, investor } = ctx;
+            const { redemption, investor } = ctx;
             await prepareRedemption(ctx);
             await redemption.toggleTwoStepTransfer(false);
             await expect(
-                redemption.connect(operator).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT, investor.address),
+                redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT),
             ).revertedWithCustomError(redemption, 'OneStepRedemptionNotSupportedError');
         });
 
         it('Should revert with PocketZeroAddressError when the Grove Basin pocket is the zero address', async function () {
             const ctx = await loadFixture(deployGroveBasinProtocol);
-            const { liquidityProvider, redemption, operator, investor } = ctx;
+            const { liquidityProvider, redemption, investor } = ctx;
             await prepareRedemption(ctx);
             // Point the provider at a Grove Basin whose pocket resolves to address(0).
             const zeroPocketBasin = await hre.ethers.deployContract('MockGroveBasinZeroPocket');
             await liquidityProvider.setGroveBasin(await zeroPocketBasin.getAddress());
             await expect(
-                redemption.connect(operator).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT, investor.address),
+                redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT),
             ).revertedWithCustomError(liquidityProvider, 'PocketZeroAddressError');
         });
 
         it('Should leave the redeemed DS token held by the Grove Basin pocket', async function () {
             const ctx = await loadFixture(deployGroveBasinProtocol);
-            const { redemption, operator, investor, dsTokenMock, groveBasinMock } = ctx;
+            const { redemption, investor, dsTokenMock, groveBasinMock } = ctx;
             await prepareRedemption(ctx);
 
-            await redemption.connect(operator).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT, investor.address);
+            await redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT);
 
             // The DS token swapped into Grove Basin must end up custodied by its pocket.
             const pocket = await groveBasinMock.pocket();
@@ -454,12 +455,12 @@ describe('Grove Basin Off-Ramp Protocol Unit Tests', function () {
 
         it('Should require an exact NAV match by default (zero tolerance)', async function () {
             const ctx = await loadFixture(deployGroveBasinProtocol);
-            const { redemption, operator, investor, groveBasinMock, assetDecimals, liquidityDecimals } = ctx;
+            const { redemption, investor, groveBasinMock, assetDecimals, liquidityDecimals } = ctx;
             const expected = expectedOutput(ASSET_AMOUNT, assetDecimals, liquidityDecimals);
             await prepareRedemption(ctx, ASSET_AMOUNT, expected * 2n);
             // Even a 1% deviation must revert when the tolerance is zero.
             await groveBasinMock.setOutputFactor(101n, 100n);
-            await expect(redemption.connect(operator).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT, investor.address))
+            await expect(redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT))
                 .revertedWithCustomError(redemption, 'RedeemMaxToleranceExceededError')
                 .withArgs((expected * 101n) / 100n, expected);
         });
@@ -487,20 +488,20 @@ describe('Grove Basin Off-Ramp Protocol Unit Tests', function () {
 
         it('Should redeem when the delivered value is within the tolerance band', async function () {
             const ctx = await loadFixture(deployGroveBasinProtocol);
-            const { redemption, operator, investor, usdcMock, groveBasinMock, assetDecimals, liquidityDecimals } = ctx;
+            const { redemption, investor, usdcMock, groveBasinMock, assetDecimals, liquidityDecimals } = ctx;
             const expected = expectedOutput(ASSET_AMOUNT, assetDecimals, liquidityDecimals);
             await redemption.setRedeemTolerance(5_000n); // 5% band
             // Deliver 102% of the expected value (inside the 5% band) and fund accordingly.
             await prepareRedemption(ctx, ASSET_AMOUNT, expected * 2n);
             await groveBasinMock.setOutputFactor(102n, 100n);
 
-            await redemption.connect(operator).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT, investor.address);
+            await redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT);
             expect(await usdcMock.balanceOf(investor.address)).to.equal((expected * 102n) / 100n);
         });
 
         it('Should revert when the delivered value exceeds the maximum tolerable amount', async function () {
             const ctx = await loadFixture(deployGroveBasinProtocol);
-            const { redemption, operator, investor, groveBasinMock, assetDecimals, liquidityDecimals } = ctx;
+            const { redemption, investor, groveBasinMock, assetDecimals, liquidityDecimals } = ctx;
             const expected = expectedOutput(ASSET_AMOUNT, assetDecimals, liquidityDecimals);
             await redemption.setRedeemTolerance(5_000n); // 5% band
             // Deliver 110% of the expected value, above the 5% upper bound.
@@ -508,14 +509,14 @@ describe('Grove Basin Off-Ramp Protocol Unit Tests', function () {
             await groveBasinMock.setOutputFactor(110n, 100n);
 
             const maxTolerable = (expected * 105_000n) / 100_000n;
-            await expect(redemption.connect(operator).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT, investor.address))
+            await expect(redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT))
                 .revertedWithCustomError(redemption, 'RedeemMaxToleranceExceededError')
                 .withArgs((expected * 110n) / 100n, maxTolerable);
         });
 
         it('Should revert when the delivered value is below the minimum tolerable amount', async function () {
             const ctx = await loadFixture(deployGroveBasinProtocol);
-            const { redemption, operator, investor, groveBasinMock, assetDecimals, liquidityDecimals } = ctx;
+            const { redemption, investor, groveBasinMock, assetDecimals, liquidityDecimals } = ctx;
             const expected = expectedOutput(ASSET_AMOUNT, assetDecimals, liquidityDecimals);
             await redemption.setRedeemTolerance(5_000n); // 5% band
             // Deliver 90% of the expected value, below the 5% lower bound.
@@ -523,15 +524,14 @@ describe('Grove Basin Off-Ramp Protocol Unit Tests', function () {
             await groveBasinMock.setOutputFactor(90n, 100n);
 
             const minTolerable = (expected * 95_000n) / 100_000n;
-            await expect(redemption.connect(operator).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT, investor.address))
+            await expect(redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT))
                 .revertedWithCustomError(redemption, 'RedeemMinToleranceExceededError')
                 .withArgs((expected * 90n) / 100n, minTolerable);
         });
 
         it('Should redeem within the tolerance band when a non-zero fee applies', async function () {
             const ctx = await loadFixture(deployGroveBasinProtocol);
-            const { redemption, operator, investor, usdcMock, groveBasinMock, mockFeeManager, assetDecimals, liquidityDecimals } =
-                ctx;
+            const { redemption, investor, usdcMock, groveBasinMock, mockFeeManager, assetDecimals, liquidityDecimals } = ctx;
             const expected = expectedOutput(ASSET_AMOUNT, assetDecimals, liquidityDecimals);
             await mockFeeManager.setRedemptionFee(500); // 0.5%
             await redemption.setRedeemTolerance(5_000n); // 5% band
@@ -544,7 +544,7 @@ describe('Grove Basin Off-Ramp Protocol Unit Tests', function () {
             const fee = await mockFeeManager.getFee(suppliedAmount);
             const liquidityValue = suppliedAmount - fee;
 
-            await redemption.connect(operator).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT, investor.address);
+            await redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT);
 
             expect(await usdcMock.balanceOf(investor.address)).to.equal(liquidityValue);
             expect(await usdcMock.balanceOf(FEE_COLLECTOR)).to.equal(fee);
@@ -552,7 +552,7 @@ describe('Grove Basin Off-Ramp Protocol Unit Tests', function () {
 
         it('Should revert below the minimum tolerable amount accounting for a non-zero fee', async function () {
             const ctx = await loadFixture(deployGroveBasinProtocol);
-            const { redemption, operator, investor, groveBasinMock, mockFeeManager, assetDecimals, liquidityDecimals } = ctx;
+            const { redemption, investor, groveBasinMock, mockFeeManager, assetDecimals, liquidityDecimals } = ctx;
             const expected = expectedOutput(ASSET_AMOUNT, assetDecimals, liquidityDecimals);
             await mockFeeManager.setRedemptionFee(500); // 0.5%
             await redemption.setRedeemTolerance(5_000n); // 5% band
@@ -567,7 +567,7 @@ describe('Grove Basin Off-Ramp Protocol Unit Tests', function () {
             const suppliedAmount = (expected * 90n) / 100n;
             const liquidityValue = suppliedAmount - (await mockFeeManager.getFee(suppliedAmount));
 
-            await expect(redemption.connect(operator).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT, investor.address))
+            await expect(redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT))
                 .revertedWithCustomError(redemption, 'RedeemMinToleranceExceededError')
                 .withArgs(liquidityValue, minTolerable);
         });
@@ -576,10 +576,10 @@ describe('Grove Basin Off-Ramp Protocol Unit Tests', function () {
     describe('Redeem with different decimals', function () {
         it('Should redeem at 1:1 when asset has 6 and liquidity has 18 decimals', async function () {
             const ctx = await loadFixture(deployGroveBasinProtocol6x18);
-            const { redemption, operator, investor, usdcMock } = ctx;
+            const { redemption, investor, usdcMock } = ctx;
             const { expected } = await prepareRedemption(ctx);
 
-            await redemption.connect(operator).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT, investor.address);
+            await redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT);
 
             expect(await usdcMock.balanceOf(investor.address)).to.equal(expected);
             expect(await redemption.calculateLiquidityTokenAmountBeforeFee(ASSET_AMOUNT)).to.equal(expected);
@@ -587,12 +587,12 @@ describe('Grove Basin Off-Ramp Protocol Unit Tests', function () {
 
         it('Should redeem at 1:1 when asset has 18 and liquidity has 6 decimals', async function () {
             const ctx = await loadFixture(deployGroveBasinProtocol18x6);
-            const { redemption, operator, investor, usdcMock, navProviderMock } = ctx;
+            const { redemption, investor, usdcMock, navProviderMock } = ctx;
             const assetAmount = 5n * 10n ** 18n;
             const { expected } = await prepareRedemption(ctx, assetAmount);
 
             expect(await navProviderMock.rate()).to.equal(parityRate(18));
-            await redemption.connect(operator).redeem(assetAmount, MIN_OUTPUT_AMOUNT, investor.address);
+            await redemption.connect(investor).redeem(assetAmount, MIN_OUTPUT_AMOUNT);
             expect(await usdcMock.balanceOf(investor.address)).to.equal(expected);
         });
     });

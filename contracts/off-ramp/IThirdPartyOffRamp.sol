@@ -22,22 +22,22 @@ import {ISecuritizeNavProvider} from "@securitize/digital_securities/contracts/n
 
 /**
  * @title IThirdPartyOffRamp
- * @notice Operator-gated off-ramp that redeems an asset for a liquidity token through a
- *         Grove Basin liquidity provider using an atomic 1:1 swap.
+ * @notice Self-service off-ramp that allows any RWA token holder to redeem their asset for a
+ *         liquidity token through a Grove Basin liquidity provider using an atomic 1:1 swap.
  */
 interface IThirdPartyOffRamp is IBaseOffRamp {
     /**
-     * @dev Emitted when an operator-triggered Grove Basin redemption completes.
+     * @dev Emitted when a Grove Basin redemption completes.
      * @param investor Wallet whose asset was redeemed and that received the liquidity token.
      * @param assetAmountIn Amount of asset redeemed (swapped into Grove Basin).
      * @param liquidityAmountOut Amount of liquidity token delivered to the investor (after fee).
-     * @param operator Operator wallet that triggered the redemption.
+     * @param redeemer Wallet that triggered the redemption (same as investor in the self-service flow).
      */
     event GroveBasinRedemption(
         address indexed investor,
         uint256 assetAmountIn,
         uint256 liquidityAmountOut,
-        address indexed operator
+        address indexed redeemer
     );
 
     /**
@@ -80,12 +80,11 @@ interface IThirdPartyOffRamp is IBaseOffRamp {
     error RedeemMinToleranceExceededError(uint256 liquidityValue, uint256 minTolerable);
 
     /**
-     * @notice Redeems an investor's asset for the liquidity token via Grove Basin.
+     * @notice Redeems the caller's asset for the liquidity token via Grove Basin.
      * @param _assetAmount Amount of asset to redeem.
-     * @param _minOutputAmount Minimum amount of liquidity token the investor must receive.
-     * @param _investorWallet Wallet that owns the asset and receives the liquidity token.
+     * @param _minOutputAmount Minimum amount of liquidity token the caller must receive (slippage guard).
      */
-    function redeem(uint256 _assetAmount, uint256 _minOutputAmount, address _investorWallet) external;
+    function redeem(uint256 _assetAmount, uint256 _minOutputAmount) external;
 
     /**
      * @notice Calculates the amount of liquidity token received for a given asset amount (after fees).
