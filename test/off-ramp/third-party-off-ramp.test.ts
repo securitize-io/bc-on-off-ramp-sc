@@ -300,16 +300,41 @@ describe('Grove Basin Off-Ramp Protocol Unit Tests', function () {
             expect(await redemption.availableLiquidity()).to.equal(1234n);
         });
 
-        it('Should report the Grove Basin balance and ignore any external pocket', async function () {
+        it('Should resolve the liquidity custodian to the Grove Basin pocket', async function () {
+            const ctx = await loadFixture(deployGroveBasinProtocol);
+            const { liquidityProvider, groveBasinMock } = ctx;
+            expect(await liquidityProvider.getLiquidityCustodian()).to.equal(await groveBasinMock.getAddress());
+
+            const { stranger } = ctx;
+            await groveBasinMock.setPocket(stranger.address);
+            expect(await liquidityProvider.getLiquidityCustodian()).to.equal(stranger.address);
+        });
+
+        it('Should report the liquidity token balance held by the Grove Basin pocket', async function () {
             const ctx = await loadFixture(deployGroveBasinProtocol);
             const { redemption, liquidityProvider, usdcMock, groveBasinMock, stranger } = ctx;
-            // Fund the basin itself; this is the balance availableLiquidity must report.
+            // Fund the basin when pocket defaults to itself.
             await usdcMock.mint(await groveBasinMock.getAddress(), 1234n);
-            // Configure an external pocket with a different balance; it must be ignored.
+            // Point at an external pocket and fund it; availableLiquidity must follow the pocket.
             await groveBasinMock.setPocket(stranger.address);
             await usdcMock.mint(stranger.address, 5000n);
-            expect(await liquidityProvider.availableLiquidity()).to.equal(1234n);
-            expect(await redemption.availableLiquidity()).to.equal(1234n);
+            expect(await liquidityProvider.availableLiquidity()).to.equal(5000n);
+            expect(await redemption.availableLiquidity()).to.equal(5000n);
+        });
+
+        it('Should revert when the Grove Basin pocket is the zero address', async function () {
+            const ctx = await loadFixture(deployGroveBasinProtocol);
+            const { liquidityProvider } = ctx;
+            const zeroPocketBasin = await hre.ethers.deployContract('MockGroveBasinZeroPocket');
+            await liquidityProvider.setGroveBasin(await zeroPocketBasin.getAddress());
+            await expect(liquidityProvider.getLiquidityCustodian()).revertedWithCustomError(
+                liquidityProvider,
+                'PocketZeroAddressError',
+            );
+            await expect(liquidityProvider.availableLiquidity()).revertedWithCustomError(
+                liquidityProvider,
+                'PocketZeroAddressError',
+            );
         });
     });
 

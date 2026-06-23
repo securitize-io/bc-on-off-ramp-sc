@@ -132,6 +132,28 @@ contract GroveBasinLiquidityProvider is IThirdPartyLiquidityProvider, BaseContra
     }
 
     /**
+     * @notice Returns the wallet that holds the liquidity token available for redemptions in Grove Basin.
+     * @dev Grove Basin custodies its `swapToken` in the `pocket` address, not in the basin contract
+     *      itself. In this integration the liquidity token (e.g. USDC) must be configured as Grove
+     *      Basin's `swapToken`; the RWA asset is the `creditToken` swapped in during redemption.
+     *
+     *      On Grove Basin initialization `pocket` defaults to `address(groveBasin)`, so both
+     *      addresses coincide until a manager configures an external pocket for yield deployment.
+     *      When an external pocket is set, swaps still deliver the liquidity token from that
+     *      pocket via Grove Basin's `_pushAsset`.
+     *
+     *      To query available liquidity, read the ERC-20 balance of the liquidity token at the
+     *      address returned by this function: `liquidityToken.balanceOf(getLiquidityCustodian())`.
+     * @return custodian Wallet whose liquidity-token balance reflects swapable liquidity in Grove Basin.
+     */
+    function getLiquidityCustodian() public view returns (address custodian) {
+        custodian = groveBasin.pocket();
+        if (custodian == address(0)) {
+            revert PocketZeroAddressError();
+        }
+    }
+
+    /**
      * @notice Returns the currently available liquidity.
      * @return Available liquidity amount.
      */
@@ -141,12 +163,13 @@ contract GroveBasinLiquidityProvider is IThirdPartyLiquidityProvider, BaseContra
 
     /**
      * @dev Best-effort available liquidity held by Grove Basin for the liquidity token.
-     *      The hard guarantee is enforced by Grove Basin reverting the swap when the pool
-     *      cannot satisfy the requested output.
-     * @return Liquidity token balance available in Grove Basin.
+     *      Reads `liquidityToken.balanceOf(getLiquidityCustodian())`. The hard guarantee is
+     *      enforced by Grove Basin reverting the swap when the pool cannot satisfy the requested
+     *      output.
+     * @return Liquidity token balance available at the Grove Basin liquidity custodian.
      */
     function _availableLiquidity() private view returns (uint256) {
-        return liquidityToken.balanceOf(address(groveBasin));
+        return liquidityToken.balanceOf(getLiquidityCustodian());
     }
 
     /**
@@ -169,9 +192,6 @@ contract GroveBasinLiquidityProvider is IThirdPartyLiquidityProvider, BaseContra
         }
 
         IGroveBasin _groveBasin = groveBasin;
-        if (_groveBasin.pocket() == address(0)) {
-            revert PocketZeroAddressError();
-        }
 
         uint256 available = _availableLiquidity();
         if (_minOut > available) {

@@ -83,4 +83,11 @@ interface IThirdPartyLiquidityProvider is ILiquidityProvider {
      * @return The referral code.
      */
     function referralCode() external view returns (uint256);
+
+    /**
+     * @notice Returns the wallet that holds the liquidity token available for redemptions in Grove Basin.
+     * @dev See {GroveBasinLiquidityProvider.getLiquidityCustodian} for the full custodian semantics.
+     * @return custodian Wallet whose liquidity-token balance reflects swapable liquidity in Grove Basin.
+     */
+    function getLiquidityCustodian() external view returns (address custodian);
 }

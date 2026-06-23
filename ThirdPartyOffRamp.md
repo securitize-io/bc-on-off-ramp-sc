@@ -202,22 +202,25 @@ function supplyTo(address _receiver, uint256 _minOut)
 ```
 
 1. `amountIn = assetToken.balanceOf(address(this))`; reverts `ZeroAmountToSwap` if zero.
-2. **Pocket check**: reverts `PocketZeroAddressError` if `groveBasin.pocket() == address(0)`.
-   The pocket is read fresh on every call because Grove Basin is a third-party contract
-   whose configuration may change at any time.
+2. **Pocket check**: reverts `PocketZeroAddressError` if `getLiquidityCustodian()` resolves to
+   `address(0)`. The pocket is read fresh on every call because Grove Basin is a third-party
+   contract whose configuration may change at any time.
 3. Reverts `InsufficientLiquidity(_minOut, available)` if `_minOut > _availableLiquidity()`.
 4. `forceApprove` the asset to Grove Basin and call `swapExactIn(...)`, sending the
    liquidity token to `_receiver` (the off-ramp).
 
-> `_availableLiquidity()` reports `liquidityToken.balanceOf(address(groveBasin))`. This is a
-> best-effort pre-check; the hard guarantee is Grove Basin reverting the swap when its pool
-> cannot satisfy the requested output.
+> `_availableLiquidity()` reports `liquidityToken.balanceOf(getLiquidityCustodian())`. Grove
+> Basin custodies the swap token (our liquidity token, e.g. USDC) in its `pocket`, which defaults
+> to `address(groveBasin)` until a manager configures an external pocket. This is a best-effort
+> pre-check; the hard guarantee is Grove Basin reverting the swap when its pool cannot satisfy
+> the requested output.
 
 ### Admin / views
 
 - `setGroveBasin(address)` — `DEFAULT_ADMIN_ROLE`; reverts `NonZeroAddressError` on zero; emits `GroveBasinUpdated`.
 - `setReferralCode(uint256)` — `DEFAULT_ADMIN_ROLE`; emits `ReferralCodeUpdated`.
-- `availableLiquidity()` — Grove Basin liquidity token balance.
+- `getLiquidityCustodian()` — wallet whose liquidity-token balance reflects swapable liquidity in Grove Basin (Grove Basin `pocket()`); reverts `PocketZeroAddressError` when unset.
+- `availableLiquidity()` — `liquidityToken.balanceOf(getLiquidityCustodian())`.
 - `calculateEffectiveLiquidityTokenAmount(amount)` — returns `amount` (strict 1:1 peg).
 
 ### Errors
