@@ -20,7 +20,7 @@ export const expectedOutput = (assetAmount: bigint, assetDecimals: number, liqui
     (assetAmount * 10n ** BigInt(liquidityDecimals)) / 10n ** BigInt(assetDecimals);
 
 export const deployGroveBasinProtocol = async (assetDecimals = 6, liquidityDecimals = 6) => {
-    const [securitizeWallet, investor, operator, stranger] = await hre.ethers.getSigners();
+    const [securitizeWallet, investor, stranger] = await hre.ethers.getSigners();
 
     // Registry / trust services
     const MockRegistryService = await hre.ethers.getContractFactory('MockRegistryService');
@@ -59,7 +59,6 @@ export const deployGroveBasinProtocol = async (assetDecimals = 6, liquidityDecim
         feeManager: await mockFeeManager.getAddress(),
         liquidityToken: await usdcMock.getAddress(),
         groveBasin: await groveBasinMock.getAddress(),
-        operator: operator.address,
         silenceLogs: true,
     });
 
@@ -75,7 +74,6 @@ export const deployGroveBasinProtocol = async (assetDecimals = 6, liquidityDecim
         mockRegistryService,
         securitizeWallet,
         investor,
-        operator,
         stranger,
         assetDecimals,
         liquidityDecimals,

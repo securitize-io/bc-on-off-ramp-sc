@@ -111,7 +111,7 @@ registered as platform wallets in the DSToken.
 See the full technical reference in [ThirdPartyOffRamp.md](./ThirdPartyOffRamp.md).
 
 ```sh
-npx hardhat deploy-third-party-protocol --network sepolia --asset {dsToken} --nav-provider {navProvider} --fee-manager {feeManager} --liquidity-token {liquidityToken} --grove-basin {groveBasinContract} --operator {operator} [--redeem-tolerance {0..100000}]
+npx hardhat deploy-third-party-protocol --network sepolia --asset {dsToken} --nav-provider {navProvider} --fee-manager {feeManager} --liquidity-token {liquidityToken} --grove-basin {groveBasinContract} [--redeem-tolerance {0..100000}]
 ```
 
 ### EIP-712 Signing Helpers

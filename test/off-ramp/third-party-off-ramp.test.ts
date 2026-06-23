@@ -132,11 +132,6 @@ describe('Grove Basin Off-Ramp Protocol Unit Tests', function () {
     });
 
     describe('Access Control', function () {
-        it('Should grant OPERATOR_ROLE to the configured operator', async function () {
-            const { redemption, operator } = await loadFixture(deployGroveBasinProtocol);
-            expect(await redemption.isOperator(operator.address)).to.equal(true);
-        });
-
         it('Should allow any RWA token holder to call redeem directly', async function () {
             const ctx = await loadFixture(deployGroveBasinProtocol);
             const { redemption, investor } = ctx;

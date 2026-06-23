@@ -9,7 +9,6 @@ npx hardhat deploy-third-party-protocol \
     --fee-manager 0xF9D80538B0d0ceD4515f2B41910b3690d98F4E2A \
     --liquidity-token 0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238 \
     --grove-basin 0x10b3d3A96646720f8B3a29229cF96d513f3C84F1 \
-    --operator 0xcBeEe2c39601e1ee5502F2593F6758e6598C47a6 \
     --verify
 */
 task('deploy-third-party-protocol', 'Deploy Grove Basin Off-Ramp Protocol (instant swap implementation)')
@@ -21,9 +20,6 @@ task('deploy-third-party-protocol', 'Deploy Grove Basin Off-Ramp Protocol (insta
     // GroveBasinLiquidityProvider arguments
     .addParam('liquidityToken', 'Stable coin delivered to the investor (e.g. USDC)')
     .addParam('groveBasin', 'Grove Basin (PSM3) contract address')
-
-    // Access control
-    .addOptionalParam('operator', 'Wallet granted the OPERATOR_ROLE to trigger swaps')
 
     // Redeem tolerance (scaled to 100_000 == 100%); defaults to the contract value when omitted
     .addOptionalParam('redeemTolerance', 'Redeem tolerance scaled to 100_000 (e.g. 5000 == 5%)')
@@ -40,7 +36,6 @@ task('deploy-third-party-protocol', 'Deploy Grove Basin Off-Ramp Protocol (insta
             console.log(`- Fee Manager: ${args.feeManager}`);
             console.log(`- Liquidity Token: ${args.liquidityToken}`);
             console.log(`- Grove Basin: ${args.groveBasin}`);
-            console.log(`- Operator: ${args.operator}`);
             console.log(`- Redeem Tolerance: ${args.redeemTolerance ?? '(contract default)'}`);
             console.log(`- Verify: ${args.verify}`);
         }
@@ -82,15 +77,6 @@ task('deploy-third-party-protocol', 'Deploy Grove Basin Off-Ramp Protocol (insta
             await toleranceTx.wait(1);
             if (!args.silenceLogs) {
                 console.log(`Set redeem tolerance to ${args.redeemTolerance}`);
-            }
-        }
-
-        // Grant the operator role so it can trigger swaps
-        if (args.operator) {
-            const operatorTx = await redemption.addOperator(args.operator);
-            await operatorTx.wait(1);
-            if (!args.silenceLogs) {
-                console.log(`Granted OPERATOR_ROLE to ${args.operator}`);
             }
         }
 

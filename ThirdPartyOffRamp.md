@@ -319,14 +319,12 @@ npx hardhat deploy-third-party-protocol \
   --fee-manager {feeManager} \
   --liquidity-token {liquidityToken} \
   --grove-basin {groveBasinContract} \
-  --operator {operator} \
   [--redeem-tolerance {0..100000}]
 ```
 
-The task deploys both proxies, links the liquidity provider to the off-ramp, optionally sets
-the redeem tolerance, and grants `OPERATOR_ROLE` to `--operator` (reserved for admin
-operations; `redeem` itself is open to any RWA token holder). After deployment, register
-the platform wallets as described above before enabling redemptions.
+The task deploys both proxies, links the liquidity provider to the off-ramp, and optionally
+sets the redeem tolerance. After deployment, register the platform wallets as described
+above before enabling redemptions.
 
 ---
 
