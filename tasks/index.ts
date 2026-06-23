@@ -7,6 +7,7 @@ export * from './on-ramp/sign-public-stock-on-ramp';
 export * from './off-ramp/deploy-redemption-collateral-protocol';
 export * from './off-ramp/deploy-redemption-allowance-protocol';
 export * from './off-ramp/deploy-third-party-protocol';
+export * from './off-ramp/deploy-redemption-grove-basin-protocol';
 export * from './off-ramp/deploy-public-stock-offramp-redemption-collateral-protocol';
 export * from './off-ramp/deploy-public-stock-offramp-redemption-allowance-protocol';
 export * from './off-ramp/update-countries-restriction';
