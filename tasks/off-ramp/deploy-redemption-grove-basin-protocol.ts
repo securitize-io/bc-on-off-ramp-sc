@@ -96,3 +96,31 @@ task('deploy-redemption-grove-basin-protocol', 'Deploy Securitize Off-Ramp + Gro
 
         return { redemption, liquidityProvider };
     });
+
+// Deploy GroveBasinLiquidityProvider proxy
+// npx hardhat deploy-grove-basin-provider --liquidity-token 0x123 --securitize-off-ramp 0x123 --grove-basin 0x123
+task('deploy-grove-basin-provider', 'Deploy GroveBasinLiquidityProvider proxy')
+    .addParam('liquidityToken', 'Stable coin delivered to the investor (e.g. USDC)')
+    .addParam('securitizeOffRamp', 'SecuritizeOffRamp proxy address')
+    .addParam('groveBasin', 'Grove Basin (PSM3) contract address')
+    .addFlag('verify', 'Verify contracts on Etherscan')
+    .addFlag('silenceLogs', 'Suppress console output')
+    .setAction(async (taskArgs, hre) => {
+        if (!taskArgs.silenceLogs) {
+            consoleCyan('\n task: deploy-grove-basin-provider');
+            consoleCyan('Arguments:');
+            console.log(`- Liquidity Token: ${taskArgs.liquidityToken}`);
+            console.log(`- Securitize OffRamp: ${taskArgs.securitizeOffRamp}`);
+            console.log(`- Grove Basin: ${taskArgs.groveBasin}`);
+        }
+
+        const { proxyAddress, implAddress } = await hre.run('deploy-proxy', {
+            contractName: 'GroveBasinLiquidityProvider',
+            kind: 'uups',
+            args: [taskArgs.liquidityToken, taskArgs.securitizeOffRamp, taskArgs.groveBasin],
+            verify: taskArgs.verify,
+            silenceLogs: taskArgs.silenceLogs,
+        });
+
+        return { liquidityProviderAddress: proxyAddress, liquidityProviderImpl: implAddress };
+    });

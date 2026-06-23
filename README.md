@@ -118,24 +118,6 @@ single-step flow to bypass the provider entirely and the swap never executes.
 npx hardhat deploy-redemption-grove-basin-protocol --network arbitrum --asset {dsToken} --nav-provider {navProvider} --fee-manager {feeManager} --liquidity-token {liquidityToken} --grove-basin {groveBasinContract}
 ```
 
-##### Third Party Contract Off Ramp Integration
-
-The third party off-ramp redeems a Securitize RWA asset (DSToken) for a liquidity token by
-routing an atomic swap through the external Grove Basin (PSM3) protocol. It validates the
-delivered amount against a NAV-derived tolerance band and requires the protocol-owned
-addresses (OffRamp, LiquidityProvider, FeeCollector and the Grove Basin `pocket()`) to be
-registered as platform wallets in the DSToken.
-
-`ThirdPartyOffRamp` enforces `twoStepTransfer = true` internally in its initializer, so no
-extra call is needed after deployment. See also the note above for the Securitize Off-Ramp
-+ Grove Basin combination, where this flag must be set explicitly.
-
-See the full technical reference in [ThirdPartyOffRamp.md](./ThirdPartyOffRamp.md).
-
-```sh
-npx hardhat deploy-third-party-protocol --network sepolia --asset {dsToken} --nav-provider {navProvider} --fee-manager {feeManager} --liquidity-token {liquidityToken} --grove-basin {groveBasinContract} [--redeem-tolerance {0..100000}]
-```
-
 ### EIP-712 Signing Helpers
 
 - Public Stock On Ramp swap
