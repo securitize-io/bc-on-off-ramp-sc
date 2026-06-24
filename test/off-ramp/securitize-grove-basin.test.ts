@@ -335,7 +335,7 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
             expect(await liquidityProvider.availableLiquidity()).to.equal(0n);
         });
 
-        it('should return the USDC balance held in the Grove Basin pocket', async function () {
+        it('should return the USDC balance custodied by the Grove Basin contract', async function () {
             const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
             const { liquidityProvider, usdcMock, groveBasinMock } = ctx;
             const fundAmount = 5_000_000n;
@@ -343,13 +343,27 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
             expect(await liquidityProvider.availableLiquidity()).to.equal(fundAmount);
         });
 
-        it('should reflect an external pocket balance when one is configured', async function () {
+        it('should ignore an external pocket for the collateral token and track the Grove Basin balance', async function () {
             const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
             const { liquidityProvider, usdcMock, groveBasinMock, stranger } = ctx;
-            const fundAmount = 3_000_000n;
+            const basinAmount = 3_000_000n;
+            const pocketAmount = 9_000_000n;
+            // The pocket only custodies the swap token; collateral liquidity stays in the basin.
             await groveBasinMock.setPocket(stranger.address);
-            await usdcMock.mint(stranger.address, fundAmount);
-            expect(await liquidityProvider.availableLiquidity()).to.equal(fundAmount);
+            await usdcMock.mint(await groveBasinMock.getAddress(), basinAmount);
+            await usdcMock.mint(stranger.address, pocketAmount);
+            expect(await liquidityProvider.availableLiquidity()).to.equal(basinAmount);
+        });
+
+        it('should read the pocket balance when the liquidity token is the Grove Basin swap token', async function () {
+            const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
+            const { liquidityProvider, usdcMock, groveBasinMock, stranger } = ctx;
+            const pocketAmount = 4_000_000n;
+            // Wire USDC as the swap token so custody resolves to the pocket.
+            await groveBasinMock.setSwapToken(await usdcMock.getAddress());
+            await groveBasinMock.setPocket(stranger.address);
+            await usdcMock.mint(stranger.address, pocketAmount);
+            expect(await liquidityProvider.availableLiquidity()).to.equal(pocketAmount);
         });
 
         it('should revert getLiquidityCustodian when pocket is the zero address', async function () {

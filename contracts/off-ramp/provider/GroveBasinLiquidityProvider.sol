@@ -186,23 +186,25 @@ contract GroveBasinLiquidityProvider is IThirdPartyLiquidityProvider, BaseContra
     }
 
     /**
-     * @notice Returns the wallet that holds the liquidity token available for redemptions in Grove Basin.
-     * @dev Grove Basin custodies outbound swap liquidity in the `pocket` address, not in the basin
-     *      contract itself. In this integration the liquidity token (e.g. USDC) must be configured
-     *      as Grove Basin's `collateralToken`; the RWA asset is the `creditToken` swapped in during
-     *      redemption.
+     * @notice Returns the wallet that custodies the liquidity token swapable in Grove Basin.
+     * @dev Mirrors Grove Basin's own custody model (see {GroveBasin._getAssetCustodian}): the
+     *      `pocket` only custodies the `swapToken`, while the `collateralToken` and `creditToken`
+     *      are held by the Grove Basin contract itself.
      *
-     *      On Grove Basin initialization `pocket` defaults to `address(groveBasin)`, so both
-     *      addresses coincide until a manager configures an external pocket for yield deployment.
-     *      When an external pocket is set, swaps still deliver the liquidity token from that
-     *      pocket via Grove Basin's `_pushAsset`.
+     *      In this integration the liquidity token is wired as Grove Basin's `collateralToken`
+     *      (the RWA asset is the `creditToken` swapped in during redemption), so the custodian
+     *      resolves to the Grove Basin contract regardless of whether an external pocket is
+     *      configured for `swapToken` yield deployment. The `pocket` branch is kept for the case
+     *      where the liquidity token is instead configured as Grove Basin's `swapToken`.
      *
      *      To query available liquidity, read the ERC-20 balance of the liquidity token at the
      *      address returned by this function: `liquidityToken.balanceOf(getLiquidityCustodian())`.
      * @return custodian Wallet whose liquidity-token balance reflects swapable liquidity in Grove Basin.
      */
     function getLiquidityCustodian() public view returns (address custodian) {
-        custodian = groveBasin.pocket();
+        custodian = address(liquidityToken) == groveBasin.swapToken()
+            ? groveBasin.pocket()
+            : address(groveBasin);
         if (custodian == address(0)) {
             revert PocketZeroAddressError();
         }
@@ -218,7 +220,8 @@ contract GroveBasinLiquidityProvider is IThirdPartyLiquidityProvider, BaseContra
 
     /**
      * @dev Best-effort available liquidity held by Grove Basin for the liquidity token.
-     *      Reads `liquidityToken.balanceOf(getLiquidityCustodian())`. The hard guarantee is
+     *      Reads the liquidity-token balance at {getLiquidityCustodian} (the Grove Basin contract
+     *      for the `collateralToken` wiring used by this integration). The hard guarantee is
      *      enforced by Grove Basin reverting the swap when the pool cannot satisfy the requested
      *      output.
      * @return Liquidity token balance available at the Grove Basin liquidity custodian.
