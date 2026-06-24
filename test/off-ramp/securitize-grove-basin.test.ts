@@ -10,6 +10,7 @@ import {
     TOLERANCE_DENOMINATOR,
     investorId,
     deploySecuritizeGroveBasinProtocol,
+    deploySecuritizeGroveBasinProtocolWithAssetBurn,
     deploySecuritizeGroveBasinProtocol6x18,
     deploySecuritizeGroveBasinProtocol18x6,
     expectedOutput,
@@ -296,6 +297,32 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
             await expect(
                 redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT),
             ).revertedWithCustomError(liquidityProvider, 'TwoStepTransferRequired');
+        });
+
+        it('should revert supplyTo when the linked off-ramp has assetBurn enabled', async function () {
+            const { redemption, liquidityProvider } = await loadFixture(deploySecuritizeGroveBasinProtocolWithAssetBurn);
+            const redemptionAddress = await redemption.getAddress();
+            expect(await redemption.assetBurn()).to.equal(true);
+
+            await hre.network.provider.send('hardhat_impersonateAccount', [redemptionAddress]);
+            await hre.network.provider.send('hardhat_setBalance', [
+                redemptionAddress,
+                '0x1000000000000000000',
+            ]);
+            const redemptionSigner = await hre.ethers.getSigner(redemptionAddress);
+
+            await expect(
+                liquidityProvider.connect(redemptionSigner).supplyTo(redemptionAddress, ASSET_AMOUNT),
+            ).revertedWithCustomError(liquidityProvider, 'AssetBurnNotSupported');
+        });
+
+        it('should revert redeem when the linked off-ramp has assetBurn enabled', async function () {
+            const ctx = await loadFixture(deploySecuritizeGroveBasinProtocolWithAssetBurn);
+            const { redemption, liquidityProvider, investor } = ctx;
+            await prepareRedemption(ctx, ASSET_AMOUNT);
+            await expect(
+                redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT),
+            ).revertedWithCustomError(liquidityProvider, 'AssetBurnNotSupported');
         });
     });
 

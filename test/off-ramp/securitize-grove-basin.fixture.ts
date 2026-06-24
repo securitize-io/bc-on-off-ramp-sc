@@ -116,6 +116,83 @@ export const deploySecuritizeGroveBasinProtocol = async (assetDecimals = 6, liqu
     };
 };
 
+/**
+ * Deploys SecuritizeOffRamp + GroveBasinLiquidityProvider with assetBurn enabled.
+ * This is an intentionally misconfigured pairing used to exercise {AssetBurnNotSupported}.
+ */
+export const deploySecuritizeGroveBasinProtocolWithAssetBurn = async (assetDecimals = 6, liquidityDecimals = 6) => {
+    const [securitizeWallet, investor, stranger] = await hre.ethers.getSigners();
+
+    const MockRegistryService = await hre.ethers.getContractFactory('MockRegistryService');
+    const mockRegistryService = await MockRegistryService.deploy();
+    const registryServiceAddress = await mockRegistryService.getAddress();
+    await mockRegistryService.updateInvestor(investorId, '0x', investorCountry, [investor.address], [], [], []);
+
+    const mockTrustService = await hre.ethers.deployContract('MockTrustService', []);
+    const trustServiceAddress = await mockTrustService.getAddress();
+
+    const dsTokenMock = await hre.ethers.deployContract('MockDSToken', [
+        'DSToken',
+        'DSToken',
+        assetDecimals,
+        registryServiceAddress,
+        trustServiceAddress,
+    ]);
+    const usdcMock = await hre.ethers.deployContract('MockERC20', ['USDC', 'USDC', liquidityDecimals]);
+
+    const navProviderMock = await hre.ethers.deployContract('MockSecuritizeInternalNavProvider', [
+        parityRate(assetDecimals),
+    ]);
+    const zeroRateNavProviderMock = await hre.ethers.deployContract('MockSecuritizeInternalNavProvider', ['0']);
+
+    const mockFeeManager = await hre.ethers.deployContract('MockFeeManagerOffRamp', [0, FEE_COLLECTOR]);
+
+    const groveBasinMock = await hre.ethers.deployContract('MockGroveBasin', [await usdcMock.getAddress()]);
+    await groveBasinMock.setCreditToken(await dsTokenMock.getAddress());
+
+    const { redemptionAddress } = await hre.run('deploy-offramp', {
+        asset: await dsTokenMock.getAddress(),
+        navProvider: await navProviderMock.getAddress(),
+        feeManager: await mockFeeManager.getAddress(),
+        assetBurn: 'true',
+        silenceLogs: true,
+    });
+
+    const { liquidityProviderAddress } = await hre.run('deploy-grove-basin-provider', {
+        liquidityToken: await usdcMock.getAddress(),
+        securitizeOffRamp: redemptionAddress,
+        groveBasin: await groveBasinMock.getAddress(),
+        silenceLogs: true,
+    });
+
+    const redemption = await hre.ethers.getContractAt('SecuritizeOffRamp', redemptionAddress);
+    const liquidityProvider = await hre.ethers.getContractAt(
+        'GroveBasinLiquidityProvider',
+        liquidityProviderAddress,
+    );
+
+    const twoStepTx = await redemption.toggleTwoStepTransfer(true);
+    await twoStepTx.wait(1);
+
+    const linkTx = await redemption.updateLiquidityProvider(liquidityProviderAddress);
+    await linkTx.wait(1);
+
+    return {
+        redemption,
+        liquidityProvider,
+        dsTokenMock,
+        usdcMock,
+        groveBasinMock,
+        navProviderMock,
+        zeroRateNavProviderMock,
+        mockFeeManager,
+        mockRegistryService,
+        securitizeWallet,
+        investor,
+        stranger,
+    };
+};
+
 export const deploySecuritizeGroveBasinProtocol6x18 = () => deploySecuritizeGroveBasinProtocol(6, 18);
 export const deploySecuritizeGroveBasinProtocol18x6 = () => deploySecuritizeGroveBasinProtocol(18, 6);
 

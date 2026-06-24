@@ -107,6 +107,12 @@ interface IThirdPartyLiquidityProvider is ILiquidityProvider {
     error TwoStepTransferRequired();
 
     /**
+     * @dev Thrown when the linked off-ramp has asset burning enabled.
+     *      {GroveBasinLiquidityProvider} requires the asset to be transferred here for the Grove Basin swap.
+     */
+    error AssetBurnNotSupported();
+
+    /**
      * @notice Proxy initializer.
      * @param _liquidityToken Liquidity token (stablecoin) delivered to the redeemer.
      * @param _securitizeOffRamp Off-ramp contract authorized to request liquidity.

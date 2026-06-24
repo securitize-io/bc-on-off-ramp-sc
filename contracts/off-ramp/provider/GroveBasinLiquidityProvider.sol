@@ -39,6 +39,9 @@ import {IGroveBasin} from "../third-party-contracts/IGroveBasin.sol";
  *         two-step transfer enabled. Single-step redemptions are unsupported because this
  *         provider swaps the full on-hand asset balance on each call.
  *
+ *         {supplyTo} also reverts with {AssetBurnNotSupported} when the linked off-ramp has
+ *         asset burning enabled, because the asset must be transferred here before the swap.
+ *
  *         Before executing the Grove Basin swap, the provider compares the Securitize NAV quote
  *         with the Grove Basin preview quote and reverts when they diverge beyond {redeemTolerance}.
  */
@@ -108,6 +111,16 @@ contract GroveBasinLiquidityProvider is IThirdPartyLiquidityProvider, BaseContra
     modifier onlyTwoStepTransfer() {
         if (!BaseOnOffRamp(address(securitizeOffRamp)).twoStepTransfer()) {
             revert TwoStepTransferRequired();
+        }
+        _;
+    }
+
+    /**
+     * @dev Requires the linked off-ramp to keep redeemed assets instead of burning them.
+     */
+    modifier onlyWithoutAssetBurn() {
+        if (securitizeOffRamp.assetBurn()) {
+            revert AssetBurnNotSupported();
         }
         _;
     }
@@ -216,6 +229,8 @@ contract GroveBasinLiquidityProvider is IThirdPartyLiquidityProvider, BaseContra
     /**
      * @notice Swaps the asset held by this contract for liquidity token through Grove Basin.
      * @dev Called by the off-ramp two-step flow after the asset has been transferred here.
+     *      Reverts with {AssetBurnNotSupported} when the linked off-ramp burns redeemed assets,
+     *      because this provider must receive the asset before swapping it through Grove Basin.
      *      Compares the Securitize NAV quote with the Grove Basin preview before spending swap
      *      gas. The swap floor is set to the Grove Basin preview so Basin's native slippage
      *      protection is enforced as a second line of defense. The NAV gross amount forwarded
@@ -226,7 +241,7 @@ contract GroveBasinLiquidityProvider is IThirdPartyLiquidityProvider, BaseContra
     function supplyTo(
         address _receiver,
         uint256 /* _minOut */
-    ) public whenNotPaused onlySecuritizeRedemption onlyTwoStepTransfer returns (uint256 amountOut) {
+    ) public whenNotPaused onlySecuritizeRedemption onlyTwoStepTransfer onlyWithoutAssetBurn returns (uint256 amountOut) {
         IERC20Metadata _assetToken = assetToken;
         uint256 amountIn = _assetToken.balanceOf(address(this));
         if (amountIn == 0) {
