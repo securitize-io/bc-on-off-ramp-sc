@@ -29,7 +29,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
  * @dev    `previewSwapExactIn` quotes via a configurable exchange rate and redemption fee.
  *         `swapExactIn` mirrors real Basin asset flows:
  *           - `_pullAsset`  → transferFrom(msg.sender, custodian, amountIn)
- *           - `_pushAsset`  → transferFrom(pocket, receiver) for swapToken when an
+ *           - `_pushAsset`  → transferFrom(pocket, receiver) for collateralToken when an
  *                             external pocket is set, otherwise transfer(receiver)
  */
 contract MockGroveBasin {
@@ -38,13 +38,13 @@ contract MockGroveBasin {
     /// @dev Basis points denominator matching Grove Basin (10_000 = 100%).
     uint256 public constant BPS = 10_000;
 
-    /// @dev Token whose inbound/outbound custody can be delegated to `pocket`.
-    address public swapToken;
+    /// @dev Collateral token delivered during credit-to-collateral redemptions (e.g. USDC).
+    address public collateralToken;
 
     /// @dev Credit token swapped into Grove Basin during redemption (e.g. RWA / DSToken).
     address public creditToken;
 
-    /// @dev External pocket for swapToken custody. Defaults to `address(this)`.
+    /// @dev External pocket for collateralToken custody. Defaults to `address(this)`.
     address public pocket;
 
     /// @dev Numerator of the preview rate factor applied on top of the decimal-adjusted 1:1 quote.
@@ -62,8 +62,8 @@ contract MockGroveBasin {
     /// @dev Denominator of the execution slippage factor applied on top of the preview quote.
     uint256 public outputDenominator;
 
-    constructor(address swapToken_) {
-        swapToken = swapToken_;
+    constructor(address collateralToken_) {
+        collateralToken = collateralToken_;
         pocket = address(this);
         previewNumerator = 1;
         previewDenominator = 1;
@@ -71,8 +71,8 @@ contract MockGroveBasin {
         outputDenominator = 1;
     }
 
-    function setSwapToken(address newSwapToken) external {
-        swapToken = newSwapToken;
+    function setCollateralToken(address newCollateralToken) external {
+        collateralToken = newCollateralToken;
     }
 
     function setCreditToken(address newCreditToken) external {
@@ -163,7 +163,7 @@ contract MockGroveBasin {
     }
 
     function _getAssetCustodian(address asset) internal view returns (address custodian) {
-        custodian = asset == swapToken && _hasPocket() ? pocket : address(this);
+        custodian = asset == collateralToken && _hasPocket() ? pocket : address(this);
     }
 
     function _hasPocket() internal view returns (bool) {
@@ -175,7 +175,7 @@ contract MockGroveBasin {
     }
 
     function _pushAsset(address asset, address receiver, uint256 amount) internal {
-        if (asset == swapToken && _hasPocket()) {
+        if (asset == collateralToken && _hasPocket()) {
             IERC20(asset).safeTransferFrom(pocket, receiver, amount);
         } else {
             IERC20(asset).safeTransfer(receiver, amount);

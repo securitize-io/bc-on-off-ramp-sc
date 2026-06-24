@@ -379,14 +379,17 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
             );
         });
 
-        it('should revert setGroveBasin when swapToken does not match liquidityToken', async function () {
+        it('should revert setGroveBasin when collateralToken does not match liquidityToken', async function () {
             const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
-            const { liquidityProvider, dsTokenMock } = ctx;
-            const wrongSwapBasin = await hre.ethers.deployContract('MockGroveBasin', [await dsTokenMock.getAddress()]);
-            await wrongSwapBasin.setCreditToken(await dsTokenMock.getAddress());
-            await expect(liquidityProvider.setGroveBasin(await wrongSwapBasin.getAddress()))
-                .revertedWithCustomError(liquidityProvider, 'SwapTokenMismatch')
-                .withArgs(await ctx.usdcMock.getAddress(), await dsTokenMock.getAddress());
+            const { liquidityProvider, usdcMock, dsTokenMock } = ctx;
+            const wrongCollateralBasin = await hre.ethers.deployContract('MockGroveBasin', [
+                await usdcMock.getAddress(),
+            ]);
+            await wrongCollateralBasin.setCreditToken(await dsTokenMock.getAddress());
+            await wrongCollateralBasin.setCollateralToken(await dsTokenMock.getAddress());
+            await expect(liquidityProvider.setGroveBasin(await wrongCollateralBasin.getAddress()))
+                .revertedWithCustomError(liquidityProvider, 'CollateralTokenMismatch')
+                .withArgs(await usdcMock.getAddress(), await dsTokenMock.getAddress());
         });
 
         it('should revert setGroveBasin when creditToken does not match assetToken', async function () {

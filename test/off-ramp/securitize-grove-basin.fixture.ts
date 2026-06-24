@@ -88,7 +88,7 @@ export const deploySecuritizeGroveBasinProtocol = async (assetDecimals = 6, liqu
     // Fee manager: 0% fee by default; tests that exercise fees call setRedemptionFee().
     const mockFeeManager = await hre.ethers.deployContract('MockFeeManagerOffRamp', [0, FEE_COLLECTOR]);
 
-    // Grove Basin mock: swapToken = USDC, creditToken = DSToken, pocket = address(this) by default.
+    // Grove Basin mock: collateralToken = USDC, creditToken = DSToken, pocket = address(this) by default.
     const groveBasinMock = await hre.ethers.deployContract('MockGroveBasin', [await usdcMock.getAddress()]);
     await groveBasinMock.setCreditToken(await dsTokenMock.getAddress());
 

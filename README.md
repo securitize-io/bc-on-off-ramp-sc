@@ -114,6 +114,13 @@ after deploying `SecuritizeOffRamp`. Any manual deployment of this combination *
 call `toggleTwoStepTransfer(true)` before the first redemption; omitting it causes the
 single-step flow to bypass the provider entirely and the swap never executes.
 
+**Grove Basin token wiring:** the `--liquidity-token` argument must match the Grove Basin
+contract's `collateralToken` (the stablecoin delivered on redemption), and the `--asset`
+argument must match Grove Basin's `creditToken` (the RWA swapped in). Do **not** match
+against `swapToken`; that token is unrelated to this integration's redemption path.
+The deploy task also forces `assetBurn = false` because the asset must be transferred to
+`GroveBasinLiquidityProvider` before the Grove Basin swap.
+
 ```sh
 npx hardhat deploy-redemption-grove-basin-protocol --network arbitrum --asset {dsToken} --nav-provider {navProvider} --fee-manager {feeManager} --liquidity-token {liquidityToken} --grove-basin {groveBasinContract}
 ```

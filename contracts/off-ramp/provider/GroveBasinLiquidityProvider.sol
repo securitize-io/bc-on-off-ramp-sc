@@ -187,9 +187,10 @@ contract GroveBasinLiquidityProvider is IThirdPartyLiquidityProvider, BaseContra
 
     /**
      * @notice Returns the wallet that holds the liquidity token available for redemptions in Grove Basin.
-     * @dev Grove Basin custodies its `swapToken` in the `pocket` address, not in the basin contract
-     *      itself. In this integration the liquidity token (e.g. USDC) must be configured as Grove
-     *      Basin's `swapToken`; the RWA asset is the `creditToken` swapped in during redemption.
+     * @dev Grove Basin custodies outbound swap liquidity in the `pocket` address, not in the basin
+     *      contract itself. In this integration the liquidity token (e.g. USDC) must be configured
+     *      as Grove Basin's `collateralToken`; the RWA asset is the `creditToken` swapped in during
+     *      redemption.
      *
      *      On Grove Basin initialization `pocket` defaults to `address(groveBasin)`, so both
      *      addresses coincide until a manager configures an external pocket for yield deployment.
@@ -292,6 +293,8 @@ contract GroveBasinLiquidityProvider is IThirdPartyLiquidityProvider, BaseContra
 
     /**
      * @dev Reverts when a Grove Basin candidate does not match this integration's token wiring.
+     *      The liquidity token must match Grove Basin's `collateralToken` and the asset must match
+     *      `creditToken`. `swapToken` is not used for this integration's redemption path.
      * @param candidate Grove Basin contract to validate.
      * @param expectedLiquidity Liquidity token configured on this provider.
      * @param expectedAsset Asset token configured on this provider.
@@ -305,8 +308,8 @@ contract GroveBasinLiquidityProvider is IThirdPartyLiquidityProvider, BaseContra
         if (candidateAddr.code.length == 0) {
             revert NotAContract(candidateAddr);
         }
-        if (candidate.swapToken() != address(expectedLiquidity)) {
-            revert SwapTokenMismatch(address(expectedLiquidity), candidate.swapToken());
+        if (candidate.collateralToken() != address(expectedLiquidity)) {
+            revert CollateralTokenMismatch(address(expectedLiquidity), candidate.collateralToken());
         }
         if (candidate.creditToken() != address(expectedAsset)) {
             revert CreditTokenMismatch(address(expectedAsset), candidate.creditToken());

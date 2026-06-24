@@ -82,11 +82,11 @@ interface IThirdPartyLiquidityProvider is ILiquidityProvider {
     error NotAContract(address account);
 
     /**
-     * @dev Thrown when a Grove Basin candidate's `swapToken` does not match {liquidityToken}.
+     * @dev Thrown when a Grove Basin candidate's `collateralToken` does not match {liquidityToken}.
      * @param expected Configured liquidity token address.
-     * @param actual Candidate `swapToken` address.
+     * @param actual Candidate `collateralToken` address.
      */
-    error SwapTokenMismatch(address expected, address actual);
+    error CollateralTokenMismatch(address expected, address actual);
 
     /**
      * @dev Thrown when a Grove Basin candidate's `creditToken` does not match {assetToken}.

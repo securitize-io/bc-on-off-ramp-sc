@@ -24,15 +24,15 @@ pragma solidity ^0.8.22;
  *         {GroveBasinLiquidityProvider}. It does not implement swap logic.
  */
 contract MockGroveBasinZeroPocket {
-    address private immutable _swapToken;
+    address private immutable _collateralToken;
     address private immutable _creditToken;
 
     /**
-     * @param swapToken_ Token returned by {swapToken}.
+     * @param collateralToken_ Token returned by {collateralToken}.
      * @param creditToken_ Token returned by {creditToken}.
      */
-    constructor(address swapToken_, address creditToken_) {
-        _swapToken = swapToken_;
+    constructor(address collateralToken_, address creditToken_) {
+        _collateralToken = collateralToken_;
         _creditToken = creditToken_;
     }
 
@@ -45,11 +45,11 @@ contract MockGroveBasinZeroPocket {
     }
 
     /**
-     * @notice Returns the configured swap token address.
-     * @return The swap token address.
+     * @notice Returns the configured collateral token address.
+     * @return The collateral token address.
      */
-    function swapToken() external view returns (address) {
-        return _swapToken;
+    function collateralToken() external view returns (address) {
+        return _collateralToken;
     }
 
     /**
