@@ -22,19 +22,29 @@ import {IThirdPartyLiquidityProvider} from "./IThirdPartyLiquidityProvider.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IBaseOffRamp} from "../IBaseOffRamp.sol";
+import {ISecuritizeOffRamp} from "../ISecuritizeOffRamp.sol";
 import {IGroveBasin} from "../third-party-contracts/IGroveBasin.sol";
 
 /**
  * @title GroveBasinLiquidityProvider
  * @notice Liquidity provider that, on each redemption, swaps the asset it just received
- *         (e.g. BUIDL) for the liquidity token (e.g. USDC) through Grove Basin (PSM3) at a
- *         strict 1:1 peg, forwarding the proceeds to the off-ramp in the same transaction.
+ *         (e.g. BUIDL) for the liquidity token (e.g. USDC) through Grove Basin (PSM3),
+ *         forwarding the proceeds to the off-ramp in the same transaction.
  * @dev    `recipient()` resolves to this contract so the off-ramp two-step flow transfers the
  *         asset here right before calling {supplyTo}. The contract never holds asset nor
  *         liquidity token beyond the duration of a single redemption call.
+ *
+ *         Before executing the Grove Basin swap, the provider compares the Securitize NAV quote
+ *         with the Grove Basin preview quote and reverts when they diverge beyond {redeemTolerance}.
  */
 contract GroveBasinLiquidityProvider is IThirdPartyLiquidityProvider, BaseContract {
     using SafeERC20 for IERC20Metadata;
+
+    /// @dev Denominator for {redeemTolerance}; 100_000 equals 100%.
+    uint256 public constant TOLERANCE_DENOMINATOR = 100_000;
+
+    /// @dev Default {redeemTolerance} set on initialization (1_000 = 1%).
+    uint256 public constant DEFAULT_REDEEM_TOLERANCE = 1_000;
 
     /**
      * @dev Liquidity token delivered to the redeemer (stablecoin).
@@ -65,6 +75,12 @@ contract GroveBasinLiquidityProvider is IThirdPartyLiquidityProvider, BaseContra
      * @dev Referral code forwarded to Grove Basin on each swap.
      */
     uint256 public referralCode;
+
+    /**
+     * @dev Maximum allowed divergence between Securitize NAV and Grove Basin preview quotes.
+     *      Expressed in units of {TOLERANCE_DENOMINATOR} (1_000 = 1%).
+     */
+    uint256 public redeemTolerance;
 
     /**
      * @dev The caller account is not authorized to perform an operation.
@@ -108,6 +124,7 @@ contract GroveBasinLiquidityProvider is IThirdPartyLiquidityProvider, BaseContra
         groveBasin = IGroveBasin(_groveBasin);
         recipient = address(this);
         assetToken = IERC20Metadata(IBaseOffRamp(_securitizeOffRamp).assetAddress());
+        redeemTolerance = DEFAULT_REDEEM_TOLERANCE;
     }
 
     /**
@@ -129,6 +146,18 @@ contract GroveBasinLiquidityProvider is IThirdPartyLiquidityProvider, BaseContra
     function setReferralCode(uint256 _referralCode) external onlyRole(DEFAULT_ADMIN_ROLE) {
         emit ReferralCodeUpdated(referralCode, _referralCode);
         referralCode = _referralCode;
+    }
+
+    /**
+     * @notice Sets the maximum allowed divergence between Securitize NAV and Grove Basin preview quotes.
+     * @param _redeemTolerance New tolerance in units of {TOLERANCE_DENOMINATOR} (1_000 = 1%).
+     */
+    function setRedeemTolerance(uint256 _redeemTolerance) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (_redeemTolerance > TOLERANCE_DENOMINATOR) {
+            revert InvalidRedeemToleranceError(_redeemTolerance);
+        }
+        emit RedeemToleranceUpdated(redeemTolerance, _redeemTolerance);
+        redeemTolerance = _redeemTolerance;
     }
 
     /**
@@ -175,15 +204,16 @@ contract GroveBasinLiquidityProvider is IThirdPartyLiquidityProvider, BaseContra
     /**
      * @notice Swaps the asset held by this contract for liquidity token through Grove Basin.
      * @dev Called by the off-ramp two-step flow after the asset has been transferred here.
-     *      `_minOut` is the NAV-derived expected output and is used as the swap floor; it must
-     *      never be zero so the strict 1:1 peg is enforced on-chain.
+     *      Compares the Securitize NAV quote with the Grove Basin preview before spending swap
+     *      gas. The swap floor is set to the Grove Basin preview so Basin's native slippage
+     *      protection is enforced as a second line of defense. The NAV gross amount forwarded
+     *      by the off-ramp as the second argument is not used as the swap floor.
      * @param _receiver Recipient of the liquidity token (the off-ramp contract).
-     * @param _minOut Minimum amount of liquidity token to receive from the swap.
      * @return amountOut Liquidity token amount delivered by Grove Basin.
      */
     function supplyTo(
         address _receiver,
-        uint256 _minOut
+        uint256 /* _minOut */
     ) public whenNotPaused onlySecuritizeRedemption returns (uint256 amountOut) {
         IERC20Metadata _assetToken = assetToken;
         uint256 amountIn = _assetToken.balanceOf(address(this));
@@ -193,9 +223,20 @@ contract GroveBasinLiquidityProvider is IThirdPartyLiquidityProvider, BaseContra
 
         IGroveBasin _groveBasin = groveBasin;
 
+        uint256 navGross = ISecuritizeOffRamp(address(securitizeOffRamp)).calculateLiquidityTokenAmountBeforeFee(
+            amountIn
+        );
+        uint256 gbPreview = _groveBasin.previewSwapExactIn(
+            address(_assetToken),
+            address(liquidityToken),
+            amountIn
+        );
+
+        _validateRateBand(navGross, gbPreview);
+
         uint256 available = _availableLiquidity();
-        if (_minOut > available) {
-            revert InsufficientLiquidity(_minOut, available);
+        if (gbPreview > available) {
+            revert InsufficientLiquidity(gbPreview, available);
         }
 
         _assetToken.forceApprove(address(_groveBasin), amountIn);
@@ -204,7 +245,7 @@ contract GroveBasinLiquidityProvider is IThirdPartyLiquidityProvider, BaseContra
             address(_assetToken),
             address(liquidityToken),
             amountIn,
-            _minOut,
+            gbPreview,
             _receiver,
             referralCode
         );
@@ -220,5 +261,23 @@ contract GroveBasinLiquidityProvider is IThirdPartyLiquidityProvider, BaseContra
         uint256 _initialLiquidityAmount
     ) external pure returns (uint256 amountToSupply) {
         return _initialLiquidityAmount;
+    }
+
+    /**
+     * @dev Reverts when the Grove Basin preview falls outside the NAV tolerance band.
+     * @param navGross Securitize NAV quote before fees.
+     * @param gbPreview Grove Basin preview quote for the same input amount.
+     */
+    function _validateRateBand(uint256 navGross, uint256 gbPreview) internal view {
+        uint256 tolerance = redeemTolerance;
+        uint256 minBand = navGross * (TOLERANCE_DENOMINATOR - tolerance) / TOLERANCE_DENOMINATOR;
+        uint256 maxBand = navGross * (TOLERANCE_DENOMINATOR + tolerance) / TOLERANCE_DENOMINATOR;
+
+        if (gbPreview < minBand) {
+            revert MinRateDivergenceError(navGross, gbPreview, tolerance);
+        }
+        if (gbPreview > maxBand) {
+            revert MaxRateDivergenceError(navGross, gbPreview, tolerance);
+        }
     }
 }

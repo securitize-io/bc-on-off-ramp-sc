@@ -3,8 +3,11 @@ import { expect } from 'chai';
 import hre from 'hardhat';
 import {
     ASSET_AMOUNT,
+    DEFAULT_REDEEM_TOLERANCE,
     FEE_COLLECTOR,
     MIN_OUTPUT_AMOUNT,
+    RATE_DIVERGENCE_TOLERANCES,
+    TOLERANCE_DENOMINATOR,
     investorId,
     deploySecuritizeGroveBasinProtocol,
     deploySecuritizeGroveBasinProtocol6x18,
@@ -13,7 +16,9 @@ import {
     investorCountry,
     parityRate,
     prepareRedemption,
+    rateBand,
     restrictedCountry,
+    setGbPreviewFactor,
 } from './securitize-grove-basin.fixture';
 
 describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
@@ -209,6 +214,13 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
         it('should store the correct Grove Basin address', async function () {
             const { liquidityProvider, groveBasinMock } = await loadFixture(deploySecuritizeGroveBasinProtocol);
             expect(await liquidityProvider.groveBasin()).to.equal(await groveBasinMock.getAddress());
+        });
+
+        it('should initialize redeemTolerance to 1% (1000)', async function () {
+            const { liquidityProvider } = await loadFixture(deploySecuritizeGroveBasinProtocol);
+            expect(await liquidityProvider.redeemTolerance()).to.equal(DEFAULT_REDEEM_TOLERANCE);
+            expect(await liquidityProvider.DEFAULT_REDEEM_TOLERANCE()).to.equal(DEFAULT_REDEEM_TOLERANCE);
+            expect(await liquidityProvider.TOLERANCE_DENOMINATOR()).to.equal(TOLERANCE_DENOMINATOR);
         });
 
         it('should revert on re-initialization', async function () {
@@ -547,6 +559,200 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
 
             await redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT);
             expect(await usdcMock.balanceOf(investor.address)).to.equal(ASSET_AMOUNT);
+        });
+    });
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Rate Divergence Protection
+    // ─────────────────────────────────────────────────────────────────────────
+    describe('Rate Divergence Protection', function () {
+        it('should complete redemption when Grove Basin preview matches NAV within tolerance', async function () {
+            const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
+            const { redemption, usdcMock, groveBasinMock, investor } = ctx;
+            await groveBasinMock.setRedemptionFeeBps(10); // 0.1% GB fee — within default 1% band
+            await prepareRedemption(ctx, ASSET_AMOUNT);
+
+            await redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT);
+
+            const fee = (ASSET_AMOUNT * 10n + 9_999n) / 10_000n;
+            expect(await usdcMock.balanceOf(investor.address)).to.equal(ASSET_AMOUNT - fee);
+        });
+
+        it('should revert with MinRateDivergenceError when Grove Basin rate is too low', async function () {
+            const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
+            const { redemption, liquidityProvider, groveBasinMock, investor } = ctx;
+            await setGbPreviewFactor(groveBasinMock, 950n, 1_000n);
+            await prepareRedemption(ctx, ASSET_AMOUNT);
+
+            const navGross = ASSET_AMOUNT;
+            const gbPreview = await groveBasinMock.previewSwapExactIn(
+                await ctx.dsTokenMock.getAddress(),
+                await ctx.usdcMock.getAddress(),
+                ASSET_AMOUNT,
+            );
+
+            await expect(redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT))
+                .revertedWithCustomError(liquidityProvider, 'MinRateDivergenceError')
+                .withArgs(navGross, gbPreview, DEFAULT_REDEEM_TOLERANCE);
+        });
+
+        it('should revert with MaxRateDivergenceError when Grove Basin rate is too high', async function () {
+            const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
+            const { redemption, liquidityProvider, groveBasinMock, investor } = ctx;
+            await setGbPreviewFactor(groveBasinMock, 1_050n, 1_000n);
+            await prepareRedemption(ctx, ASSET_AMOUNT);
+
+            const navGross = ASSET_AMOUNT;
+            const gbPreview = await groveBasinMock.previewSwapExactIn(
+                await ctx.dsTokenMock.getAddress(),
+                await ctx.usdcMock.getAddress(),
+                ASSET_AMOUNT,
+            );
+
+            await expect(redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT))
+                .revertedWithCustomError(liquidityProvider, 'MaxRateDivergenceError')
+                .withArgs(navGross, gbPreview, DEFAULT_REDEEM_TOLERANCE);
+        });
+
+        it('should succeed with tolerance = 0 only when both oracle quotes match exactly', async function () {
+            const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
+            const { redemption, liquidityProvider, usdcMock, groveBasinMock, investor } = ctx;
+            await liquidityProvider.setRedeemTolerance(0);
+            await prepareRedemption(ctx, ASSET_AMOUNT);
+
+            await redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT);
+            expect(await usdcMock.balanceOf(investor.address)).to.equal(ASSET_AMOUNT);
+
+            await groveBasinMock.setRedemptionFeeBps(1);
+            await prepareRedemption(ctx, ASSET_AMOUNT);
+            await expect(
+                redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT),
+            ).revertedWithCustomError(liquidityProvider, 'MinRateDivergenceError');
+        });
+
+        it('should allow admin to set redeemTolerance and emit RedeemToleranceUpdated', async function () {
+            const { liquidityProvider } = await loadFixture(deploySecuritizeGroveBasinProtocol);
+            const newTolerance = 5_500n;
+            await expect(liquidityProvider.setRedeemTolerance(newTolerance))
+                .to.emit(liquidityProvider, 'RedeemToleranceUpdated')
+                .withArgs(DEFAULT_REDEEM_TOLERANCE, newTolerance);
+            expect(await liquidityProvider.redeemTolerance()).to.equal(newTolerance);
+        });
+
+        it('should revert setRedeemTolerance for non-admin', async function () {
+            const { liquidityProvider, stranger } = await loadFixture(deploySecuritizeGroveBasinProtocol);
+            await expect(
+                liquidityProvider.connect(stranger).setRedeemTolerance(2_000n),
+            ).revertedWithCustomError(liquidityProvider, 'AccessControlUnauthorizedAccount');
+        });
+
+        it('should revert setRedeemTolerance when tolerance exceeds denominator', async function () {
+            const { liquidityProvider } = await loadFixture(deploySecuritizeGroveBasinProtocol);
+            const invalidTolerance = TOLERANCE_DENOMINATOR + 1n;
+            await expect(liquidityProvider.setRedeemTolerance(invalidTolerance))
+                .revertedWithCustomError(liquidityProvider, 'InvalidRedeemToleranceError')
+                .withArgs(invalidTolerance);
+        });
+
+        for (const { label, tolerance } of RATE_DIVERGENCE_TOLERANCES) {
+            describe(`tolerance ${label}`, function () {
+                const setup = async () => {
+                    const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
+                    if (tolerance !== DEFAULT_REDEEM_TOLERANCE) {
+                        await ctx.liquidityProvider.setRedeemTolerance(tolerance);
+                    }
+                    return ctx;
+                };
+
+                it('should succeed at the exact lower band boundary', async function () {
+                    const ctx = await setup();
+                    const { redemption, usdcMock, groveBasinMock, investor } = ctx;
+                    const navGross = ASSET_AMOUNT;
+                    const { min } = rateBand(navGross, tolerance);
+                    await setGbPreviewFactor(groveBasinMock, TOLERANCE_DENOMINATOR - tolerance, TOLERANCE_DENOMINATOR);
+                    await prepareRedemption(ctx, ASSET_AMOUNT, min);
+
+                    await redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT);
+                    expect(await usdcMock.balanceOf(investor.address)).to.equal(min);
+                });
+
+                it('should succeed at the exact upper band boundary', async function () {
+                    const ctx = await setup();
+                    const { redemption, usdcMock, groveBasinMock, investor } = ctx;
+                    const navGross = ASSET_AMOUNT;
+                    const { max } = rateBand(navGross, tolerance);
+                    await setGbPreviewFactor(groveBasinMock, TOLERANCE_DENOMINATOR + tolerance, TOLERANCE_DENOMINATOR);
+                    await prepareRedemption(ctx, ASSET_AMOUNT, max);
+
+                    await redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT);
+                    expect(await usdcMock.balanceOf(investor.address)).to.equal(max);
+                });
+
+                it('should revert one wei below the lower band boundary', async function () {
+                    const ctx = await setup();
+                    const { redemption, liquidityProvider, groveBasinMock, investor } = ctx;
+                    const navGross = ASSET_AMOUNT;
+                    const { min } = rateBand(navGross, tolerance);
+                    await setGbPreviewFactor(groveBasinMock, min - 1n, navGross);
+                    await prepareRedemption(ctx, ASSET_AMOUNT);
+
+                    const gbPreview = await groveBasinMock.previewSwapExactIn(
+                        await ctx.dsTokenMock.getAddress(),
+                        await ctx.usdcMock.getAddress(),
+                        ASSET_AMOUNT,
+                    );
+
+                    await expect(redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT))
+                        .revertedWithCustomError(liquidityProvider, 'MinRateDivergenceError')
+                        .withArgs(navGross, gbPreview, tolerance);
+                });
+
+                it('should revert one wei above the upper band boundary', async function () {
+                    const ctx = await setup();
+                    const { redemption, liquidityProvider, groveBasinMock, investor } = ctx;
+                    const navGross = ASSET_AMOUNT;
+                    const { max } = rateBand(navGross, tolerance);
+                    await setGbPreviewFactor(groveBasinMock, max + 1n, navGross);
+                    await prepareRedemption(ctx, ASSET_AMOUNT);
+
+                    const gbPreview = await groveBasinMock.previewSwapExactIn(
+                        await ctx.dsTokenMock.getAddress(),
+                        await ctx.usdcMock.getAddress(),
+                        ASSET_AMOUNT,
+                    );
+
+                    await expect(redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT))
+                        .revertedWithCustomError(liquidityProvider, 'MaxRateDivergenceError')
+                        .withArgs(navGross, gbPreview, tolerance);
+                });
+
+                it('should succeed with a 1:1 preview inside the band', async function () {
+                    const ctx = await setup();
+                    const { redemption, usdcMock, investor } = ctx;
+                    await prepareRedemption(ctx, ASSET_AMOUNT);
+
+                    await redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT);
+                    expect(await usdcMock.balanceOf(investor.address)).to.equal(ASSET_AMOUNT);
+                });
+            });
+        }
+
+        it('should apply rate divergence protection with decimal-adjusted quotes (6x18)', async function () {
+            const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol6x18);
+            const { redemption, liquidityProvider, groveBasinMock, investor } = ctx;
+            const navGross = expectedOutput(ASSET_AMOUNT, 6, 18);
+            await setGbPreviewFactor(groveBasinMock, 950n, 1_000n);
+            await prepareRedemption(ctx, ASSET_AMOUNT);
+
+            const gbPreview = await groveBasinMock.previewSwapExactIn(
+                await ctx.dsTokenMock.getAddress(),
+                await ctx.usdcMock.getAddress(),
+                ASSET_AMOUNT,
+            );
+
+            await expect(redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT))
+                .revertedWithCustomError(liquidityProvider, 'MinRateDivergenceError')
+                .withArgs(navGross, gbPreview, DEFAULT_REDEEM_TOLERANCE);
         });
     });
 });

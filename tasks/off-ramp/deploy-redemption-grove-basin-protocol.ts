@@ -28,6 +28,10 @@ task('deploy-redemption-grove-basin-protocol', 'Deploy Securitize Off-Ramp + Gro
     // GroveBasinLiquidityProvider arguments
     .addParam('liquidityToken', 'Stable coin delivered to the investor (e.g. USDC)')
     .addParam('groveBasin', 'Grove Basin (PSM3) contract address')
+    .addOptionalParam(
+        'redeemTolerance',
+        'Rate divergence tolerance in units of 100_000 (1000 = 1%). Overrides the 1% contract default when set',
+    )
 
     // Verification flag
     .addFlag('verify', 'Verify contracts on Etherscan')
@@ -41,6 +45,7 @@ task('deploy-redemption-grove-basin-protocol', 'Deploy Securitize Off-Ramp + Gro
             console.log(`- Fee Manager: ${args.feeManager}`);
             console.log(`- Liquidity Token: ${args.liquidityToken}`);
             console.log(`- Grove Basin: ${args.groveBasin}`);
+            console.log(`- Redeem Tolerance: ${args.redeemTolerance ?? '(contract default 1000 = 1%)'}`);
             console.log(`- Verify: ${args.verify}`);
         }
 
@@ -87,6 +92,14 @@ task('deploy-redemption-grove-basin-protocol', 'Deploy Securitize Off-Ramp + Gro
 
         const tx = await redemption.updateLiquidityProvider(liquidityProviderAddress);
         await tx.wait(1);
+
+        if (args.redeemTolerance !== undefined) {
+            if (!args.silenceLogs) {
+                consoleYellow(`Setting redeem tolerance to ${args.redeemTolerance}...`);
+            }
+            const toleranceTx = await liquidityProvider.setRedeemTolerance(args.redeemTolerance);
+            await toleranceTx.wait(1);
+        }
 
         if (!args.silenceLogs) {
             consoleGreen('Securitize + Grove Basin Off-Ramp Protocol deployed and configured successfully');

@@ -6,6 +6,37 @@ export const restrictedCountry = 'BR';
 export const ASSET_AMOUNT = 10_000_000n; // 10 units of a 6-decimals asset
 export const MIN_OUTPUT_AMOUNT = 0n;
 export const FEE_COLLECTOR = hre.ethers.Wallet.createRandom().address;
+export const TOLERANCE_DENOMINATOR = 100_000n;
+export const DEFAULT_REDEEM_TOLERANCE = 1_000n;
+
+/** Tolerance values exercised in rate-divergence tests (1%, 5.5%, 50%, 99.99%). */
+export const RATE_DIVERGENCE_TOLERANCES = [
+    { label: '1%', tolerance: 1_000n },
+    { label: '5.5%', tolerance: 5_500n },
+    { label: '50%', tolerance: 50_000n },
+    { label: '99.99%', tolerance: 99_990n },
+] as const;
+
+/**
+ * NAV tolerance band for a given gross quote and tolerance value.
+ */
+export const rateBand = (navGross: bigint, tolerance: bigint) => ({
+    min: (navGross * (TOLERANCE_DENOMINATOR - tolerance)) / TOLERANCE_DENOMINATOR,
+    max: (navGross * (TOLERANCE_DENOMINATOR + tolerance)) / TOLERANCE_DENOMINATOR,
+});
+
+/**
+ * Configures the mock Grove Basin preview factor relative to a 1:1 decimal-adjusted quote.
+ */
+export const setGbPreviewFactor = async (
+    groveBasinMock: Awaited<ReturnType<typeof deploySecuritizeGroveBasinProtocol>>['groveBasinMock'],
+    numerator: bigint,
+    denominator: bigint,
+) => {
+    await groveBasinMock.setPreviewFactor(numerator, denominator);
+    await groveBasinMock.setRedemptionFeeBps(0);
+    await groveBasinMock.setOutputFactor(1, 1);
+};
 
 /**
  * NAV rate that yields a strict 1:1 (decimal-adjusted) conversion for the given asset decimals.

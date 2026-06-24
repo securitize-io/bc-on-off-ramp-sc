@@ -22,18 +22,21 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IGroveBasin} from "../third-party-contracts/IGroveBasin.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+
 /**
  * @title  MockGroveBasin
  * @notice Minimal GroveBasin mock for external integration tests.
- * @dev    `previewSwapExactIn` quotes via a configurable exchange rate and fee.
+ * @dev    `previewSwapExactIn` quotes via a configurable exchange rate and redemption fee.
  *         `swapExactIn` mirrors real Basin asset flows:
  *           - `_pullAsset`  → transferFrom(msg.sender, custodian, amountIn)
  *           - `_pushAsset`  → transferFrom(pocket, receiver) for swapToken when an
  *                             external pocket is set, otherwise transfer(receiver)
  */
 contract MockGroveBasin {
-
     using SafeERC20 for IERC20;
+
+    /// @dev Basis points denominator matching Grove Basin (10_000 = 100%).
+    uint256 public constant BPS = 10_000;
 
     /// @dev Token whose inbound/outbound custody can be delegated to `pocket`.
     address public swapToken;
@@ -41,16 +44,27 @@ contract MockGroveBasin {
     /// @dev External pocket for swapToken custody. Defaults to `address(this)`.
     address public pocket;
 
-    /// @dev Numerator of the output deviation factor applied on top of the 1:1 preview.
+    /// @dev Numerator of the preview rate factor applied on top of the decimal-adjusted 1:1 quote.
+    uint256 public previewNumerator;
+
+    /// @dev Denominator of the preview rate factor applied on top of the decimal-adjusted 1:1 quote.
+    uint256 public previewDenominator;
+
+    /// @dev Redemption fee in BPS deducted from the preview output (rounds up).
+    uint256 public redemptionFeeBps;
+
+    /// @dev Numerator of the execution slippage factor applied on top of the preview quote.
     uint256 public outputNumerator;
 
-    /// @dev Denominator of the output deviation factor applied on top of the 1:1 preview.
+    /// @dev Denominator of the execution slippage factor applied on top of the preview quote.
     uint256 public outputDenominator;
 
     constructor(address swapToken_) {
         swapToken = swapToken_;
-        pocket    = address(this);
-        outputNumerator   = 1;
+        pocket = address(this);
+        previewNumerator = 1;
+        previewDenominator = 1;
+        outputNumerator = 1;
         outputDenominator = 1;
     }
 
@@ -63,68 +77,82 @@ contract MockGroveBasin {
     }
 
     /**
-     * @notice Configures a deviation factor applied to the swap output, simulating a Grove Basin
-     *         NAV that diverges from the 1:1 preview. The delivered amount becomes
-     *         `previewSwapExactIn(...) * numerator / denominator`.
-     * @param numerator Output deviation numerator (must be non-zero through denominator).
+     * @notice Configures a rate factor applied in `previewSwapExactIn` on top of the 1:1 quote.
+     * @param numerator Preview rate numerator.
+     * @param denominator Preview rate denominator (must be non-zero).
+     */
+    function setPreviewFactor(uint256 numerator, uint256 denominator) external {
+        require(denominator != 0, "denominator=0");
+        previewNumerator = numerator;
+        previewDenominator = denominator;
+    }
+
+    /**
+     * @notice Configures the redemption fee in BPS deducted from the preview output.
+     * @param feeBps Redemption fee in basis points (10 = 0.1%).
+     */
+    function setRedemptionFeeBps(uint256 feeBps) external {
+        redemptionFeeBps = feeBps;
+    }
+
+    /**
+     * @notice Configures an execution slippage factor applied on top of the preview quote in `swapExactIn`.
+     * @param numerator Output deviation numerator.
      * @param denominator Output deviation denominator (must be non-zero).
      */
     function setOutputFactor(uint256 numerator, uint256 denominator) external {
         require(denominator != 0, "denominator=0");
-        outputNumerator   = numerator;
+        outputNumerator = numerator;
         outputDenominator = denominator;
     }
 
     /**
      * @notice Previews the amount of `assetOut` received for an exact input swap.
-     * @dev The conversion rate between `assetIn` and `assetOut` is fixed at 1:1.
-     *      No pricing, fees, slippage, or exchange rate calculations are applied.
-     *      The returned amount is adjusted only to account for differences in the
-     *      decimal precision of the two tokens.
-     *
-     *      Formula:
-     *      amountOut = amountIn * 10^assetOut.decimals() / 10^assetIn.decimals()
-     *
      * @param assetIn The token being provided as input.
      * @param assetOut The token being received as output.
      * @param amountIn The amount of `assetIn` to swap.
-     *
-     * @return amountOut The equivalent amount of `assetOut` at a 1:1 conversion rate,
-     *                   normalized to the decimal precision of `assetOut`.
+     * @return amountOut The quoted amount of `assetOut` after rate factor and redemption fee.
      */
     function previewSwapExactIn(address assetIn, address assetOut, uint256 amountIn)
-    public
-    view
-    returns (uint256 amountOut)
+        public
+        view
+        returns (uint256 amountOut)
     {
-        uint256 precisionIn  = 10 ** ERC20(assetIn).decimals();
-        uint256 precisionOut = 10 ** ERC20(assetOut).decimals();
-        amountOut = Math.mulDiv(
-            amountIn,
-            precisionOut,
-            precisionIn
-        );
+        return _quotePreview(assetIn, assetOut, amountIn);
     }
 
     function swapExactIn(
         address assetIn,
         address assetOut,
         uint256 amountIn,
-        uint256 ,
+        uint256 minAmountOut,
         address receiver,
         uint256 referralCode
-    )
-    external
-    returns (uint256 amountOut)
-    {
-        if (amountIn == 0)          revert IGroveBasin.ZeroAmountIn();
+    ) external returns (uint256 amountOut) {
+        if (amountIn == 0) revert IGroveBasin.ZeroAmountIn();
         if (receiver == address(0)) revert IGroveBasin.ZeroReceiver();
 
-        amountOut = Math.mulDiv(previewSwapExactIn(assetIn, assetOut, amountIn), outputNumerator, outputDenominator);
+        uint256 quoted = _quotePreview(assetIn, assetOut, amountIn);
+        amountOut = Math.mulDiv(quoted, outputNumerator, outputDenominator);
+
+        if (amountOut < minAmountOut) revert IGroveBasin.AmountOutTooLow();
+
         _pullAsset(assetIn, amountIn);
         _pushAsset(assetOut, receiver, amountOut);
 
         emit IGroveBasin.Swap(assetIn, assetOut, msg.sender, receiver, amountIn, amountOut, referralCode);
+    }
+
+    function _quotePreview(address assetIn, address assetOut, uint256 amountIn) internal view returns (uint256 amountOut) {
+        uint256 precisionIn = 10 ** ERC20(assetIn).decimals();
+        uint256 precisionOut = 10 ** ERC20(assetOut).decimals();
+        amountOut = Math.mulDiv(amountIn, precisionOut, precisionIn);
+        amountOut = Math.mulDiv(amountOut, previewNumerator, previewDenominator);
+
+        if (redemptionFeeBps > 0) {
+            uint256 fee = Math.mulDiv(amountOut, redemptionFeeBps, BPS, Math.Rounding.Ceil);
+            amountOut -= fee;
+        }
     }
 
     function _getAssetCustodian(address asset) internal view returns (address custodian) {

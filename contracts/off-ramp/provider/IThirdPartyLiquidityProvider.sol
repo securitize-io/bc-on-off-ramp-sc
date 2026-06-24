@@ -42,9 +42,38 @@ interface IThirdPartyLiquidityProvider is ILiquidityProvider {
     event ReferralCodeUpdated(uint256 oldReferralCode, uint256 newReferralCode);
 
     /**
+     * @dev Emitted when the owner updates the NAV vs Grove Basin preview tolerance.
+     * @param oldTolerance Previous tolerance value.
+     * @param newTolerance New tolerance value.
+     */
+    event RedeemToleranceUpdated(uint256 oldTolerance, uint256 newTolerance);
+
+    /**
      * @dev Thrown when there is no asset balance available to swap.
      */
     error ZeroAmountToSwap();
+
+    /**
+     * @dev Thrown when the Grove Basin preview is below the minimum NAV tolerance band.
+     * @param navGross Securitize NAV quote before fees.
+     * @param groveBasinPreview Grove Basin preview quote.
+     * @param tolerance Active {redeemTolerance} value.
+     */
+    error MinRateDivergenceError(uint256 navGross, uint256 groveBasinPreview, uint256 tolerance);
+
+    /**
+     * @dev Thrown when the Grove Basin preview is above the maximum NAV tolerance band.
+     * @param navGross Securitize NAV quote before fees.
+     * @param groveBasinPreview Grove Basin preview quote.
+     * @param tolerance Active {redeemTolerance} value.
+     */
+    error MaxRateDivergenceError(uint256 navGross, uint256 groveBasinPreview, uint256 tolerance);
+
+    /**
+     * @dev Thrown when {redeemTolerance} exceeds {TOLERANCE_DENOMINATOR}.
+     * @param tolerance Invalid tolerance value.
+     */
+    error InvalidRedeemToleranceError(uint256 tolerance);
 
     /**
      * @notice Proxy initializer.
@@ -65,6 +94,30 @@ interface IThirdPartyLiquidityProvider is ILiquidityProvider {
      * @param _referralCode New referral code.
      */
     function setReferralCode(uint256 _referralCode) external;
+
+    /**
+     * @notice Sets the maximum allowed divergence between Securitize NAV and Grove Basin preview quotes.
+     * @param _redeemTolerance New tolerance in units of {TOLERANCE_DENOMINATOR} (1_000 = 1%).
+     */
+    function setRedeemTolerance(uint256 _redeemTolerance) external;
+
+    /**
+     * @notice Denominator for {redeemTolerance}; 100_000 equals 100%.
+     * @return The tolerance denominator.
+     */
+    function TOLERANCE_DENOMINATOR() external view returns (uint256);
+
+    /**
+     * @notice Default {redeemTolerance} applied on initialization (1_000 = 1%).
+     * @return The default tolerance value.
+     */
+    function DEFAULT_REDEEM_TOLERANCE() external view returns (uint256);
+
+    /**
+     * @notice Maximum allowed divergence between Securitize NAV and Grove Basin preview quotes.
+     * @return The active tolerance value.
+     */
+    function redeemTolerance() external view returns (uint256);
 
     /**
      * @notice The Grove Basin (PSM3) contract used to perform swaps.
