@@ -22,6 +22,7 @@ import {IThirdPartyLiquidityProvider} from "./IThirdPartyLiquidityProvider.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IBaseOffRamp} from "../IBaseOffRamp.sol";
+import {BaseOnOffRamp} from "../../common/BaseOnOffRamp.sol";
 import {ISecuritizeOffRamp} from "../ISecuritizeOffRamp.sol";
 import {IGroveBasin} from "../third-party-contracts/IGroveBasin.sol";
 
@@ -33,6 +34,10 @@ import {IGroveBasin} from "../third-party-contracts/IGroveBasin.sol";
  * @dev    `recipient()` resolves to this contract so the off-ramp two-step flow transfers the
  *         asset here right before calling {supplyTo}. The contract never holds asset nor
  *         liquidity token beyond the duration of a single redemption call.
+ *
+ *         {supplyTo} reverts with {TwoStepTransferRequired} unless the linked off-ramp has
+ *         two-step transfer enabled. Single-step redemptions are unsupported because this
+ *         provider swaps the full on-hand asset balance on each call.
  *
  *         Before executing the Grove Basin swap, the provider compares the Securitize NAV quote
  *         with the Grove Basin preview quote and reverts when they diverge beyond {redeemTolerance}.
@@ -93,6 +98,16 @@ contract GroveBasinLiquidityProvider is IThirdPartyLiquidityProvider, BaseContra
     modifier onlySecuritizeRedemption() {
         if (address(securitizeOffRamp) != _msgSender()) {
             revert RedemptionUnauthorizedAccount(_msgSender());
+        }
+        _;
+    }
+
+    /**
+     * @dev Requires the linked off-ramp to operate in two-step transfer mode.
+     */
+    modifier onlyTwoStepTransfer() {
+        if (!BaseOnOffRamp(address(securitizeOffRamp)).twoStepTransfer()) {
+            revert TwoStepTransferRequired();
         }
         _;
     }
@@ -211,7 +226,7 @@ contract GroveBasinLiquidityProvider is IThirdPartyLiquidityProvider, BaseContra
     function supplyTo(
         address _receiver,
         uint256 /* _minOut */
-    ) public whenNotPaused onlySecuritizeRedemption returns (uint256 amountOut) {
+    ) public whenNotPaused onlySecuritizeRedemption onlyTwoStepTransfer returns (uint256 amountOut) {
         IERC20Metadata _assetToken = assetToken;
         uint256 amountIn = _assetToken.balanceOf(address(this));
         if (amountIn == 0) {

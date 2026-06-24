@@ -101,6 +101,12 @@ interface IThirdPartyLiquidityProvider is ILiquidityProvider {
     error PocketZeroAddressError();
 
     /**
+     * @dev Thrown when the linked off-ramp does not have two-step transfer enabled.
+     *      {GroveBasinLiquidityProvider} is incompatible with the single-step redemption flow.
+     */
+    error TwoStepTransferRequired();
+
+    /**
      * @notice Proxy initializer.
      * @param _liquidityToken Liquidity token (stablecoin) delivered to the redeemer.
      * @param _securitizeOffRamp Off-ramp contract authorized to request liquidity.

@@ -276,6 +276,27 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
                 'AccessControlUnauthorizedAccount',
             );
         });
+
+        it('should revert redeem when off-ramp twoStepTransfer is disabled', async function () {
+            const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
+            const { redemption, liquidityProvider, investor } = ctx;
+            await prepareRedemption(ctx, ASSET_AMOUNT);
+            await redemption.toggleTwoStepTransfer(false);
+            await expect(
+                redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT),
+            ).revertedWithCustomError(liquidityProvider, 'TwoStepTransferRequired');
+        });
+
+        it('should revert redeem in single-step mode when fees are active', async function () {
+            const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
+            const { redemption, liquidityProvider, investor, mockFeeManager } = ctx;
+            await mockFeeManager.setRedemptionFee(2000);
+            await prepareRedemption(ctx, ASSET_AMOUNT);
+            await redemption.toggleTwoStepTransfer(false);
+            await expect(
+                redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT),
+            ).revertedWithCustomError(liquidityProvider, 'TwoStepTransferRequired');
+        });
     });
 
     // ─────────────────────────────────────────────────────────────────────────
