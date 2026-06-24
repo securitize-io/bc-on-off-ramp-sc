@@ -306,16 +306,49 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
 
         it('should revert getLiquidityCustodian when pocket is the zero address', async function () {
             const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
-            const { liquidityProvider, groveBasinMock } = ctx;
-            // Force pocket to zero address directly on the mock storage slot (not via setPocket
-            // which guards against zero). We skip this by querying with a zeroed-pocket basin.
+            const { liquidityProvider, dsTokenMock, usdcMock } = ctx;
             const MockGroveBasinZeroPocket = await hre.ethers.getContractFactory('MockGroveBasinZeroPocket');
-            const zeroPocketBasin = await MockGroveBasinZeroPocket.deploy();
-            await liquidityProvider.setGroveBasin(await zeroPocketBasin.getAddress());
-            await expect(liquidityProvider.getLiquidityCustodian()).revertedWithCustomError(
+            const zeroPocketBasin = await MockGroveBasinZeroPocket.deploy(
+                await usdcMock.getAddress(),
+                await dsTokenMock.getAddress(),
+            );
+            await expect(liquidityProvider.setGroveBasin(await zeroPocketBasin.getAddress())).revertedWithCustomError(
                 liquidityProvider,
                 'PocketZeroAddressError',
             );
+        });
+    });
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // GroveBasinLiquidityProvider — Grove Basin validation
+    // ─────────────────────────────────────────────────────────────────────────
+    describe('GroveBasinLiquidityProvider — Grove Basin validation', function () {
+        it('should revert setGroveBasin for a non-contract address', async function () {
+            const { liquidityProvider, stranger } = await loadFixture(deploySecuritizeGroveBasinProtocol);
+            await expect(liquidityProvider.setGroveBasin(stranger.address)).revertedWithCustomError(
+                liquidityProvider,
+                'NotAContract',
+            );
+        });
+
+        it('should revert setGroveBasin when swapToken does not match liquidityToken', async function () {
+            const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
+            const { liquidityProvider, dsTokenMock } = ctx;
+            const wrongSwapBasin = await hre.ethers.deployContract('MockGroveBasin', [await dsTokenMock.getAddress()]);
+            await wrongSwapBasin.setCreditToken(await dsTokenMock.getAddress());
+            await expect(liquidityProvider.setGroveBasin(await wrongSwapBasin.getAddress()))
+                .revertedWithCustomError(liquidityProvider, 'SwapTokenMismatch')
+                .withArgs(await ctx.usdcMock.getAddress(), await dsTokenMock.getAddress());
+        });
+
+        it('should revert setGroveBasin when creditToken does not match assetToken', async function () {
+            const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
+            const { liquidityProvider, usdcMock, stranger } = ctx;
+            const wrongCreditBasin = await hre.ethers.deployContract('MockGroveBasin', [await usdcMock.getAddress()]);
+            await wrongCreditBasin.setCreditToken(stranger.address);
+            await expect(liquidityProvider.setGroveBasin(await wrongCreditBasin.getAddress()))
+                .revertedWithCustomError(liquidityProvider, 'CreditTokenMismatch')
+                .withArgs(await ctx.dsTokenMock.getAddress(), stranger.address);
         });
     });
 
@@ -516,8 +549,9 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
 
         it('should update Grove Basin address and emit GroveBasinUpdated', async function () {
             const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
-            const { liquidityProvider, usdcMock } = ctx;
+            const { liquidityProvider, usdcMock, dsTokenMock } = ctx;
             const newBasin = await hre.ethers.deployContract('MockGroveBasin', [await usdcMock.getAddress()]);
+            await newBasin.setCreditToken(await dsTokenMock.getAddress());
             const newAddress = await newBasin.getAddress();
             await expect(liquidityProvider.setGroveBasin(newAddress))
                 .to.emit(liquidityProvider, 'GroveBasinUpdated')

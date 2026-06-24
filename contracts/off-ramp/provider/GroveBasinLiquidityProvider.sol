@@ -88,11 +88,6 @@ contract GroveBasinLiquidityProvider is IThirdPartyLiquidityProvider, BaseContra
     error RedemptionUnauthorizedAccount(address account);
 
     /**
-     * @dev Thrown when Grove Basin reports a zero-address pocket while a token transfer is required.
-     */
-    error PocketZeroAddressError();
-
-    /**
      * @dev Throws if called by any account other than the off-ramp contract.
      */
     modifier onlySecuritizeRedemption() {
@@ -121,9 +116,10 @@ contract GroveBasinLiquidityProvider is IThirdPartyLiquidityProvider, BaseContra
         __BaseContract_init();
         liquidityToken = IERC20Metadata(_liquidityToken);
         securitizeOffRamp = IBaseOffRamp(_securitizeOffRamp);
+        assetToken = IERC20Metadata(IBaseOffRamp(_securitizeOffRamp).assetAddress());
+        _validateGroveBasinConfig(IGroveBasin(_groveBasin), liquidityToken, assetToken);
         groveBasin = IGroveBasin(_groveBasin);
         recipient = address(this);
-        assetToken = IERC20Metadata(IBaseOffRamp(_securitizeOffRamp).assetAddress());
         redeemTolerance = DEFAULT_REDEEM_TOLERANCE;
     }
 
@@ -135,6 +131,7 @@ contract GroveBasinLiquidityProvider is IThirdPartyLiquidityProvider, BaseContra
         if (_groveBasin == address(0)) {
             revert NonZeroAddressError();
         }
+        _validateGroveBasinConfig(IGroveBasin(_groveBasin), liquidityToken, assetToken);
         emit GroveBasinUpdated(address(groveBasin), _groveBasin);
         groveBasin = IGroveBasin(_groveBasin);
     }
@@ -261,6 +258,32 @@ contract GroveBasinLiquidityProvider is IThirdPartyLiquidityProvider, BaseContra
         uint256 _initialLiquidityAmount
     ) external pure returns (uint256 amountToSupply) {
         return _initialLiquidityAmount;
+    }
+
+    /**
+     * @dev Reverts when a Grove Basin candidate does not match this integration's token wiring.
+     * @param candidate Grove Basin contract to validate.
+     * @param expectedLiquidity Liquidity token configured on this provider.
+     * @param expectedAsset Asset token configured on this provider.
+     */
+    function _validateGroveBasinConfig(
+        IGroveBasin candidate,
+        IERC20Metadata expectedLiquidity,
+        IERC20Metadata expectedAsset
+    ) internal view {
+        address candidateAddr = address(candidate);
+        if (candidateAddr.code.length == 0) {
+            revert NotAContract(candidateAddr);
+        }
+        if (candidate.swapToken() != address(expectedLiquidity)) {
+            revert SwapTokenMismatch(address(expectedLiquidity), candidate.swapToken());
+        }
+        if (candidate.creditToken() != address(expectedAsset)) {
+            revert CreditTokenMismatch(address(expectedAsset), candidate.creditToken());
+        }
+        if (candidate.pocket() == address(0)) {
+            revert PocketZeroAddressError();
+        }
     }
 
     /**

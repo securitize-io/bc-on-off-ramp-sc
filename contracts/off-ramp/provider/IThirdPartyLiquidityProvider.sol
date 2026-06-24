@@ -76,6 +76,31 @@ interface IThirdPartyLiquidityProvider is ILiquidityProvider {
     error InvalidRedeemToleranceError(uint256 tolerance);
 
     /**
+     * @dev Thrown when a Grove Basin candidate address has no contract bytecode.
+     * @param account Address that is not a contract.
+     */
+    error NotAContract(address account);
+
+    /**
+     * @dev Thrown when a Grove Basin candidate's `swapToken` does not match {liquidityToken}.
+     * @param expected Configured liquidity token address.
+     * @param actual Candidate `swapToken` address.
+     */
+    error SwapTokenMismatch(address expected, address actual);
+
+    /**
+     * @dev Thrown when a Grove Basin candidate's `creditToken` does not match {assetToken}.
+     * @param expected Configured asset token address.
+     * @param actual Candidate `creditToken` address.
+     */
+    error CreditTokenMismatch(address expected, address actual);
+
+    /**
+     * @dev Thrown when Grove Basin reports a zero-address pocket.
+     */
+    error PocketZeroAddressError();
+
+    /**
      * @notice Proxy initializer.
      * @param _liquidityToken Liquidity token (stablecoin) delivered to the redeemer.
      * @param _securitizeOffRamp Off-ramp contract authorized to request liquidity.

@@ -32,7 +32,7 @@ npm-debug.log
 
 # truffle build directory
 build/
-
+.venv-slither/
 # hardhat build directory
 artifacts/
 cache/

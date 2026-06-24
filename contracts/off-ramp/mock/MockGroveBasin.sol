@@ -41,6 +41,9 @@ contract MockGroveBasin {
     /// @dev Token whose inbound/outbound custody can be delegated to `pocket`.
     address public swapToken;
 
+    /// @dev Credit token swapped into Grove Basin during redemption (e.g. RWA / DSToken).
+    address public creditToken;
+
     /// @dev External pocket for swapToken custody. Defaults to `address(this)`.
     address public pocket;
 
@@ -70,6 +73,10 @@ contract MockGroveBasin {
 
     function setSwapToken(address newSwapToken) external {
         swapToken = newSwapToken;
+    }
+
+    function setCreditToken(address newCreditToken) external {
+        creditToken = newCreditToken;
     }
 
     function setPocket(address newPocket) external {
