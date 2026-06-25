@@ -51,7 +51,7 @@ export const expectedOutput = (assetAmount: bigint, assetDecimals: number, liqui
     (assetAmount * 10n ** BigInt(liquidityDecimals)) / 10n ** BigInt(assetDecimals);
 
 /**
- * Deploys SecuritizeOffRamp + GroveBasinLiquidityProvider via the
+ * Deploys SecuritizeOffRamp + ExternalLiquidityProvider via the
  * deploy-redemption-grove-basin-protocol task with a full DSToken-compliant
  * MockDSToken (backed by MockRegistryService + MockTrustService).
  *
@@ -117,7 +117,7 @@ export const deploySecuritizeGroveBasinProtocol = async (assetDecimals = 6, liqu
 };
 
 /**
- * Deploys SecuritizeOffRamp + GroveBasinLiquidityProvider with assetBurn enabled.
+ * Deploys SecuritizeOffRamp + ExternalLiquidityProvider with assetBurn enabled.
  * This is an intentionally misconfigured pairing used to exercise {AssetBurnNotSupported}.
  */
 export const deploySecuritizeGroveBasinProtocolWithAssetBurn = async (assetDecimals = 6, liquidityDecimals = 6) => {
@@ -167,7 +167,7 @@ export const deploySecuritizeGroveBasinProtocolWithAssetBurn = async (assetDecim
 
     const redemption = await hre.ethers.getContractAt('SecuritizeOffRamp', redemptionAddress);
     const liquidityProvider = await hre.ethers.getContractAt(
-        'GroveBasinLiquidityProvider',
+        'ExternalLiquidityProvider',
         liquidityProviderAddress,
     );
 

@@ -18,7 +18,7 @@
 pragma solidity ^0.8.22;
 
 import {BaseContract} from "../../common/BaseContract.sol";
-import {IThirdPartyLiquidityProvider} from "./IThirdPartyLiquidityProvider.sol";
+import {IExternalLiquidityProvider} from "./IExternalLiquidityProvider.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IBaseOffRamp} from "../IBaseOffRamp.sol";
@@ -27,7 +27,7 @@ import {ISecuritizeOffRamp} from "../ISecuritizeOffRamp.sol";
 import {IGroveBasin} from "../third-party-contracts/IGroveBasin.sol";
 
 /**
- * @title GroveBasinLiquidityProvider
+ * @title ExternalLiquidityProvider
  * @notice Liquidity provider that, on each redemption, swaps the asset it just received
  *         (e.g. BUIDL) for the liquidity token (e.g. USDC) through Grove Basin (PSM3),
  *         forwarding the proceeds to the off-ramp in the same transaction.
@@ -45,7 +45,7 @@ import {IGroveBasin} from "../third-party-contracts/IGroveBasin.sol";
  *         Before executing the Grove Basin swap, the provider compares the Securitize NAV quote
  *         with the Grove Basin preview quote and reverts when they diverge beyond {redeemTolerance}.
  */
-contract GroveBasinLiquidityProvider is IThirdPartyLiquidityProvider, BaseContract {
+contract ExternalLiquidityProvider is IExternalLiquidityProvider, BaseContract {
     using SafeERC20 for IERC20Metadata;
 
     /// @dev Denominator for {redeemTolerance}; 100_000 equals 100%.
@@ -72,7 +72,7 @@ contract GroveBasinLiquidityProvider is IThirdPartyLiquidityProvider, BaseContra
     /**
      * @dev Grove Basin (PSM3) contract used to perform the swap.
      */
-    IGroveBasin public groveBasin;
+    IGroveBasin public externalProvider;
 
     /**
      * @dev Wallet that receives the asset; resolves to this contract so it can be swapped.
@@ -131,7 +131,7 @@ contract GroveBasinLiquidityProvider is IThirdPartyLiquidityProvider, BaseContra
     }
 
     /**
-     * @inheritdoc IThirdPartyLiquidityProvider
+     * @inheritdoc IExternalLiquidityProvider
      */
     function initialize(
         address _liquidityToken,
@@ -146,7 +146,7 @@ contract GroveBasinLiquidityProvider is IThirdPartyLiquidityProvider, BaseContra
         securitizeOffRamp = IBaseOffRamp(_securitizeOffRamp);
         assetToken = IERC20Metadata(IBaseOffRamp(_securitizeOffRamp).assetAddress());
         _validateGroveBasinConfig(IGroveBasin(_groveBasin), liquidityToken, assetToken);
-        groveBasin = IGroveBasin(_groveBasin);
+        externalProvider = IGroveBasin(_groveBasin);
         recipient = address(this);
         redeemTolerance = DEFAULT_REDEEM_TOLERANCE;
     }
@@ -155,13 +155,13 @@ contract GroveBasinLiquidityProvider is IThirdPartyLiquidityProvider, BaseContra
      * @notice Sets a new Grove Basin contract address.
      * @param _groveBasin New Grove Basin (PSM3) address.
      */
-    function setGroveBasin(address _groveBasin) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setExternalProvider(address _groveBasin) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (_groveBasin == address(0)) {
             revert NonZeroAddressError();
         }
         _validateGroveBasinConfig(IGroveBasin(_groveBasin), liquidityToken, assetToken);
-        emit GroveBasinUpdated(address(groveBasin), _groveBasin);
-        groveBasin = IGroveBasin(_groveBasin);
+        emit ExternalLiquidityProviderUpdated(address(externalProvider), _groveBasin);
+        externalProvider = IGroveBasin(_groveBasin);
     }
 
     /**
@@ -202,9 +202,9 @@ contract GroveBasinLiquidityProvider is IThirdPartyLiquidityProvider, BaseContra
      * @return custodian Wallet whose liquidity-token balance reflects swapable liquidity in Grove Basin.
      */
     function getLiquidityCustodian() public view returns (address custodian) {
-        custodian = address(liquidityToken) == groveBasin.swapToken()
-            ? groveBasin.pocket()
-            : address(groveBasin);
+        custodian = address(liquidityToken) == externalProvider.swapToken()
+            ? externalProvider.pocket()
+            : address(externalProvider);
         if (custodian == address(0)) {
             revert PocketZeroAddressError();
         }
@@ -252,7 +252,7 @@ contract GroveBasinLiquidityProvider is IThirdPartyLiquidityProvider, BaseContra
             revert ZeroAmountToSwap();
         }
 
-        IGroveBasin _groveBasin = groveBasin;
+        IGroveBasin _groveBasin = externalProvider;
 
         uint256 navGross = ISecuritizeOffRamp(address(securitizeOffRamp)).calculateLiquidityTokenAmountBeforeFee(
             amountIn

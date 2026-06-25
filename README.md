@@ -103,10 +103,10 @@ npx hardhat deploy-public-stock-offramp-collateral-protocol --network arbitrum -
 ##### Securitize Off-Ramp with Grove Basin Liquidity Provider
 
 This combination pairs the DSToken-compliant `SecuritizeOffRamp` (with country validation
-and full DSToken compliance) with `GroveBasinLiquidityProvider`, which swaps the redeemed
+and full DSToken compliance) with `ExternalLiquidityProvider`, which swaps the redeemed
 asset for the liquidity token through Grove Basin (PSM3) at a strict 1:1 peg.
 
-**Two-step transfer requirement — mandatory:** `GroveBasinLiquidityProvider.recipient()`
+**Two-step transfer requirement — mandatory:** `ExternalLiquidityProvider.recipient()`
 resolves to itself so the off-ramp must first deliver the asset to the provider before the
 Grove Basin swap can execute. This requires the off-ramp to run in **two-step mode**. The
 deploy task automatically enables this flag (`toggleTwoStepTransfer(true)`) immediately
@@ -119,7 +119,7 @@ contract's `collateralToken` (the stablecoin delivered on redemption), and the `
 argument must match Grove Basin's `creditToken` (the RWA swapped in). Do **not** match
 against `swapToken`; that token is unrelated to this integration's redemption path.
 The deploy task also forces `assetBurn = false` because the asset must be transferred to
-`GroveBasinLiquidityProvider` before the Grove Basin swap.
+`ExternalLiquidityProvider` before the Grove Basin swap.
 
 ```sh
 npx hardhat deploy-redemption-grove-basin-protocol --network arbitrum --asset {dsToken} --nav-provider {navProvider} --fee-manager {feeManager} --liquidity-token {liquidityToken} --grove-basin {groveBasinContract}

@@ -21,7 +21,7 @@ pragma solidity ^0.8.22;
  * @title  MockGroveBasinZeroPocket
  * @notice Test-only GroveBasin stub whose {pocket} always resolves to the zero address.
  * @dev    Used to exercise the {PocketZeroAddressError} revert path in
- *         {GroveBasinLiquidityProvider}. It does not implement swap logic.
+ *         {ExternalLiquidityProvider}. It does not implement swap logic.
  */
 contract MockGroveBasinZeroPocket {
     address private immutable _collateralToken;

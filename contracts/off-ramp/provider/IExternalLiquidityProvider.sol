@@ -22,17 +22,17 @@ import {ILiquidityProvider} from "./ILiquidityProvider.sol";
 import {IGroveBasin} from "../third-party-contracts/IGroveBasin.sol";
 
 /**
- * @title IThirdPartyLiquidityProvider
+ * @title IExternalLiquidityProvider
  * @notice Liquidity provider that sources liquidity by atomically swapping the redeemed asset
  *         for the liquidity token through Grove Basin (PSM3) at a strict 1:1 peg.
  */
-interface IThirdPartyLiquidityProvider is ILiquidityProvider {
+interface IExternalLiquidityProvider is ILiquidityProvider {
     /**
      * @dev Emitted when the owner updates the Grove Basin contract address.
      * @param oldGroveBasin Previous Grove Basin address.
      * @param newGroveBasin New Grove Basin address.
      */
-    event GroveBasinUpdated(address oldGroveBasin, address newGroveBasin);
+    event ExternalLiquidityProviderUpdated(address oldGroveBasin, address newGroveBasin);
 
     /**
      * @dev Emitted when the owner updates the Grove Basin referral code.
@@ -102,13 +102,13 @@ interface IThirdPartyLiquidityProvider is ILiquidityProvider {
 
     /**
      * @dev Thrown when the linked off-ramp does not have two-step transfer enabled.
-     *      {GroveBasinLiquidityProvider} is incompatible with the single-step redemption flow.
+     *      {ExternalLiquidityProvider} is incompatible with the single-step redemption flow.
      */
     error TwoStepTransferRequired();
 
     /**
      * @dev Thrown when the linked off-ramp has asset burning enabled.
-     *      {GroveBasinLiquidityProvider} requires the asset to be transferred here for the Grove Basin swap.
+     *      {ExternalLiquidityProvider} requires the asset to be transferred here for the Grove Basin swap.
      */
     error AssetBurnNotSupported();
 
@@ -124,7 +124,7 @@ interface IThirdPartyLiquidityProvider is ILiquidityProvider {
      * @notice Sets a new Grove Basin contract address.
      * @param _groveBasin New Grove Basin (PSM3) address.
      */
-    function setGroveBasin(address _groveBasin) external;
+    function setExternalProvider(address _groveBasin) external;
 
     /**
      * @notice Sets the referral code forwarded to Grove Basin on each swap.
@@ -160,7 +160,7 @@ interface IThirdPartyLiquidityProvider is ILiquidityProvider {
      * @notice The Grove Basin (PSM3) contract used to perform swaps.
      * @return The Grove Basin contract.
      */
-    function groveBasin() external view returns (IGroveBasin);
+    function externalProvider() external view returns (IGroveBasin);
 
     /**
      * @notice The asset token swapped into Grove Basin (e.g. BUIDL).
@@ -176,7 +176,7 @@ interface IThirdPartyLiquidityProvider is ILiquidityProvider {
 
     /**
      * @notice Returns the wallet that holds the liquidity token available for redemptions in Grove Basin.
-     * @dev See {GroveBasinLiquidityProvider.getLiquidityCustodian} for the full custodian semantics.
+     * @dev See {ExternalLiquidityProvider.getLiquidityCustodian} for the full custodian semantics.
      * @return custodian Wallet whose liquidity-token balance reflects swapable liquidity in Grove Basin.
      */
     function getLiquidityCustodian() external view returns (address custodian);

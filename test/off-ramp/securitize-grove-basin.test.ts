@@ -35,7 +35,7 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
         it('should have twoStepTransfer enabled after deploy', async function () {
             const { redemption } = await loadFixture(deploySecuritizeGroveBasinProtocol);
             // The deploy task must call toggleTwoStepTransfer(true); without it the
-            // single-step flow would bypass GroveBasinLiquidityProvider entirely.
+            // single-step flow would bypass ExternalLiquidityProvider entirely.
             expect(await redemption.twoStepTransfer()).to.equal(true);
         });
 
@@ -47,7 +47,7 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
         it('should have assetBurn disabled', async function () {
             const { redemption } = await loadFixture(deploySecuritizeGroveBasinProtocol);
             // The deploy task forces assetBurn = false because the asset must be
-            // transferred to GroveBasinLiquidityProvider before the Grove Basin swap.
+            // transferred to ExternalLiquidityProvider before the Grove Basin swap.
             expect(await redemption.assetBurn()).to.equal(false);
         });
 
@@ -183,9 +183,9 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
     });
 
     // ─────────────────────────────────────────────────────────────────────────
-    // GroveBasinLiquidityProvider — Initialization
+    // ExternalLiquidityProvider — Initialization
     // ─────────────────────────────────────────────────────────────────────────
-    describe('GroveBasinLiquidityProvider — Initialization', function () {
+    describe('ExternalLiquidityProvider — Initialization', function () {
         it('should return a non-zero implementation address', async function () {
             const { liquidityProvider } = await loadFixture(deploySecuritizeGroveBasinProtocol);
             expect(await liquidityProvider.getImplementationAddress()).to.not.equal(hre.ethers.ZeroAddress);
@@ -214,7 +214,7 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
 
         it('should store the correct Grove Basin address', async function () {
             const { liquidityProvider, groveBasinMock } = await loadFixture(deploySecuritizeGroveBasinProtocol);
-            expect(await liquidityProvider.groveBasin()).to.equal(await groveBasinMock.getAddress());
+            expect(await liquidityProvider.externalProvider()).to.equal(await groveBasinMock.getAddress());
         });
 
         it('should initialize redeemTolerance to 1% (1000)', async function () {
@@ -238,9 +238,9 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
     });
 
     // ─────────────────────────────────────────────────────────────────────────
-    // GroveBasinLiquidityProvider — Access Control
+    // ExternalLiquidityProvider — Access Control
     // ─────────────────────────────────────────────────────────────────────────
-    describe('GroveBasinLiquidityProvider — Access Control', function () {
+    describe('ExternalLiquidityProvider — Access Control', function () {
         it('should revert supplyTo when caller is not the off-ramp', async function () {
             const { liquidityProvider, stranger } = await loadFixture(deploySecuritizeGroveBasinProtocol);
             await expect(
@@ -248,16 +248,16 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
             ).revertedWithCustomError(liquidityProvider, 'RedemptionUnauthorizedAccount');
         });
 
-        it('should revert setGroveBasin for non-admin', async function () {
+        it('should revert setExternalProvider for non-admin', async function () {
             const { liquidityProvider, stranger } = await loadFixture(deploySecuritizeGroveBasinProtocol);
             await expect(
-                liquidityProvider.connect(stranger).setGroveBasin(stranger.address),
+                liquidityProvider.connect(stranger).setExternalProvider(stranger.address),
             ).revertedWithCustomError(liquidityProvider, 'AccessControlUnauthorizedAccount');
         });
 
-        it('should revert setGroveBasin for zero address', async function () {
+        it('should revert setExternalProvider for zero address', async function () {
             const { liquidityProvider } = await loadFixture(deploySecuritizeGroveBasinProtocol);
-            await expect(liquidityProvider.setGroveBasin(hre.ethers.ZeroAddress)).revertedWithCustomError(
+            await expect(liquidityProvider.setExternalProvider(hre.ethers.ZeroAddress)).revertedWithCustomError(
                 liquidityProvider,
                 'NonZeroAddressError',
             );
@@ -327,9 +327,9 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
     });
 
     // ─────────────────────────────────────────────────────────────────────────
-    // GroveBasinLiquidityProvider — availableLiquidity
+    // ExternalLiquidityProvider — availableLiquidity
     // ─────────────────────────────────────────────────────────────────────────
-    describe('GroveBasinLiquidityProvider — availableLiquidity', function () {
+    describe('ExternalLiquidityProvider — availableLiquidity', function () {
         it('should return 0 when Grove Basin has no USDC', async function () {
             const { liquidityProvider } = await loadFixture(deploySecuritizeGroveBasinProtocol);
             expect(await liquidityProvider.availableLiquidity()).to.equal(0n);
@@ -374,7 +374,7 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
                 await usdcMock.getAddress(),
                 await dsTokenMock.getAddress(),
             );
-            await expect(liquidityProvider.setGroveBasin(await zeroPocketBasin.getAddress())).revertedWithCustomError(
+            await expect(liquidityProvider.setExternalProvider(await zeroPocketBasin.getAddress())).revertedWithCustomError(
                 liquidityProvider,
                 'PocketZeroAddressError',
             );
@@ -382,18 +382,18 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
     });
 
     // ─────────────────────────────────────────────────────────────────────────
-    // GroveBasinLiquidityProvider — Grove Basin validation
+    // ExternalLiquidityProvider — Grove Basin validation
     // ─────────────────────────────────────────────────────────────────────────
-    describe('GroveBasinLiquidityProvider — Grove Basin validation', function () {
-        it('should revert setGroveBasin for a non-contract address', async function () {
+    describe('ExternalLiquidityProvider — Grove Basin validation', function () {
+        it('should revert setExternalProvider for a non-contract address', async function () {
             const { liquidityProvider, stranger } = await loadFixture(deploySecuritizeGroveBasinProtocol);
-            await expect(liquidityProvider.setGroveBasin(stranger.address)).revertedWithCustomError(
+            await expect(liquidityProvider.setExternalProvider(stranger.address)).revertedWithCustomError(
                 liquidityProvider,
                 'NotAContract',
             );
         });
 
-        it('should revert setGroveBasin when collateralToken does not match liquidityToken', async function () {
+        it('should revert setExternalProvider when collateralToken does not match liquidityToken', async function () {
             const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
             const { liquidityProvider, usdcMock, dsTokenMock } = ctx;
             const wrongCollateralBasin = await hre.ethers.deployContract('MockGroveBasin', [
@@ -401,17 +401,17 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
             ]);
             await wrongCollateralBasin.setCreditToken(await dsTokenMock.getAddress());
             await wrongCollateralBasin.setCollateralToken(await dsTokenMock.getAddress());
-            await expect(liquidityProvider.setGroveBasin(await wrongCollateralBasin.getAddress()))
+            await expect(liquidityProvider.setExternalProvider(await wrongCollateralBasin.getAddress()))
                 .revertedWithCustomError(liquidityProvider, 'CollateralTokenMismatch')
                 .withArgs(await usdcMock.getAddress(), await dsTokenMock.getAddress());
         });
 
-        it('should revert setGroveBasin when creditToken does not match assetToken', async function () {
+        it('should revert setExternalProvider when creditToken does not match assetToken', async function () {
             const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
             const { liquidityProvider, usdcMock, stranger } = ctx;
             const wrongCreditBasin = await hre.ethers.deployContract('MockGroveBasin', [await usdcMock.getAddress()]);
             await wrongCreditBasin.setCreditToken(stranger.address);
-            await expect(liquidityProvider.setGroveBasin(await wrongCreditBasin.getAddress()))
+            await expect(liquidityProvider.setExternalProvider(await wrongCreditBasin.getAddress()))
                 .revertedWithCustomError(liquidityProvider, 'CreditTokenMismatch')
                 .withArgs(await ctx.dsTokenMock.getAddress(), stranger.address);
         });
@@ -612,16 +612,16 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
             expect(await redemption.restrictedCountries(restrictedCountry)).to.equal(false);
         });
 
-        it('should update Grove Basin address and emit GroveBasinUpdated', async function () {
+        it('should update Grove Basin address and emit ExternalLiquidityProviderUpdated', async function () {
             const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
             const { liquidityProvider, usdcMock, dsTokenMock } = ctx;
             const newBasin = await hre.ethers.deployContract('MockGroveBasin', [await usdcMock.getAddress()]);
             await newBasin.setCreditToken(await dsTokenMock.getAddress());
             const newAddress = await newBasin.getAddress();
-            await expect(liquidityProvider.setGroveBasin(newAddress))
-                .to.emit(liquidityProvider, 'GroveBasinUpdated')
+            await expect(liquidityProvider.setExternalProvider(newAddress))
+                .to.emit(liquidityProvider, 'ExternalLiquidityProviderUpdated')
                 .withArgs(await ctx.groveBasinMock.getAddress(), newAddress);
-            expect(await liquidityProvider.groveBasin()).to.equal(newAddress);
+            expect(await liquidityProvider.externalProvider()).to.equal(newAddress);
         });
 
         it('should set the referral code and emit ReferralCodeUpdated', async function () {

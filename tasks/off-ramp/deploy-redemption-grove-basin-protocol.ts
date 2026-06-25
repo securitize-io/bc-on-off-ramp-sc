@@ -12,7 +12,7 @@ npx hardhat deploy-redemption-grove-basin-protocol \
     --verify
 
 IMPORTANT — two-step transfer requirement:
-  GroveBasinLiquidityProvider.recipient() resolves to itself so that the off-ramp can
+  ExternalLiquidityProvider.recipient() resolves to itself so that the off-ramp can
   deliver the asset to the provider before the Grove Basin swap takes place.  This only
   works when the off-ramp operates in two-step mode.  This task automatically enables
   that flag on SecuritizeOffRamp after deployment.  Any manual deployment of this pair
@@ -25,7 +25,7 @@ task('deploy-redemption-grove-basin-protocol', 'Deploy Securitize Off-Ramp + Gro
     .addParam('navProvider', 'NAV rate provider address')
     .addParam('feeManager', 'Fee manager address')
 
-    // GroveBasinLiquidityProvider arguments
+    // ExternalLiquidityProvider arguments
     .addParam('liquidityToken', 'Stable coin delivered to the investor (e.g. USDC)')
     .addParam('groveBasin', 'Grove Basin (PSM3) contract address')
     .addOptionalParam(
@@ -49,7 +49,7 @@ task('deploy-redemption-grove-basin-protocol', 'Deploy Securitize Off-Ramp + Gro
             console.log(`- Verify: ${args.verify}`);
         }
 
-        // assetBurn is forced to false: GroveBasinLiquidityProvider receives the asset and
+        // assetBurn is forced to false: ExternalLiquidityProvider receives the asset and
         // swaps it through Grove Basin — burning it beforehand is not supported.
         const { redemptionAddress } = await hre.run('deploy-offramp', {
             asset: args.asset,
@@ -70,17 +70,17 @@ task('deploy-redemption-grove-basin-protocol', 'Deploy Securitize Off-Ramp + Gro
 
         const redemption = await hre.ethers.getContractAt('SecuritizeOffRamp', redemptionAddress);
         const liquidityProvider = await hre.ethers.getContractAt(
-            'GroveBasinLiquidityProvider',
+            'ExternalLiquidityProvider',
             liquidityProviderAddress,
         );
 
         if (!args.silenceLogs) {
             consoleYellow(
-                'Enabling two-step transfer on SecuritizeOffRamp — required by GroveBasinLiquidityProvider...',
+                'Enabling two-step transfer on SecuritizeOffRamp — required by ExternalLiquidityProvider...',
             );
         }
 
-        // GroveBasinLiquidityProvider.recipient() is address(this), so the redemption must
+        // ExternalLiquidityProvider.recipient() is address(this), so the redemption must
         // run in two-step mode: the off-ramp transfers the asset to the provider first, then
         // the provider swaps via Grove Basin and returns the liquidity token to the off-ramp.
         const twoStepTx = await redemption.toggleTwoStepTransfer(true);
@@ -110,9 +110,9 @@ task('deploy-redemption-grove-basin-protocol', 'Deploy Securitize Off-Ramp + Gro
         return { redemption, liquidityProvider };
     });
 
-// Deploy GroveBasinLiquidityProvider proxy
+// Deploy ExternalLiquidityProvider proxy
 // npx hardhat deploy-grove-basin-provider --liquidity-token 0x123 --securitize-off-ramp 0x123 --grove-basin 0x123
-task('deploy-grove-basin-provider', 'Deploy GroveBasinLiquidityProvider proxy')
+task('deploy-grove-basin-provider', 'Deploy ExternalLiquidityProvider proxy')
     .addParam('liquidityToken', 'Stable coin delivered to the investor (e.g. USDC)')
     .addParam('securitizeOffRamp', 'SecuritizeOffRamp proxy address')
     .addParam('groveBasin', 'Grove Basin (PSM3) contract address')
@@ -128,7 +128,7 @@ task('deploy-grove-basin-provider', 'Deploy GroveBasinLiquidityProvider proxy')
         }
 
         const { proxyAddress, implAddress } = await hre.run('deploy-proxy', {
-            contractName: 'GroveBasinLiquidityProvider',
+            contractName: 'ExternalLiquidityProvider',
             kind: 'uups',
             args: [taskArgs.liquidityToken, taskArgs.securitizeOffRamp, taskArgs.groveBasin],
             verify: taskArgs.verify,
