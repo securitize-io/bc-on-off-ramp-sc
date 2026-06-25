@@ -2,7 +2,7 @@ import { task } from 'hardhat/config';
 import { consoleCyan, consoleGreen, consoleMagenta, consoleYellow } from '../../utils';
 
 /*
-npx hardhat deploy-redemption-grove-basin-protocol \
+npx hardhat deploy-redemption-external-liquidity-provider-protocol \
     --network sepolia \
     --asset 0xE4d65c4657685B746C8C73da51172bE24F4601F2 \
     --nav-provider 0x8eafa966CC7d899ed76bA2194411f3181b91a063 \
@@ -19,7 +19,7 @@ IMPORTANT — two-step transfer requirement:
   MUST call toggleTwoStepTransfer(true) before the first redemption; omitting it causes
   the single-step flow to bypass the provider and the Grove Basin swap never executes.
 */
-task('deploy-redemption-grove-basin-protocol', 'Deploy Securitize Off-Ramp + Grove Basin Liquidity Provider')
+task('deploy-redemption-external-liquidity-provider-protocol', 'Deploy Securitize Off-Ramp + Grove Basin Liquidity Provider')
     // SecuritizeOffRamp arguments
     .addParam('asset', 'DS Token to be redeemed (e.g. BUIDL)')
     .addParam('navProvider', 'NAV rate provider address')
@@ -38,7 +38,7 @@ task('deploy-redemption-grove-basin-protocol', 'Deploy Securitize Off-Ramp + Gro
     .addFlag('silenceLogs', 'Suppress console output')
     .setAction(async (args, hre) => {
         if (!args.silenceLogs) {
-            consoleCyan('\n task: deploy-redemption-grove-basin-protocol');
+            consoleCyan('\n task: deploy-redemption-external-liquidity-provider-protocol');
             consoleCyan('Arguments:');
             console.log(`- Asset: ${args.asset}`);
             console.log(`- NAV Provider: ${args.navProvider}`);

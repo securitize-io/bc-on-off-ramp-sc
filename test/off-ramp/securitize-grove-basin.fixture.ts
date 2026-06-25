@@ -52,7 +52,7 @@ export const expectedOutput = (assetAmount: bigint, assetDecimals: number, liqui
 
 /**
  * Deploys SecuritizeOffRamp + ExternalLiquidityProvider via the
- * deploy-redemption-grove-basin-protocol task with a full DSToken-compliant
+ * deploy-redemption-external-liquidity-provider-protocol task with a full DSToken-compliant
  * MockDSToken (backed by MockRegistryService + MockTrustService).
  *
  * The deploy task automatically sets twoStepTransfer = true on the off-ramp.
@@ -92,7 +92,7 @@ export const deploySecuritizeGroveBasinProtocol = async (assetDecimals = 6, liqu
     const groveBasinMock = await hre.ethers.deployContract('MockGroveBasin', [await usdcMock.getAddress()]);
     await groveBasinMock.setCreditToken(await dsTokenMock.getAddress());
 
-    const contracts = await hre.run('deploy-redemption-grove-basin-protocol', {
+    const contracts = await hre.run('deploy-redemption-external-liquidity-provider-protocol', {
         asset: await dsTokenMock.getAddress(),
         navProvider: await navProviderMock.getAddress(),
         feeManager: await mockFeeManager.getAddress(),

@@ -122,7 +122,7 @@ The deploy task also forces `assetBurn = false` because the asset must be transf
 `ExternalLiquidityProvider` before the Grove Basin swap.
 
 ```sh
-npx hardhat deploy-redemption-grove-basin-protocol --network arbitrum --asset {dsToken} --nav-provider {navProvider} --fee-manager {feeManager} --liquidity-token {liquidityToken} --grove-basin {groveBasinContract}
+npx hardhat deploy-redemption-external-liquidity-provider-protocol --network arbitrum --asset {dsToken} --nav-provider {navProvider} --fee-manager {feeManager} --liquidity-token {liquidityToken} --grove-basin {groveBasinContract}
 ```
 
 ### EIP-712 Signing Helpers
