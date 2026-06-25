@@ -54,6 +54,17 @@ interface IExternalLiquidityProvider is ILiquidityProvider {
     error ZeroAmountToSwap();
 
     /**
+     * @dev Thrown when the on-hand asset balance does not correspond to the asset amount of the
+     *      current redemption (e.g. pre-existing or stuck asset sitting on the provider). The
+     *      swap is bound to the current redemption by comparing the NAV gross the off-ramp expects
+     *      with the NAV gross derived from the provider's on-hand balance; a mismatch means extra
+     *      balance would otherwise be swept into the caller's redemption.
+     * @param expectedNavGross NAV gross the off-ramp expects for the current redemption.
+     * @param actualNavGross NAV gross derived from the provider's on-hand asset balance.
+     */
+    error UnexpectedAssetBalanceError(uint256 expectedNavGross, uint256 actualNavGross);
+
+    /**
      * @dev Thrown when the Grove Basin preview is below the minimum NAV tolerance band.
      * @param navGross Securitize NAV quote before fees.
      * @param groveBasinPreview Grove Basin preview quote.

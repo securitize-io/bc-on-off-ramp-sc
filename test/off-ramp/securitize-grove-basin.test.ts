@@ -494,6 +494,56 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
     });
 
     // ─────────────────────────────────────────────────────────────────────────
+    // Redeem — accounting binding (BC-2207, BugPocer TP: full-balance sweep)
+    //
+    // supplyTo must swap only the asset delivered by the CURRENT redemption, never any
+    // pre-existing/stuck asset already sitting on the provider. The binding is enforced by
+    // comparing the NAV gross the off-ramp expects with the NAV gross derived from the
+    // provider's on-hand balance; a mismatch reverts with {UnexpectedAssetBalanceError}.
+    // ─────────────────────────────────────────────────────────────────────────
+    describe('Redeem — accounting binding', function () {
+        it('should settle a clean redemption and leave no asset on the provider', async function () {
+            const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
+            const { redemption, usdcMock, dsTokenMock, liquidityProvider, investor } = ctx;
+            const { preFeeExpected } = await prepareRedemption(ctx, ASSET_AMOUNT);
+
+            await redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT);
+
+            // Investor receives exactly the amount for what they redeemed (1:1, zero fee).
+            expect(await usdcMock.balanceOf(investor.address)).to.equal(preFeeExpected);
+            // The provider does not retain asset beyond the single redemption.
+            expect(await dsTokenMock.balanceOf(await liquidityProvider.getAddress())).to.equal(0n);
+        });
+
+        it('should revert without sweeping pre-existing/stuck asset on the provider', async function () {
+            const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
+            const { redemption, usdcMock, dsTokenMock, liquidityProvider, investor } = ctx;
+            const STUCK_ASSET_AMOUNT = 5_000_000n; // 5 units sitting on the provider before the redemption
+
+            await prepareRedemption(ctx, ASSET_AMOUNT);
+            const providerAddress = await liquidityProvider.getAddress();
+            await dsTokenMock.mint(providerAddress, STUCK_ASSET_AMOUNT);
+
+            // The off-ramp expects the NAV gross for ASSET_AMOUNT, but the on-hand balance during
+            // supplyTo would be ASSET_AMOUNT + STUCK_ASSET_AMOUNT.
+            const expectedNavGross = await redemption.calculateLiquidityTokenAmountBeforeFee(ASSET_AMOUNT);
+            const actualNavGross = await redemption.calculateLiquidityTokenAmountBeforeFee(
+                ASSET_AMOUNT + STUCK_ASSET_AMOUNT,
+            );
+
+            await expect(redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT))
+                .revertedWithCustomError(liquidityProvider, 'UnexpectedAssetBalanceError')
+                .withArgs(expectedNavGross, actualNavGross);
+
+            // Atomic revert: investor keeps their asset, receives no liquidity, and the stuck
+            // balance is untouched (not converted and handed to the redeemer).
+            expect(await usdcMock.balanceOf(investor.address)).to.equal(0n);
+            expect(await dsTokenMock.balanceOf(investor.address)).to.equal(ASSET_AMOUNT);
+            expect(await dsTokenMock.balanceOf(providerAddress)).to.equal(STUCK_ASSET_AMOUNT);
+        });
+    });
+
+    // ─────────────────────────────────────────────────────────────────────────
     // Redeem — failure paths
     // ─────────────────────────────────────────────────────────────────────────
     describe('Redeem — failure paths', function () {

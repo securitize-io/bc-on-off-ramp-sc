@@ -235,16 +235,24 @@ contract ExternalLiquidityProvider is IExternalLiquidityProvider, BaseContract {
      * @dev Called by the off-ramp two-step flow after the asset has been transferred here.
      *      Reverts with {AssetBurnNotSupported} when the linked off-ramp burns redeemed assets,
      *      because this provider must receive the asset before swapping it through Grove Basin.
-     *      Compares the Securitize NAV quote with the Grove Basin preview before spending swap
-     *      gas. The swap floor is set to the Grove Basin preview so Basin's native slippage
-     *      protection is enforced as a second line of defense. The NAV gross amount forwarded
-     *      by the off-ramp as the second argument is not used as the swap floor.
+     *
+     *      The swap is bound to the current redemption: the off-ramp forwards, as the second
+     *      argument, the NAV gross it expects for the redeemed asset amount. This function derives
+     *      the NAV gross from its on-hand asset balance and reverts with {UnexpectedAssetBalanceError}
+     *      when the two differ, so any pre-existing or stuck asset sitting on this contract is not
+     *      swept into the caller's redemption (the provider must hold only the current redemption's
+     *      asset, per its single-redemption custody model).
+     *
+     *      Afterwards it compares the Securitize NAV quote with the Grove Basin preview before
+     *      spending swap gas. The swap floor is set to the Grove Basin preview so Basin's native
+     *      slippage protection is enforced as a second line of defense.
      * @param _receiver Recipient of the liquidity token (the off-ramp contract).
+     * @param _expectedLiquidityAmount NAV gross (before fee) the off-ramp expects for this redemption.
      * @return amountOut Liquidity token amount delivered by Grove Basin.
      */
     function supplyTo(
         address _receiver,
-        uint256 /* _minOut */
+        uint256 _expectedLiquidityAmount
     ) public whenNotPaused onlySecuritizeRedemption onlyTwoStepTransfer onlyWithoutAssetBurn returns (uint256 amountOut) {
         IERC20Metadata _assetToken = assetToken;
         uint256 amountIn = _assetToken.balanceOf(address(this));
@@ -257,6 +265,14 @@ contract ExternalLiquidityProvider is IExternalLiquidityProvider, BaseContract {
         uint256 navGross = ISecuritizeOffRamp(address(securitizeOffRamp)).calculateLiquidityTokenAmountBeforeFee(
             amountIn
         );
+
+        // Bind the swap to the asset delivered by THIS redemption. A mismatch means the on-hand
+        // balance includes asset that does not belong to the current redemption; reject instead of
+        // sweeping it (which would pay the redeemer for asset they did not redeem).
+        if (navGross != _expectedLiquidityAmount) {
+            revert UnexpectedAssetBalanceError(_expectedLiquidityAmount, navGross);
+        }
+
         uint256 gbPreview = _groveBasin.previewSwapExactIn(
             address(_assetToken),
             address(liquidityToken),
