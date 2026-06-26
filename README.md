@@ -28,6 +28,67 @@ Securitize on ramp protocol allows investor to purchase digital securities.
     - The contract computes the equivalent number of tokens to issue using the current NAV rate.
 - **Use Case**: Budget-constrained purchases with token output calculated.
 
+##### Asset providers (`IAssetProvider`)
+
+The on-ramp sources the asset delivered to the investor through a pluggable asset provider:
+
+- `AllowanceAssetProvider`: transfers the asset from a funded wallet that approved the provider.
+- `MintingAssetProvider`: mints the asset (requires the `ISSUER` role on the DSToken).
+- `ExternalAssetProvider`: swaps the investor's liquidity token (USDC) for the asset
+  (e.g. BUIDL) through Grove Basin (PSM3) at a strict 1:1 peg, with NAV-divergence protection.
+
+###### Securitize On-Ramp with Grove Basin Asset Provider
+
+`ExternalAssetProvider` pairs `SecuritizeOnRamp` with Grove Basin so an investor can buy an RWA
+asset by paying USDC, without the protocol maintaining an asset inventory of its own.
+
+**USDC flow:** `investor → SecuritizeOnRamp → (fee → feeCollector) → net → ExternalAssetProvider
+→ Grove Basin`. Grove Basin keeps the USDC and delivers the asset (to the on-ramp in two-step, or
+to the investor in single-step). The provider holds **no USDC treasury**: the exact-output swap is
+sized so the whole on-hand balance is consumed, and any residual reverts the call
+(`LiquidityNotFullyConsumed`).
+
+**No changes to the core on-ramp:** `SecuritizeOnRamp`/`BaseOnRamp` are untouched. The provider is
+self-contained — it prices the swap with its own NAV provider (the same one the on-ramp uses) and
+never calls back into the on-ramp.
+
+**Custodian wiring — mandatory:** the net USDC must settle on the provider before the swap, so the
+on-ramp is **initialized** with `custodianWallet == ExternalAssetProvider` (no on-ramp setter). To
+avoid a circular dependency the deploy task deploys the **provider first**, initializes the on-ramp
+with `custodianWallet = provider`, then calls `provider.setSecuritizeOnRamp(onRamp)` to authorize
+the caller.
+
+**Transfer mode — two-step by default (RWA compliance):** the deploy task enables **two-step**
+(`twoStepTransfer = true`) by default: the asset is swapped to the on-ramp and then sent to the
+investor, so the DSToken reaches the investor from the whitelisted on-ramp address — required by RWA
+tokens with transfer compliance rules. Pass `--single-step` to deliver the asset straight from Grove
+Basin to the investor instead (only when Grove Basin is an allowed DSToken sender).
+
+**`swapExactOut` (not `swapExactIn`):** the on-ramp two-step flow transfers a **fixed** amount
+(`dsTokenAmount` from the NAV) to the investor, so the provider must deliver **exactly** that amount.
+`swapExactOut(amountOut = dsTokenAmount)` guarantees it (no revert, no stranded dust on the on-ramp).
+`swapExactIn` would deliver a market amount that rarely matches and would break the fixed transfer.
+The trade-off: in the strict 1:1 product Grove Basin consumes exactly the net USDC; under divergence
+the call fails safe (`AmountInTooHigh` if it needs more than the net, `LiquidityNotFullyConsumed` if
+it would leave a residual) rather than retaining funds.
+
+**NAV-divergence protection:** the provider binds the operation to the current subscription
+(rejecting donated/stuck USDC via `UnexpectedLiquidityBalanceError`) and compares the NAV-implied
+input against the Grove Basin `previewSwapExactOut`, reverting beyond `redeemTolerance`
+(default 1%, denominator `100_000`) with `Min`/`MaxRateDivergenceError`.
+
+**Grove Basin token wiring:** the `--liquidity-token` argument must match Grove Basin's `collateralToken`
+(USDC) and the `--asset` argument must match Grove Basin's `creditToken` (the RWA asset). This is
+the same wiring as the off-ramp `ExternalLiquidityProvider`; both share the
+`BaseExternalGroveBasinProvider` base contract.
+
+```sh
+npx hardhat deploy-on-ramp-external-asset-provider --network arbitrum --asset {dsToken} --liquidity-token {liquidityToken} --nav-provider {navProvider} --fee-manager {feeManager} --grove-basin {groveBasinContract}
+```
+
+After deployment, enable `investorSubscriptionEnabled` before the first headless `swap`, and make
+sure Grove Basin holds enough asset (`creditToken`) to satisfy purchases.
+
 #### Off Ramp
 
 Securitize off ramp protocol allows investor to redeem their digital securities by stable coins
@@ -66,6 +127,12 @@ npx hardhat deploy-mbps-fee-manager --network arbitrum --mbps 2000 --collector {
 
 ```sh
 npx hardhat deploy-on-ramp --network arbitrum --token {dsToken} --liquidity {liquidityToken} --nav {navProvider} --fee {feeManager} --custodian {custodian} --type ALLOWANCE --provider {allowanceProviderWallet}
+```
+
+#### On Ramp (Grove Basin External Asset Provider)
+
+```sh
+npx hardhat deploy-on-ramp-external-asset-provider --network arbitrum --asset {dsToken} --liquidity-token {liquidityToken} --nav-provider {navProvider} --fee-manager {feeManager} --grove-basin {groveBasinContract}
 ```
 
 #### Public Stock On Ramp
