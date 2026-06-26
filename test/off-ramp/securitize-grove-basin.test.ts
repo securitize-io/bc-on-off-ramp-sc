@@ -67,8 +67,9 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
         });
 
         it('should revert on re-initialization', async function () {
-            const { redemption, dsTokenMock, navProviderMock, mockFeeManager } =
-                await loadFixture(deploySecuritizeGroveBasinProtocol);
+            const { redemption, dsTokenMock, navProviderMock, mockFeeManager } = await loadFixture(
+                deploySecuritizeGroveBasinProtocol,
+            );
             await expect(
                 redemption.initialize(
                     await dsTokenMock.getAddress(),
@@ -113,10 +114,7 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
         it('should revert toggleTwoStepTransfer for non-admin', async function () {
             const { redemption, stranger } = await loadFixture(deploySecuritizeGroveBasinProtocol);
             const r = redemption.connect(stranger);
-            await expect(r.toggleTwoStepTransfer(false)).revertedWithCustomError(
-                r,
-                'AccessControlUnauthorizedAccount',
-            );
+            await expect(r.toggleTwoStepTransfer(false)).revertedWithCustomError(r, 'AccessControlUnauthorizedAccount');
         });
 
         it('should revert pause for non-admin', async function () {
@@ -225,8 +223,9 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
         });
 
         it('should revert on re-initialization', async function () {
-            const { liquidityProvider, usdcMock, redemption, groveBasinMock } =
-                await loadFixture(deploySecuritizeGroveBasinProtocol);
+            const { liquidityProvider, usdcMock, redemption, groveBasinMock } = await loadFixture(
+                deploySecuritizeGroveBasinProtocol,
+            );
             await expect(
                 liquidityProvider.initialize(
                     await usdcMock.getAddress(),
@@ -234,6 +233,59 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
                     await groveBasinMock.getAddress(),
                 ),
             ).revertedWithCustomError(liquidityProvider, 'InvalidInitialization');
+        });
+
+        // initialize() validates the Grove Basin wiring via _validateGroveBasinConfig
+        // (initialize -> __BaseExternalGroveBasinProvider_init -> _setExternalProvider).
+        describe('Grove Basin config validation at initialize', function () {
+            const deployProxyWith = async (
+                groveBasin: string,
+                ctx: Awaited<ReturnType<typeof deploySecuritizeGroveBasinProtocol>>,
+            ) => {
+                const Factory = await hre.ethers.getContractFactory('ExternalLiquidityProvider');
+                const promise = hre.upgrades.deployProxy(
+                    Factory,
+                    [await ctx.usdcMock.getAddress(), await ctx.redemption.getAddress(), groveBasin],
+                    { kind: 'uups' },
+                );
+                return { Factory, promise };
+            };
+
+            it('reverts when the Grove Basin address is not a contract', async function () {
+                const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
+                const { Factory, promise } = await deployProxyWith(ctx.stranger.address, ctx);
+                await expect(promise).revertedWithCustomError(Factory, 'NotAContract');
+            });
+
+            it('reverts when collateralToken does not match the liquidity token', async function () {
+                const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
+                // collateralToken = DSToken (not USDC)
+                const wrongBasin = await hre.ethers.deployContract('MockGroveBasin', [
+                    await ctx.dsTokenMock.getAddress(),
+                ]);
+                await wrongBasin.setCreditToken(await ctx.dsTokenMock.getAddress());
+                const { Factory, promise } = await deployProxyWith(await wrongBasin.getAddress(), ctx);
+                await expect(promise).revertedWithCustomError(Factory, 'CollateralTokenMismatch');
+            });
+
+            it('reverts when creditToken does not match the asset', async function () {
+                const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
+                // collateralToken = USDC (ok) but creditToken = USDC (not the asset)
+                const wrongBasin = await hre.ethers.deployContract('MockGroveBasin', [await ctx.usdcMock.getAddress()]);
+                await wrongBasin.setCreditToken(await ctx.usdcMock.getAddress());
+                const { Factory, promise } = await deployProxyWith(await wrongBasin.getAddress(), ctx);
+                await expect(promise).revertedWithCustomError(Factory, 'CreditTokenMismatch');
+            });
+
+            it('reverts when the Grove Basin pocket is the zero address', async function () {
+                const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
+                const zeroPocket = await hre.ethers.deployContract('MockGroveBasinZeroPocket', [
+                    await ctx.usdcMock.getAddress(),
+                    await ctx.dsTokenMock.getAddress(),
+                ]);
+                const { Factory, promise } = await deployProxyWith(await zeroPocket.getAddress(), ctx);
+                await expect(promise).revertedWithCustomError(Factory, 'PocketZeroAddressError');
+            });
         });
     });
 
@@ -265,9 +317,10 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
 
         it('should revert setReferralCode for non-admin', async function () {
             const { liquidityProvider, stranger } = await loadFixture(deploySecuritizeGroveBasinProtocol);
-            await expect(
-                liquidityProvider.connect(stranger).setReferralCode(42),
-            ).revertedWithCustomError(liquidityProvider, 'AccessControlUnauthorizedAccount');
+            await expect(liquidityProvider.connect(stranger).setReferralCode(42)).revertedWithCustomError(
+                liquidityProvider,
+                'AccessControlUnauthorizedAccount',
+            );
         });
 
         it('should revert pause for non-admin', async function () {
@@ -283,9 +336,10 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
             const { redemption, liquidityProvider, investor } = ctx;
             await prepareRedemption(ctx, ASSET_AMOUNT);
             await redemption.toggleTwoStepTransfer(false);
-            await expect(
-                redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT),
-            ).revertedWithCustomError(liquidityProvider, 'TwoStepTransferRequired');
+            await expect(redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT)).revertedWithCustomError(
+                liquidityProvider,
+                'TwoStepTransferRequired',
+            );
         });
 
         it('should revert redeem in single-step mode when fees are active', async function () {
@@ -294,21 +348,21 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
             await mockFeeManager.setRedemptionFee(2000);
             await prepareRedemption(ctx, ASSET_AMOUNT);
             await redemption.toggleTwoStepTransfer(false);
-            await expect(
-                redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT),
-            ).revertedWithCustomError(liquidityProvider, 'TwoStepTransferRequired');
+            await expect(redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT)).revertedWithCustomError(
+                liquidityProvider,
+                'TwoStepTransferRequired',
+            );
         });
 
         it('should revert supplyTo when the linked off-ramp has assetBurn enabled', async function () {
-            const { redemption, liquidityProvider } = await loadFixture(deploySecuritizeGroveBasinProtocolWithAssetBurn);
+            const { redemption, liquidityProvider } = await loadFixture(
+                deploySecuritizeGroveBasinProtocolWithAssetBurn,
+            );
             const redemptionAddress = await redemption.getAddress();
             expect(await redemption.assetBurn()).to.equal(true);
 
             await hre.network.provider.send('hardhat_impersonateAccount', [redemptionAddress]);
-            await hre.network.provider.send('hardhat_setBalance', [
-                redemptionAddress,
-                '0x1000000000000000000',
-            ]);
+            await hre.network.provider.send('hardhat_setBalance', [redemptionAddress, '0x1000000000000000000']);
             const redemptionSigner = await hre.ethers.getSigner(redemptionAddress);
 
             await expect(
@@ -320,9 +374,10 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
             const ctx = await loadFixture(deploySecuritizeGroveBasinProtocolWithAssetBurn);
             const { redemption, liquidityProvider, investor } = ctx;
             await prepareRedemption(ctx, ASSET_AMOUNT);
-            await expect(
-                redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT),
-            ).revertedWithCustomError(liquidityProvider, 'AssetBurnNotSupported');
+            await expect(redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT)).revertedWithCustomError(
+                liquidityProvider,
+                'AssetBurnNotSupported',
+            );
         });
     });
 
@@ -374,10 +429,9 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
                 await usdcMock.getAddress(),
                 await dsTokenMock.getAddress(),
             );
-            await expect(liquidityProvider.setExternalProvider(await zeroPocketBasin.getAddress())).revertedWithCustomError(
-                liquidityProvider,
-                'PocketZeroAddressError',
-            );
+            await expect(
+                liquidityProvider.setExternalProvider(await zeroPocketBasin.getAddress()),
+            ).revertedWithCustomError(liquidityProvider, 'PocketZeroAddressError');
         });
     });
 
@@ -552,9 +606,10 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
             const { redemption, investor } = ctx;
             await prepareRedemption(ctx, ASSET_AMOUNT);
             await redemption.pause();
-            await expect(
-                redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT),
-            ).revertedWithCustomError(redemption, 'EnforcedPause');
+            await expect(redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT)).revertedWithCustomError(
+                redemption,
+                'EnforcedPause',
+            );
         });
 
         it('should revert when NAV rate is zero', async function () {
@@ -562,9 +617,10 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
             const { redemption, investor, zeroRateNavProviderMock } = ctx;
             await prepareRedemption(ctx, ASSET_AMOUNT);
             await redemption.updateNavProvider(await zeroRateNavProviderMock.getAddress());
-            await expect(
-                redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT),
-            ).revertedWithCustomError(redemption, 'NonZeroNavRateError');
+            await expect(redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT)).revertedWithCustomError(
+                redemption,
+                'NonZeroNavRateError',
+            );
         });
 
         it('should revert with SlippageControlError when output is below minOutputAmount', async function () {
@@ -573,9 +629,10 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
             await prepareRedemption(ctx, ASSET_AMOUNT);
             // Demand more than the 1:1 output to trigger slippage guard.
             const impossibleMin = ASSET_AMOUNT + 1n;
-            await expect(
-                redemption.connect(investor).redeem(ASSET_AMOUNT, impossibleMin),
-            ).revertedWithCustomError(redemption, 'SlippageControlError');
+            await expect(redemption.connect(investor).redeem(ASSET_AMOUNT, impossibleMin)).revertedWithCustomError(
+                redemption,
+                'SlippageControlError',
+            );
         });
 
         it('should revert with InsufficientLiquidity when Grove Basin lacks funds', async function () {
@@ -585,9 +642,10 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
             await dsTokenMock.mint(investor.address, ASSET_AMOUNT);
             await dsTokenMock.connect(investor).approve(await redemption.getAddress(), ASSET_AMOUNT);
 
-            await expect(
-                redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT),
-            ).revertedWithCustomError(ctx.liquidityProvider, 'InsufficientLiquidity');
+            await expect(redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT)).revertedWithCustomError(
+                ctx.liquidityProvider,
+                'InsufficientLiquidity',
+            );
         });
 
         it('should revert with InsufficientRedeemerBalance when investor lacks assets', async function () {
@@ -597,9 +655,10 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
             // Approve without minting — balance will be 0.
             await ctx.dsTokenMock.connect(investor).approve(await redemption.getAddress(), ASSET_AMOUNT);
 
-            await expect(
-                redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT),
-            ).revertedWithCustomError(redemption, 'InsufficientRedeemerBalance');
+            await expect(redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT)).revertedWithCustomError(
+                redemption,
+                'InsufficientRedeemerBalance',
+            );
         });
 
         it('should revert with RestrictedCountry for an investor in a restricted country', async function () {
@@ -618,9 +677,10 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
                 [],
             );
 
-            await expect(
-                redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT),
-            ).revertedWithCustomError(redemption, 'RestrictedCountry');
+            await expect(redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT)).revertedWithCustomError(
+                redemption,
+                'RestrictedCountry',
+            );
         });
 
         it('should revert when the liquidity provider is paused', async function () {
@@ -628,9 +688,10 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
             const { redemption, liquidityProvider, investor } = ctx;
             await prepareRedemption(ctx, ASSET_AMOUNT);
             await liquidityProvider.pause();
-            await expect(
-                redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT),
-            ).revertedWithCustomError(liquidityProvider, 'EnforcedPause');
+            await expect(redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT)).revertedWithCustomError(
+                liquidityProvider,
+                'EnforcedPause',
+            );
         });
     });
 
@@ -662,14 +723,14 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
             expect(await redemption.restrictedCountries(restrictedCountry)).to.equal(false);
         });
 
-        it('should update Grove Basin address and emit ExternalLiquidityProviderUpdated', async function () {
+        it('should update Grove Basin address and emit ExternalProviderUpdated', async function () {
             const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
             const { liquidityProvider, usdcMock, dsTokenMock } = ctx;
             const newBasin = await hre.ethers.deployContract('MockGroveBasin', [await usdcMock.getAddress()]);
             await newBasin.setCreditToken(await dsTokenMock.getAddress());
             const newAddress = await newBasin.getAddress();
             await expect(liquidityProvider.setExternalProvider(newAddress))
-                .to.emit(liquidityProvider, 'ExternalLiquidityProviderUpdated')
+                .to.emit(liquidityProvider, 'ExternalProviderUpdated')
                 .withArgs(await ctx.groveBasinMock.getAddress(), newAddress);
             expect(await liquidityProvider.externalProvider()).to.equal(newAddress);
         });
@@ -774,9 +835,10 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
 
             await groveBasinMock.setRedemptionFeeBps(1);
             await prepareRedemption(ctx, ASSET_AMOUNT);
-            await expect(
-                redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT),
-            ).revertedWithCustomError(liquidityProvider, 'MinRateDivergenceError');
+            await expect(redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT)).revertedWithCustomError(
+                liquidityProvider,
+                'MinRateDivergenceError',
+            );
         });
 
         it('should allow admin to set redeemTolerance and emit RedeemToleranceUpdated', async function () {
@@ -790,9 +852,10 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
 
         it('should revert setRedeemTolerance for non-admin', async function () {
             const { liquidityProvider, stranger } = await loadFixture(deploySecuritizeGroveBasinProtocol);
-            await expect(
-                liquidityProvider.connect(stranger).setRedeemTolerance(2_000n),
-            ).revertedWithCustomError(liquidityProvider, 'AccessControlUnauthorizedAccount');
+            await expect(liquidityProvider.connect(stranger).setRedeemTolerance(2_000n)).revertedWithCustomError(
+                liquidityProvider,
+                'AccessControlUnauthorizedAccount',
+            );
         });
 
         it('should revert setRedeemTolerance when tolerance exceeds denominator', async function () {

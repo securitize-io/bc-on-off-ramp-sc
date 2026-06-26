@@ -131,11 +131,11 @@ contract MockGroveBasin {
      * @param amountIn The amount of `assetIn` to swap.
      * @return amountOut The quoted amount of `assetOut` after rate factor and redemption fee.
      */
-    function previewSwapExactIn(address assetIn, address assetOut, uint256 amountIn)
-        public
-        view
-        returns (uint256 amountOut)
-    {
+    function previewSwapExactIn(
+        address assetIn,
+        address assetOut,
+        uint256 amountIn
+    ) public view returns (uint256 amountOut) {
         return _quotePreview(assetIn, assetOut, amountIn);
     }
 
@@ -161,7 +161,11 @@ contract MockGroveBasin {
         emit IGroveBasin.Swap(assetIn, assetOut, msg.sender, receiver, amountIn, amountOut, referralCode);
     }
 
-    function _quotePreview(address assetIn, address assetOut, uint256 amountIn) internal view returns (uint256 amountOut) {
+    function _quotePreview(
+        address assetIn,
+        address assetOut,
+        uint256 amountIn
+    ) internal view returns (uint256 amountOut) {
         uint256 precisionIn = 10 ** ERC20(assetIn).decimals();
         uint256 precisionOut = 10 ** ERC20(assetOut).decimals();
         amountOut = Math.mulDiv(amountIn, precisionOut, precisionIn);
@@ -171,6 +175,56 @@ contract MockGroveBasin {
             uint256 fee = Math.mulDiv(amountOut, redemptionFeeBps, BPS, Math.Rounding.Ceil);
             amountOut -= fee;
         }
+    }
+
+    /**
+     * @notice Previews the amount of `assetIn` required for an exact output swap.
+     * @param assetIn The token being provided as input.
+     * @param assetOut The token being received as output.
+     * @param amountOut The exact amount of `assetOut` desired.
+     * @return amountIn The quoted amount of `assetIn` required, inverting the preview rate factor.
+     */
+    function previewSwapExactOut(
+        address assetIn,
+        address assetOut,
+        uint256 amountOut
+    ) public view returns (uint256 amountIn) {
+        return _quotePreviewIn(assetIn, assetOut, amountOut);
+    }
+
+    function swapExactOut(
+        address assetIn,
+        address assetOut,
+        uint256 amountOut,
+        uint256 maxAmountIn,
+        address receiver,
+        uint256 referralCode
+    ) external returns (uint256 amountIn) {
+        if (amountOut == 0) revert IGroveBasin.ZeroAmountOut();
+        if (receiver == address(0)) revert IGroveBasin.ZeroReceiver();
+
+        uint256 quoted = _quotePreviewIn(assetIn, assetOut, amountOut);
+        amountIn = Math.mulDiv(quoted, outputNumerator, outputDenominator);
+
+        if (amountIn > maxAmountIn) revert IGroveBasin.AmountInTooHigh();
+
+        _pullAsset(assetIn, amountIn);
+        _pushAsset(assetOut, receiver, amountOut);
+
+        emit IGroveBasin.Swap(assetIn, assetOut, msg.sender, receiver, amountIn, amountOut, referralCode);
+    }
+
+    function _quotePreviewIn(
+        address assetIn,
+        address assetOut,
+        uint256 amountOut
+    ) internal view returns (uint256 amountIn) {
+        uint256 precisionIn = 10 ** ERC20(assetIn).decimals();
+        uint256 precisionOut = 10 ** ERC20(assetOut).decimals();
+        // Inverse of _quotePreview's decimal + rate-factor adjustment (redemption fee not applied
+        // on the exact-out path).
+        amountIn = Math.mulDiv(amountOut, precisionIn, precisionOut);
+        amountIn = Math.mulDiv(amountIn, previewDenominator, previewNumerator);
     }
 
     function _getAssetCustodian(address asset) internal view returns (address custodian) {

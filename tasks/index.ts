@@ -1,6 +1,7 @@
 export * from './commons';
 export * from './on-ramp/types';
 export * from './on-ramp/deploy-on-ramp';
+export * from './on-ramp/deploy-on-ramp-external-asset-provider';
 export * from './on-ramp/deploy-public-stock-on-ramp';
 export * from './on-ramp/deploy-mbps-fee-manager';
 export * from './on-ramp/sign-public-stock-on-ramp';

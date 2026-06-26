@@ -17,7 +17,7 @@
  */
 pragma solidity ^0.8.22;
 
-import {BaseContract} from "../../common/BaseContract.sol";
+import {BaseExternalGroveBasinProvider} from "../../common/BaseExternalGroveBasinProvider.sol";
 import {IExternalLiquidityProvider} from "./IExternalLiquidityProvider.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -44,15 +44,12 @@ import {IGroveBasin} from "../third-party-contracts/IGroveBasin.sol";
  *
  *         Before executing the Grove Basin swap, the provider compares the Securitize NAV quote
  *         with the Grove Basin preview quote and reverts when they diverge beyond {redeemTolerance}.
+ *
+ *         The shared Grove Basin handle, referral code and tolerance live in
+ *         {BaseExternalGroveBasinProvider}.
  */
-contract ExternalLiquidityProvider is IExternalLiquidityProvider, BaseContract {
+contract ExternalLiquidityProvider is IExternalLiquidityProvider, BaseExternalGroveBasinProvider {
     using SafeERC20 for IERC20Metadata;
-
-    /// @dev Denominator for {redeemTolerance}; 100_000 equals 100%.
-    uint256 public constant TOLERANCE_DENOMINATOR = 100_000;
-
-    /// @dev Default {redeemTolerance} set on initialization (1_000 = 1%).
-    uint256 public constant DEFAULT_REDEEM_TOLERANCE = 1_000;
 
     /**
      * @dev Liquidity token delivered to the redeemer (stablecoin).
@@ -70,25 +67,9 @@ contract ExternalLiquidityProvider is IExternalLiquidityProvider, BaseContract {
     IBaseOffRamp public securitizeOffRamp;
 
     /**
-     * @dev Grove Basin (PSM3) contract used to perform the swap.
-     */
-    IGroveBasin public externalProvider;
-
-    /**
      * @dev Wallet that receives the asset; resolves to this contract so it can be swapped.
      */
     address public recipient;
-
-    /**
-     * @dev Referral code forwarded to Grove Basin on each swap.
-     */
-    uint256 public referralCode;
-
-    /**
-     * @dev Maximum allowed divergence between Securitize NAV and Grove Basin preview quotes.
-     *      Expressed in units of {TOLERANCE_DENOMINATOR} (1_000 = 1%).
-     */
-    uint256 public redeemTolerance;
 
     /**
      * @dev The caller account is not authorized to perform an operation.
@@ -145,44 +126,8 @@ contract ExternalLiquidityProvider is IExternalLiquidityProvider, BaseContract {
         liquidityToken = IERC20Metadata(_liquidityToken);
         securitizeOffRamp = IBaseOffRamp(_securitizeOffRamp);
         assetToken = IERC20Metadata(IBaseOffRamp(_securitizeOffRamp).assetAddress());
-        _validateGroveBasinConfig(IGroveBasin(_groveBasin), liquidityToken, assetToken);
-        externalProvider = IGroveBasin(_groveBasin);
+        __BaseExternalGroveBasinProvider_init(_groveBasin);
         recipient = address(this);
-        redeemTolerance = DEFAULT_REDEEM_TOLERANCE;
-    }
-
-    /**
-     * @notice Sets a new Grove Basin contract address.
-     * @param _groveBasin New Grove Basin (PSM3) address.
-     */
-    function setExternalProvider(address _groveBasin) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (_groveBasin == address(0)) {
-            revert NonZeroAddressError();
-        }
-        _validateGroveBasinConfig(IGroveBasin(_groveBasin), liquidityToken, assetToken);
-        emit ExternalLiquidityProviderUpdated(address(externalProvider), _groveBasin);
-        externalProvider = IGroveBasin(_groveBasin);
-    }
-
-    /**
-     * @notice Sets the referral code forwarded to Grove Basin on each swap.
-     * @param _referralCode New referral code.
-     */
-    function setReferralCode(uint256 _referralCode) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        emit ReferralCodeUpdated(referralCode, _referralCode);
-        referralCode = _referralCode;
-    }
-
-    /**
-     * @notice Sets the maximum allowed divergence between Securitize NAV and Grove Basin preview quotes.
-     * @param _redeemTolerance New tolerance in units of {TOLERANCE_DENOMINATOR} (1_000 = 1%).
-     */
-    function setRedeemTolerance(uint256 _redeemTolerance) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (_redeemTolerance > TOLERANCE_DENOMINATOR) {
-            revert InvalidRedeemToleranceError(_redeemTolerance);
-        }
-        emit RedeemToleranceUpdated(redeemTolerance, _redeemTolerance);
-        redeemTolerance = _redeemTolerance;
     }
 
     /**
@@ -202,12 +147,7 @@ contract ExternalLiquidityProvider is IExternalLiquidityProvider, BaseContract {
      * @return custodian Wallet whose liquidity-token balance reflects swapable liquidity in Grove Basin.
      */
     function getLiquidityCustodian() public view returns (address custodian) {
-        custodian = address(liquidityToken) == externalProvider.swapToken()
-            ? externalProvider.pocket()
-            : address(externalProvider);
-        if (custodian == address(0)) {
-            revert PocketZeroAddressError();
-        }
+        return _custodianOf(address(liquidityToken));
     }
 
     /**
@@ -216,18 +156,6 @@ contract ExternalLiquidityProvider is IExternalLiquidityProvider, BaseContract {
      */
     function availableLiquidity() external view returns (uint256) {
         return _availableLiquidity();
-    }
-
-    /**
-     * @dev Best-effort available liquidity held by Grove Basin for the liquidity token.
-     *      Reads the liquidity-token balance at {getLiquidityCustodian} (the Grove Basin contract
-     *      for the `collateralToken` wiring used by this integration). The hard guarantee is
-     *      enforced by Grove Basin reverting the swap when the pool cannot satisfy the requested
-     *      output.
-     * @return Liquidity token balance available at the Grove Basin liquidity custodian.
-     */
-    function _availableLiquidity() private view returns (uint256) {
-        return liquidityToken.balanceOf(getLiquidityCustodian());
     }
 
     /**
@@ -253,7 +181,14 @@ contract ExternalLiquidityProvider is IExternalLiquidityProvider, BaseContract {
     function supplyTo(
         address _receiver,
         uint256 _expectedLiquidityAmount
-    ) public whenNotPaused onlySecuritizeRedemption onlyTwoStepTransfer onlyWithoutAssetBurn returns (uint256 amountOut) {
+    )
+        public
+        whenNotPaused
+        onlySecuritizeRedemption
+        onlyTwoStepTransfer
+        onlyWithoutAssetBurn
+        returns (uint256 amountOut)
+    {
         IERC20Metadata _assetToken = assetToken;
         uint256 amountIn = _assetToken.balanceOf(address(this));
         if (amountIn == 0) {
@@ -273,11 +208,7 @@ contract ExternalLiquidityProvider is IExternalLiquidityProvider, BaseContract {
             revert UnexpectedAssetBalanceError(_expectedLiquidityAmount, navGross);
         }
 
-        uint256 gbPreview = _groveBasin.previewSwapExactIn(
-            address(_assetToken),
-            address(liquidityToken),
-            amountIn
-        );
+        uint256 gbPreview = _groveBasin.previewSwapExactIn(address(_assetToken), address(liquidityToken), amountIn);
 
         _validateRateBand(navGross, gbPreview);
 
@@ -311,48 +242,28 @@ contract ExternalLiquidityProvider is IExternalLiquidityProvider, BaseContract {
     }
 
     /**
-     * @dev Reverts when a Grove Basin candidate does not match this integration's token wiring.
-     *      The liquidity token must match Grove Basin's `collateralToken` and the asset must match
-     *      `creditToken`. `swapToken` is not used for this integration's redemption path.
-     * @param candidate Grove Basin contract to validate.
-     * @param expectedLiquidity Liquidity token configured on this provider.
-     * @param expectedAsset Asset token configured on this provider.
+     * @dev Best-effort available liquidity held by Grove Basin for the liquidity token.
+     *      Reads the liquidity-token balance at {getLiquidityCustodian} (the Grove Basin contract
+     *      for the `collateralToken` wiring used by this integration). The hard guarantee is
+     *      enforced by Grove Basin reverting the swap when the pool cannot satisfy the requested
+     *      output.
+     * @return Liquidity token balance available at the Grove Basin liquidity custodian.
      */
-    function _validateGroveBasinConfig(
-        IGroveBasin candidate,
-        IERC20Metadata expectedLiquidity,
-        IERC20Metadata expectedAsset
-    ) internal view {
-        address candidateAddr = address(candidate);
-        if (candidateAddr.code.length == 0) {
-            revert NotAContract(candidateAddr);
-        }
-        if (candidate.collateralToken() != address(expectedLiquidity)) {
-            revert CollateralTokenMismatch(address(expectedLiquidity), candidate.collateralToken());
-        }
-        if (candidate.creditToken() != address(expectedAsset)) {
-            revert CreditTokenMismatch(address(expectedAsset), candidate.creditToken());
-        }
-        if (candidate.pocket() == address(0)) {
-            revert PocketZeroAddressError();
-        }
+    function _availableLiquidity() private view returns (uint256) {
+        return liquidityToken.balanceOf(getLiquidityCustodian());
     }
 
     /**
-     * @dev Reverts when the Grove Basin preview falls outside the NAV tolerance band.
-     * @param navGross Securitize NAV quote before fees.
-     * @param gbPreview Grove Basin preview quote for the same input amount.
+     * @inheritdoc BaseExternalGroveBasinProvider
      */
-    function _validateRateBand(uint256 navGross, uint256 gbPreview) internal view {
-        uint256 tolerance = redeemTolerance;
-        uint256 minBand = navGross * (TOLERANCE_DENOMINATOR - tolerance) / TOLERANCE_DENOMINATOR;
-        uint256 maxBand = navGross * (TOLERANCE_DENOMINATOR + tolerance) / TOLERANCE_DENOMINATOR;
+    function _expectedCollateralToken() internal view override returns (address) {
+        return address(liquidityToken);
+    }
 
-        if (gbPreview < minBand) {
-            revert MinRateDivergenceError(navGross, gbPreview, tolerance);
-        }
-        if (gbPreview > maxBand) {
-            revert MaxRateDivergenceError(navGross, gbPreview, tolerance);
-        }
+    /**
+     * @inheritdoc BaseExternalGroveBasinProvider
+     */
+    function _expectedCreditToken() internal view override returns (address) {
+        return address(assetToken);
     }
 }
