@@ -110,7 +110,8 @@ export const deployOnRampExternalAssetProvider = async (
         silenceLogs: true,
     });
 
-    await onRamp.toggleInvestorSubscription(true);
+    // The deploy task already enables investor subscription; toggling again would revert
+    // (SameValueError), so it is intentionally not repeated here.
 
     return {
         onRamp,

@@ -13,8 +13,9 @@ npx hardhat deploy-on-ramp-external-asset-provider \
 
 Flow & wiring notes:
   - USDC path: investor -> SecuritizeOnRamp -> (fee -> feeCollector) -> net -> ExternalAssetProvider
-    -> Grove Basin (swapExactOut USDC->asset). Grove Basin keeps the USDC; the asset is delivered to
-    the on-ramp (two-step) or the investor (single-step).
+    -> Grove Basin (swapExactIn USDC->asset, strict 1:1: the asset output must equal the NAV amount).
+    Grove Basin keeps the USDC; the asset is delivered to the on-ramp (two-step) or the investor
+    (single-step).
   - The net liquidity must land on the provider, so the on-ramp is initialized with
     custodianWallet == ExternalAssetProvider. To avoid a deploy-time circular dependency (and any
     new setter on the on-ramp) the provider is deployed FIRST, then the on-ramp is initialized with

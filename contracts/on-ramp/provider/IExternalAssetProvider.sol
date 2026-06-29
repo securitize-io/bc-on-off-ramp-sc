@@ -27,9 +27,11 @@ import {IExternalGroveBasinProvider} from "../../common/IExternalGroveBasinProvi
  * @notice Asset provider that sources the asset by atomically swapping the liquidity token (USDC)
  *         received from the on-ramp for the asset (e.g. BUIDL) through Grove Basin (PSM3).
  * @dev    Self-contained: it computes the NAV quote internally (its own {navProvider}) and never
- *         calls back into the on-ramp. The swap uses {IGroveBasin.swapExactOut} so it delivers the
- *         exact asset amount the on-ramp expects, which is what the on-ramp two-step flow forwards
- *         to the investor.
+ *         calls back into the on-ramp. The swap uses {IGroveBasin.swapExactIn} on the whole on-hand
+ *         liquidity balance, and the resulting asset amount must equal the NAV amount the on-ramp
+ *         expects exactly (strict 1:1); any divergence reverts with {UnexpectedSwapOutputError}.
+ *         This exactness is required by the on-ramp two-step flow, which forwards a fixed asset
+ *         amount to the investor.
  */
 interface IExternalAssetProvider is IAssetProvider, IExternalGroveBasinProvider {
     /**
@@ -66,13 +68,16 @@ interface IExternalAssetProvider is IAssetProvider, IExternalGroveBasinProvider 
     error InsufficientAssetLiquidity(uint256 requested, uint256 available);
 
     /**
-     * @dev Thrown when the exact-output swap does not consume the whole on-hand liquidity balance,
-     *      which would leave a residual treasury on the provider. The provider must hold no
-     *      liquidity-token treasury, so the operation reverts (and rolls back) instead.
-     * @param leftover Liquidity-token amount left unspent after the swap.
-     * @dev Selector: 0xb2eee4b8
+     * @dev Thrown when the Grove Basin exact-in quote for the whole on-hand liquidity balance does
+     *      not equal the NAV asset amount the on-ramp expects. The on-ramp two-step flow forwards a
+     *      fixed asset amount, so the swap must yield exactly that amount; any divergence (e.g. a
+     *      Grove Basin swap fee or oracle drift) reverts instead of under-delivering (the on-ramp
+     *      forward would revert) or stranding surplus asset on the on-ramp.
+     * @param expectedAssetAmount Asset amount (before fee) the on-ramp expects for this subscription.
+     * @param quotedAssetAmount Asset amount Grove Basin would deliver for the whole on-hand balance.
+     * @dev Selector: 0x2c63620e
      */
-    error LiquidityNotFullyConsumed(uint256 leftover);
+    error UnexpectedSwapOutputError(uint256 expectedAssetAmount, uint256 quotedAssetAmount);
 
     /**
      * @notice Proxy initializer.

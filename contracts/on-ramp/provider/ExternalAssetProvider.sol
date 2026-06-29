@@ -33,18 +33,25 @@ import {IGroveBasin} from "../../off-ramp/third-party-contracts/IGroveBasin.sol"
  *         (PSM3), delivering the exact NAV asset amount the on-ramp expects.
  * @dev    The on-ramp settles the net liquidity (after fee) on this contract right before calling
  *         {supplyTo} by being deployed with `custodianWallet == address(this)`. The contract holds
- *         no liquidity-token treasury: the swap is sized so the whole on-hand balance is consumed,
- *         and any residual reverts the call ({LiquidityNotFullyConsumed}).
+ *         no liquidity-token treasury: the swap spends the whole on-hand balance via
+ *         {IGroveBasin.swapExactIn}, so nothing is left behind.
  *
- *         The swap uses {IGroveBasin.swapExactOut} (exact asset out) so the provider delivers
- *         exactly the NAV `dsTokenAmount`. This is required by the on-ramp two-step flow, which
- *         forwards a fixed amount to the investor — see {BaseOnRamp._executeAssetTransfer}. It also
- *         keeps single-step deliveries exact.
+ *         The swap uses {IGroveBasin.swapExactIn} (exact liquidity in) on the full on-hand balance,
+ *         and the asset amount Grove Basin would deliver must equal the NAV `dsTokenAmount` exactly
+ *         (strict 1:1). The provider previews the swap with {IGroveBasin.previewSwapExactIn} and
+ *         reverts with {UnexpectedSwapOutputError} on any divergence. This exactness is required by
+ *         the on-ramp two-step flow, which forwards a fixed amount to the investor — see
+ *         {BaseOnRamp._executeAssetTransfer} — and keeps single-step deliveries exact too.
+ *
+ *         Because exactness is enforced, the inherited NAV-divergence tolerance band
+ *         ({redeemTolerance}) is intentionally not applied here; an exact quote is stricter than any
+ *         non-zero band. Operating against a real Grove Basin therefore requires a swap with no fee
+ *         and an oracle that prices the asset exactly at NAV (see the integration guide).
  *
  *         All NAV math is computed internally from {navProvider} (which must match the on-ramp's NAV
- *         provider); the provider never calls back into the on-ramp. The shared Grove Basin handle,
- *         referral code and tolerance live in {BaseExternalGroveBasinProvider}. Token wiring mirrors
- *         the off-ramp: {liquidityToken} is Grove Basin's `collateralToken` and {asset} is its
+ *         provider); the provider never calls back into the on-ramp. The shared Grove Basin handle
+ *         and referral code live in {BaseExternalGroveBasinProvider}. Token wiring mirrors the
+ *         off-ramp: {liquidityToken} is Grove Basin's `collateralToken` and {asset} is its
  *         `creditToken`.
  */
 contract ExternalAssetProvider is IExternalAssetProvider, BaseExternalGroveBasinProvider {
@@ -133,10 +140,12 @@ contract ExternalAssetProvider is IExternalAssetProvider, BaseExternalGroveBasin
      *      expects, otherwise it reverts with {UnexpectedLiquidityBalanceError} so donated/stuck
      *      liquidity is not swept into the caller's purchase.
      *
-     *      It then compares the Securitize NAV quote with the Grove Basin {previewSwapExactOut}
-     *      before spending swap gas, and executes {swapExactOut} for the exact expected asset
-     *      amount. `maxAmountIn` is the whole on-hand balance and the call reverts if any liquidity
-     *      is left unspent, so the provider never retains a treasury.
+     *      It then previews swapping the whole on-hand balance through Grove Basin with
+     *      {previewSwapExactIn}. Because the on-ramp two-step flow forwards a fixed asset amount, the
+     *      quote must equal `_expectedAssetAmount` exactly; any divergence reverts with
+     *      {UnexpectedSwapOutputError}. It finally executes {swapExactIn} for the whole balance with
+     *      `minAmountOut == _expectedAssetAmount` as Grove Basin's native floor, so the swap reverts
+     *      rather than delivering less than expected.
      * @param _buyer Recipient of the asset (the investor in single-step, the on-ramp in two-step).
      * @param _expectedAssetAmount Asset amount (before fee) the on-ramp expects for this subscription.
      */
@@ -159,29 +168,25 @@ contract ExternalAssetProvider is IExternalAssetProvider, BaseExternalGroveBasin
             revert InsufficientAssetLiquidity(_expectedAssetAmount, available);
         }
 
-        // Grove Basin's required input for the exact asset output, validated against the NAV-implied
-        // input (the on-hand balance) before spending swap gas.
-        uint256 gbAmountIn = externalProvider.previewSwapExactOut(address(liquidityToken), address(asset), _expectedAssetAmount);
-        _validateRateBand(balance, gbAmountIn);
+        // Asset amount Grove Basin would deliver for the whole on-hand balance. The two-step on-ramp
+        // forwards a fixed amount, so this must match the expected asset amount exactly: reject any
+        // divergence (a Grove Basin fee or oracle drift) rather than under-delivering or stranding
+        // surplus on the on-ramp.
+        uint256 gbAmountOut = externalProvider.previewSwapExactIn(address(liquidityToken), address(asset), balance);
+        if (gbAmountOut != _expectedAssetAmount) {
+            revert UnexpectedSwapOutputError(_expectedAssetAmount, gbAmountOut);
+        }
 
         liquidityToken.forceApprove(address(externalProvider), balance);
 
-        externalProvider.swapExactOut(
+        externalProvider.swapExactIn(
             address(liquidityToken),
             address(asset),
-            _expectedAssetAmount,
             balance,
+            _expectedAssetAmount,
             _buyer,
             referralCode
         );
-
-        // No treasury: the exact-out swap must have consumed the whole balance. Any residual rolls
-        // the transaction back rather than sitting on the provider.
-        uint256 leftover = liquidityToken.balanceOf(address(this));
-        if (leftover != 0) {
-            liquidityToken.forceApprove(address(externalProvider), 0);
-            revert LiquidityNotFullyConsumed(leftover);
-        }
     }
 
     /**

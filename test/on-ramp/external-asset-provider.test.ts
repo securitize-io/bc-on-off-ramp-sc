@@ -17,7 +17,7 @@ import {
 
 const MIN_OUT = 0n;
 
-describe('On-Ramp External Asset Provider (swapExactOut)', function () {
+describe('On-Ramp External Asset Provider (swapExactIn, strict 1:1)', function () {
     describe('Creation & initialization', function () {
         it('stores the configured wiring', async function () {
             const { onRamp, assetProvider, usdcMock, dsTokenMock, groveBasinMock, navProviderMock } = await loadFixture(
@@ -232,7 +232,7 @@ describe('On-Ramp External Asset Provider (swapExactOut)', function () {
         });
     });
 
-    describe('Transfer modes (exact asset out)', function () {
+    describe('Transfer modes (exact 1:1 delivery)', function () {
         it('two-step (default) delivers exactly the NAV amount via the on-ramp, no dust', async function () {
             const ctx = await loadFixture(deployOnRampExternalAssetProvider);
             const { onRamp, assetProvider, usdcMock, dsTokenMock, groveBasinMock, investor } = ctx;
@@ -327,58 +327,56 @@ describe('On-Ramp External Asset Provider (swapExactOut)', function () {
         });
     });
 
-    describe('Swap rate-band & consumption protection', function () {
-        it('reverts below the band when Grove Basin needs far too little input (MinRateDivergenceError)', async function () {
+    describe('Strict 1:1 output protection', function () {
+        it('reverts when Grove Basin would deliver more asset than expected (UnexpectedSwapOutputError)', async function () {
             const ctx = await loadFixture(deployOnRampExternalAssetProvider);
             const { onRamp, assetProvider, groveBasinMock, investor } = ctx;
             const gross = 1_000_000_000n;
-            await prepareSwap(ctx, gross, 0n);
-            // previewFactor 2/1 => required input = net / 2 (far below the 1% band).
+            const { expected } = await prepareSwap(ctx, gross, 0n);
+            // previewFactor 2/1 => Grove Basin would deliver 2x the expected asset.
             await setGbPreviewFactor(groveBasinMock, 2n, 1n);
-            await expect(onRamp.connect(investor).swap(gross, MIN_OUT)).revertedWithCustomError(
-                assetProvider,
-                'MinRateDivergenceError',
-            );
+            await expect(onRamp.connect(investor).swap(gross, MIN_OUT))
+                .revertedWithCustomError(assetProvider, 'UnexpectedSwapOutputError')
+                .withArgs(expected, expected * 2n);
         });
 
-        it('reverts above the band when Grove Basin needs far too much input (MaxRateDivergenceError)', async function () {
+        it('reverts when Grove Basin would deliver less asset than expected (UnexpectedSwapOutputError)', async function () {
             const ctx = await loadFixture(deployOnRampExternalAssetProvider);
             const { onRamp, assetProvider, groveBasinMock, investor } = ctx;
             const gross = 1_000_000_000n;
-            await prepareSwap(ctx, gross, 0n);
-            // previewFactor 1/2 => required input = net * 2 (far above the 1% band).
+            const { expected } = await prepareSwap(ctx, gross, 0n);
+            // previewFactor 1/2 => Grove Basin would deliver half the expected asset.
             await setGbPreviewFactor(groveBasinMock, 1n, 2n);
-            await expect(onRamp.connect(investor).swap(gross, MIN_OUT)).revertedWithCustomError(
-                assetProvider,
-                'MaxRateDivergenceError',
-            );
+            await expect(onRamp.connect(investor).swap(gross, MIN_OUT))
+                .revertedWithCustomError(assetProvider, 'UnexpectedSwapOutputError')
+                .withArgs(expected, expected / 2n);
         });
 
-        it('reverts when the swap leaves residual liquidity (LiquidityNotFullyConsumed)', async function () {
+        it('reverts on a sub-percent Grove Basin swap fee (UnexpectedSwapOutputError)', async function () {
             const ctx = await loadFixture(deployOnRampExternalAssetProvider);
             const { onRamp, assetProvider, groveBasinMock, investor } = ctx;
-            await assetProvider.setRedeemTolerance(50_000n); // wide band so the residual path is reached
             const gross = 1_000_000_000n;
-            await prepareSwap(ctx, gross, 0n);
-            // previewFactor 100/99 => required input = net * 99/100 (inside the band, < net => residual).
-            await setGbPreviewFactor(groveBasinMock, 100n, 99n);
-            await expect(onRamp.connect(investor).swap(gross, MIN_OUT)).revertedWithCustomError(
-                assetProvider,
-                'LiquidityNotFullyConsumed',
-            );
+            const { expected } = await prepareSwap(ctx, gross, 0n);
+            // A 0.1% Grove Basin fee makes the quote diverge from NAV by one fee step: strict 1:1
+            // rejects it even though it is well within the inherited (unused) tolerance band.
+            await groveBasinMock.setRedemptionFeeBps(10n);
+            const fee = (expected * 10n + 9_999n) / 10_000n; // mirrors the mock's ceil rounding
+            await expect(onRamp.connect(investor).swap(gross, MIN_OUT))
+                .revertedWithCustomError(assetProvider, 'UnexpectedSwapOutputError')
+                .withArgs(expected, expected - fee);
         });
 
-        it('reverts when Grove Basin needs more input than the net liquidity (AmountInTooHigh)', async function () {
+        it('reverts when execution slips below the expected floor (AmountOutTooLow)', async function () {
             const ctx = await loadFixture(deployOnRampExternalAssetProvider);
-            const { onRamp, assetProvider, groveBasinMock, investor } = ctx;
-            await assetProvider.setRedeemTolerance(50_000n);
+            const { onRamp, groveBasinMock, investor } = ctx;
             const gross = 1_000_000_000n;
             await prepareSwap(ctx, gross, 0n);
-            // previewFactor 99/100 => required input = net * 100/99 > net (inside band) => maxAmountIn exceeded.
-            await setGbPreviewFactor(groveBasinMock, 99n, 100n);
+            // Preview stays exactly 1:1 (passes the strict check) but execution delivers 99% of it,
+            // so Grove Basin's native minAmountOut floor (== expected) reverts the swap.
+            await groveBasinMock.setOutputFactor(99n, 100n);
             await expect(onRamp.connect(investor).swap(gross, MIN_OUT)).revertedWithCustomError(
                 groveBasinMock,
-                'AmountInTooHigh',
+                'AmountOutTooLow',
             );
         });
     });
