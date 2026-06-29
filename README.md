@@ -100,6 +100,31 @@ npx hardhat deploy-public-stock-offramp-allowance-protocol --network arbitrum --
 npx hardhat deploy-public-stock-offramp-collateral-protocol --network arbitrum --asset {dsToken} --nav-provider {navProvider} --fee-manager {feeManager} --asset-burn false --recipient {recipientWallet} --liquidity-token {liquidityToken} --provider-wallet {providerWallet} --external-collateral-redemption {externalCollateralRedemption} --verify
 ```
 
+##### Securitize Off-Ramp with Grove Basin Liquidity Provider
+
+This combination pairs the DSToken-compliant `SecuritizeOffRamp` (with country validation
+and full DSToken compliance) with `ExternalLiquidityProvider`, which swaps the redeemed
+asset for the liquidity token through Grove Basin (PSM3) at a strict 1:1 peg.
+
+**Two-step transfer requirement — mandatory:** `ExternalLiquidityProvider.recipient()`
+resolves to itself so the off-ramp must first deliver the asset to the provider before the
+Grove Basin swap can execute. This requires the off-ramp to run in **two-step mode**. The
+deploy task automatically enables this flag (`toggleTwoStepTransfer(true)`) immediately
+after deploying `SecuritizeOffRamp`. Any manual deployment of this combination **must**
+call `toggleTwoStepTransfer(true)` before the first redemption; omitting it causes the
+single-step flow to bypass the provider entirely and the swap never executes.
+
+**Grove Basin token wiring:** the `--liquidity-token` argument must match the Grove Basin
+contract's `collateralToken` (the stablecoin delivered on redemption), and the `--asset`
+argument must match Grove Basin's `creditToken` (the RWA swapped in). Do **not** match
+against `swapToken`; that token is unrelated to this integration's redemption path.
+The deploy task also forces `assetBurn = false` because the asset must be transferred to
+`ExternalLiquidityProvider` before the Grove Basin swap.
+
+```sh
+npx hardhat deploy-redemption-external-liquidity-provider-protocol --network arbitrum --asset {dsToken} --nav-provider {navProvider} --fee-manager {feeManager} --liquidity-token {liquidityToken} --grove-basin {groveBasinContract}
+```
+
 ### EIP-712 Signing Helpers
 
 - Public Stock On Ramp swap

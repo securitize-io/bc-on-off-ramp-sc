@@ -5,6 +5,9 @@
 logs
 *.log
 
+pocs_*/
+AGENTS.md
+CLAUDE.md
 # Runtime data
 pids
 *.pid
@@ -31,7 +34,7 @@ npm-debug.log
 
 # truffle build directory
 build/
-
+.venv-slither/
 # hardhat build directory
 artifacts/
 cache/
@@ -48,3 +51,10 @@ ignition/deployments/
 .idea/
 
 .vscode/
+
+# olympix
+.opix/
+olympix-results/
+BugPoCer_Scan_Report_*.pdf
+true_positives_*.md
+unverified_*.md
