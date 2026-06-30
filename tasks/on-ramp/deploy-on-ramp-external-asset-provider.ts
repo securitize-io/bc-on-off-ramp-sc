@@ -13,7 +13,9 @@ npx hardhat deploy-on-ramp-external-asset-provider \
 
 Flow & wiring notes:
   - USDC path: investor -> SecuritizeOnRamp -> (fee -> feeCollector) -> net -> ExternalAssetProvider
-    -> Grove Basin (swapExactOut USDC->asset). Grove Basin keeps the USDC; the asset is delivered to
+    -> Grove Basin (swapExactIn USDC->asset). The on-ramp (ExternalAssetProviderOnRamp) quotes the
+    asset amount from Grove Basin's previewSwapExactIn over the net, and the provider cross-checks it
+    against the Securitize NAV tolerance band. Grove Basin keeps the USDC; the asset is delivered to
     the on-ramp (two-step) or the investor (single-step).
   - The net liquidity must land on the provider, so the on-ramp is initialized with
     custodianWallet == ExternalAssetProvider. To avoid a deploy-time circular dependency (and any
@@ -72,14 +74,14 @@ task('deploy-on-ramp-external-asset-provider', 'Deploy Securitize On-Ramp + Grov
         });
 
         const { proxyAddress: onRampAddress } = await hre.run('deploy-proxy', {
-            contractName: 'SecuritizeOnRamp',
+            contractName: 'ExternalAssetProviderOnRamp',
             kind: 'uups',
             args: [args.asset, args.liquidityToken, args.navProvider, args.feeManager, assetProviderAddress],
             verify: args.verify,
             silenceLogs: args.silenceLogs,
         });
 
-        const onRamp = await hre.ethers.getContractAt('SecuritizeOnRamp', onRampAddress);
+        const onRamp = await hre.ethers.getContractAt('ExternalAssetProviderOnRamp', onRampAddress);
         const assetProvider = await hre.ethers.getContractAt('ExternalAssetProvider', assetProviderAddress);
 
         if (!args.silenceLogs) {

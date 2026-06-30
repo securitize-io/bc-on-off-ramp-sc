@@ -114,6 +114,16 @@ contract MockGroveBasin {
     }
 
     /**
+     * @notice Mirrors Grove Basin's `calculateRedemptionFee` (rounds up), consistent with the fee
+     *         deducted inside `previewSwapExactIn`/`swapExactIn`.
+     * @param amount The amount to calculate the redemption fee on.
+     * @return fee The redemption fee.
+     */
+    function calculateRedemptionFee(uint256 amount) external view returns (uint256 fee) {
+        return Math.mulDiv(amount, redemptionFeeBps, BPS, Math.Rounding.Ceil);
+    }
+
+    /**
      * @notice Configures an execution slippage factor applied on top of the preview quote in `swapExactIn`.
      * @param numerator Output deviation numerator.
      * @param denominator Output deviation denominator (must be non-zero).

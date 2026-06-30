@@ -11,13 +11,13 @@ import {
     calcFee,
     FEE_CASES,
     TOLERANCE_DENOMINATOR,
-    DEFAULT_REDEEM_TOLERANCE,
+    DEFAULT_RATE_TOLERANCE,
     FEE_COLLECTOR,
 } from './external-asset-provider.fixture';
 
 const MIN_OUT = 0n;
 
-describe('On-Ramp External Asset Provider (swapExactOut)', function () {
+describe('On-Ramp External Asset Provider (swapExactIn via Grove Basin quote)', function () {
     describe('Creation & initialization', function () {
         it('stores the configured wiring', async function () {
             const { onRamp, assetProvider, usdcMock, dsTokenMock, groveBasinMock, navProviderMock } = await loadFixture(
@@ -28,7 +28,7 @@ describe('On-Ramp External Asset Provider (swapExactOut)', function () {
             expect(await assetProvider.securitizeOnRamp()).to.equal(await onRamp.getAddress());
             expect(await assetProvider.navProvider()).to.equal(await navProviderMock.getAddress());
             expect(await assetProvider.externalProvider()).to.equal(await groveBasinMock.getAddress());
-            expect(await assetProvider.redeemTolerance()).to.equal(DEFAULT_REDEEM_TOLERANCE);
+            expect(await assetProvider.rateTolerance()).to.equal(DEFAULT_RATE_TOLERANCE);
             expect(await assetProvider.TOLERANCE_DENOMINATOR()).to.equal(TOLERANCE_DENOMINATOR);
             // custodianWallet must point at the provider so net USDC settles there before the swap.
             expect(await onRamp.custodianWallet()).to.equal(await assetProvider.getAddress());
@@ -81,8 +81,8 @@ describe('On-Ramp External Asset Provider (swapExactOut)', function () {
             }
         });
 
-        // initialize() validates the Grove Basin wiring via _validateGroveBasinConfig
-        // (initialize -> __BaseExternalGroveBasinProvider_init -> _setExternalProvider).
+        // initialize() validates the Grove Basin wiring via _validateExternalProviderConfig
+        // (initialize -> __BaseExternalProvider_init -> _setExternalProvider).
         describe('Grove Basin config validation at initialize', function () {
             const deployProxyWith = async (
                 groveBasin: string,
@@ -194,7 +194,7 @@ describe('On-Ramp External Asset Provider (swapExactOut)', function () {
             expect(await assetProvider.externalProvider()).to.equal(await newBasin.getAddress());
         });
 
-        it('setReferralCode and setRedeemTolerance validations and events', async function () {
+        it('setReferralCode and setRateTolerance validations and events', async function () {
             const { assetProvider, stranger } = await loadFixture(deployOnRampExternalAssetProvider);
 
             await expect(assetProvider.connect(stranger).setReferralCode(7)).revertedWithCustomError(
@@ -203,12 +203,12 @@ describe('On-Ramp External Asset Provider (swapExactOut)', function () {
             );
             await expect(assetProvider.setReferralCode(7)).to.emit(assetProvider, 'ReferralCodeUpdated').withArgs(0, 7);
 
-            await expect(assetProvider.setRedeemTolerance(TOLERANCE_DENOMINATOR + 1n))
-                .revertedWithCustomError(assetProvider, 'InvalidRedeemToleranceError')
+            await expect(assetProvider.setRateTolerance(TOLERANCE_DENOMINATOR + 1n))
+                .revertedWithCustomError(assetProvider, 'InvalidRateToleranceError')
                 .withArgs(TOLERANCE_DENOMINATOR + 1n);
-            await expect(assetProvider.setRedeemTolerance(2_000n))
-                .to.emit(assetProvider, 'RedeemToleranceUpdated')
-                .withArgs(DEFAULT_REDEEM_TOLERANCE, 2_000n);
+            await expect(assetProvider.setRateTolerance(2_000n))
+                .to.emit(assetProvider, 'RateToleranceUpdated')
+                .withArgs(DEFAULT_RATE_TOLERANCE, 2_000n);
         });
 
         it('only admin can pause/unpause', async function () {
@@ -232,7 +232,7 @@ describe('On-Ramp External Asset Provider (swapExactOut)', function () {
         });
     });
 
-    describe('Transfer modes (exact asset out)', function () {
+    describe('Transfer modes (exact 1:1 delivery)', function () {
         it('two-step (default) delivers exactly the NAV amount via the on-ramp, no dust', async function () {
             const ctx = await loadFixture(deployOnRampExternalAssetProvider);
             const { onRamp, assetProvider, usdcMock, dsTokenMock, groveBasinMock, investor } = ctx;
@@ -320,65 +320,93 @@ describe('On-Ramp External Asset Provider (swapExactOut)', function () {
             await usdcMock.mint(stranger.address, 5n);
             await usdcMock.connect(stranger).transfer(await assetProvider.getAddress(), 5n);
 
+            // The on-ramp sizes the expected amount from the quote over the net; the on-hand balance
+            // now includes the donation, so the provider's re-quote no longer matches and reverts.
             await expect(onRamp.connect(investor).swap(gross, MIN_OUT)).revertedWithCustomError(
                 assetProvider,
-                'UnexpectedLiquidityBalanceError',
+                'UnexpectedSwapOutputError',
             );
         });
     });
 
-    describe('Swap rate-band & consumption protection', function () {
-        it('reverts below the band when Grove Basin needs far too little input (MinRateDivergenceError)', async function () {
+    describe('Grove Basin quote within band is delivered (no dust)', function () {
+        // The whole point of quoting from Grove Basin: a benign NAV/Grove Basin divergence (within the
+        // tolerance band) is delivered to the investor instead of reverting. A 0.1% Grove Basin fee is
+        // well inside the default 1% band.
+        const GB_FEE_BPS = 10n; // 0.1%
+        const withGbFee = (expected: bigint) => expected - (expected * GB_FEE_BPS + 9_999n) / 10_000n;
+
+        it('two-step delivers the Grove Basin amount (NAV minus a 0.1% Grove Basin fee), no dust', async function () {
             const ctx = await loadFixture(deployOnRampExternalAssetProvider);
-            const { onRamp, assetProvider, groveBasinMock, investor } = ctx;
+            const { onRamp, assetProvider, usdcMock, dsTokenMock, groveBasinMock, investor } = ctx;
             const gross = 1_000_000_000n;
-            await prepareSwap(ctx, gross, 0n);
-            // previewFactor 2/1 => required input = net / 2 (far below the 1% band).
-            await setGbPreviewFactor(groveBasinMock, 2n, 1n);
-            await expect(onRamp.connect(investor).swap(gross, MIN_OUT)).revertedWithCustomError(
-                assetProvider,
-                'MinRateDivergenceError',
-            );
+            const { expected, net } = await prepareSwap(ctx, gross, 0n);
+            await groveBasinMock.setRedemptionFeeBps(GB_FEE_BPS);
+            const delivered = withGbFee(expected);
+
+            await onRamp.connect(investor).swap(gross, MIN_OUT);
+
+            // Investor receives the real Grove Basin output; nothing stranded on the on-ramp/provider.
+            expect(await dsTokenMock.balanceOf(investor.address)).to.equal(delivered);
+            expect(await dsTokenMock.balanceOf(await onRamp.getAddress())).to.equal(0n);
+            expect(await dsTokenMock.balanceOf(await assetProvider.getAddress())).to.equal(0n);
+            expect(await usdcMock.balanceOf(await groveBasinMock.getAddress())).to.equal(net);
+            expect(await usdcMock.balanceOf(await assetProvider.getAddress())).to.equal(0n);
         });
 
-        it('reverts above the band when Grove Basin needs far too much input (MaxRateDivergenceError)', async function () {
+        it('single-step delivers the Grove Basin amount straight to the investor', async function () {
+            const ctx = await loadFixture(deployOnRampExternalAssetProviderSingleStep);
+            const { onRamp, dsTokenMock, groveBasinMock, investor } = ctx;
+            const gross = 1_000_000_000n;
+            const { expected } = await prepareSwap(ctx, gross, 0n);
+            await groveBasinMock.setRedemptionFeeBps(GB_FEE_BPS);
+            const delivered = withGbFee(expected);
+
+            await onRamp.connect(investor).swap(gross, MIN_OUT);
+
+            expect(await dsTokenMock.balanceOf(investor.address)).to.equal(delivered);
+            expect(await dsTokenMock.balanceOf(await onRamp.getAddress())).to.equal(0n);
+        });
+    });
+
+    describe('NAV cross-check (rate band) & execution floor', function () {
+        it('reverts above the band when Grove Basin overprices the asset (MaxRateDivergenceError)', async function () {
             const ctx = await loadFixture(deployOnRampExternalAssetProvider);
             const { onRamp, assetProvider, groveBasinMock, investor } = ctx;
             const gross = 1_000_000_000n;
             await prepareSwap(ctx, gross, 0n);
-            // previewFactor 1/2 => required input = net * 2 (far above the 1% band).
-            await setGbPreviewFactor(groveBasinMock, 1n, 2n);
+            // previewFactor 2/1 => Grove Basin quote is 2x the NAV, far above the 1% band.
+            await setGbPreviewFactor(groveBasinMock, 2n, 1n);
             await expect(onRamp.connect(investor).swap(gross, MIN_OUT)).revertedWithCustomError(
                 assetProvider,
                 'MaxRateDivergenceError',
             );
         });
 
-        it('reverts when the swap leaves residual liquidity (LiquidityNotFullyConsumed)', async function () {
+        it('reverts below the band when Grove Basin underprices the asset (MinRateDivergenceError)', async function () {
             const ctx = await loadFixture(deployOnRampExternalAssetProvider);
             const { onRamp, assetProvider, groveBasinMock, investor } = ctx;
-            await assetProvider.setRedeemTolerance(50_000n); // wide band so the residual path is reached
             const gross = 1_000_000_000n;
             await prepareSwap(ctx, gross, 0n);
-            // previewFactor 100/99 => required input = net * 99/100 (inside the band, < net => residual).
-            await setGbPreviewFactor(groveBasinMock, 100n, 99n);
+            // previewFactor 1/2 => Grove Basin quote is half the NAV, far below the 1% band.
+            await setGbPreviewFactor(groveBasinMock, 1n, 2n);
             await expect(onRamp.connect(investor).swap(gross, MIN_OUT)).revertedWithCustomError(
                 assetProvider,
-                'LiquidityNotFullyConsumed',
+                'MinRateDivergenceError',
             );
         });
 
-        it('reverts when Grove Basin needs more input than the net liquidity (AmountInTooHigh)', async function () {
+        it('reverts when execution slips below the quoted floor (AmountOutTooLow)', async function () {
             const ctx = await loadFixture(deployOnRampExternalAssetProvider);
-            const { onRamp, assetProvider, groveBasinMock, investor } = ctx;
-            await assetProvider.setRedeemTolerance(50_000n);
+            const { onRamp, groveBasinMock, investor } = ctx;
             const gross = 1_000_000_000n;
             await prepareSwap(ctx, gross, 0n);
-            // previewFactor 99/100 => required input = net * 100/99 > net (inside band) => maxAmountIn exceeded.
-            await setGbPreviewFactor(groveBasinMock, 99n, 100n);
+            // Preview matches the quote (passes binding & band) but execution delivers 99% of it, so
+            // Grove Basin's native minAmountOut floor (== the quoted amount) reverts the swap.
+            await groveBasinMock.setOutputFactor(99n, 100n);
             await expect(onRamp.connect(investor).swap(gross, MIN_OUT)).revertedWithCustomError(
                 groveBasinMock,
-                'AmountInTooHigh',
+                'AmountOutTooLow',
             );
         });
     });
@@ -455,17 +483,18 @@ describe('On-Ramp External Asset Provider (swapExactOut)', function () {
                 deployOnRampExternalAssetProvider,
             );
             // Fund the provider directly and drive supplyTo as the on-ramp with a zero NAV rate so the
-            // provider's internal NAV math hits its guard (the on-ramp modifier is bypassed here).
+            // provider's NAV cross-check (_assetForLiquidity) hits its guard. The expected amount must
+            // match the Grove Basin quote for the on-hand balance (1:1 parity) so the binding passes
+            // first and execution reaches the NAV band.
             await usdcMock.mint(await assetProvider.getAddress(), 1_000_000n);
             await navProviderMock.setRate(0);
 
             const onRampAddress = await onRamp.getAddress();
             await hre.network.provider.send('hardhat_setBalance', [onRampAddress, '0x56BC75E2D63100000']);
             const onRampSigner = await hre.ethers.getImpersonatedSigner(onRampAddress);
-            await expect(assetProvider.connect(onRampSigner).supplyTo(investor.address, 1n)).revertedWithCustomError(
-                assetProvider,
-                'NonZeroNavRateError',
-            );
+            await expect(
+                assetProvider.connect(onRampSigner).supplyTo(investor.address, 1_000_000n),
+            ).revertedWithCustomError(assetProvider, 'NonZeroNavRateError');
         });
     });
 });

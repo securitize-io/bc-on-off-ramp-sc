@@ -19,14 +19,14 @@ pragma solidity ^0.8.22;
 
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {ILiquidityProvider} from "./ILiquidityProvider.sol";
-import {IExternalGroveBasinProvider} from "../../common/IExternalGroveBasinProvider.sol";
+import {IExternalProvider} from "../../common/IExternalProvider.sol";
 
 /**
  * @title IExternalLiquidityProvider
  * @notice Liquidity provider that sources liquidity by atomically swapping the redeemed asset
  *         for the liquidity token through Grove Basin (PSM3) at a strict 1:1 peg.
  */
-interface IExternalLiquidityProvider is ILiquidityProvider, IExternalGroveBasinProvider {
+interface IExternalLiquidityProvider is ILiquidityProvider, IExternalProvider {
     /**
      * @dev Thrown when there is no asset balance available to swap.
      * @dev Selector: 0xa80f0106

@@ -17,7 +17,7 @@
  */
 pragma solidity ^0.8.22;
 
-import {BaseExternalGroveBasinProvider} from "../../common/BaseExternalGroveBasinProvider.sol";
+import {BaseExternalProvider} from "../../common/BaseExternalProvider.sol";
 import {IExternalLiquidityProvider} from "./IExternalLiquidityProvider.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -43,12 +43,12 @@ import {IGroveBasin} from "../third-party-contracts/IGroveBasin.sol";
  *         asset burning enabled, because the asset must be transferred here before the swap.
  *
  *         Before executing the Grove Basin swap, the provider compares the Securitize NAV quote
- *         with the Grove Basin preview quote and reverts when they diverge beyond {redeemTolerance}.
+ *         with the Grove Basin preview quote and reverts when they diverge beyond {rateTolerance}.
  *
  *         The shared Grove Basin handle, referral code and tolerance live in
- *         {BaseExternalGroveBasinProvider}.
+ *         {BaseExternalProvider}.
  */
-contract ExternalLiquidityProvider is IExternalLiquidityProvider, BaseExternalGroveBasinProvider {
+contract ExternalLiquidityProvider is IExternalLiquidityProvider, BaseExternalProvider {
     using SafeERC20 for IERC20Metadata;
 
     /**
@@ -126,7 +126,7 @@ contract ExternalLiquidityProvider is IExternalLiquidityProvider, BaseExternalGr
         liquidityToken = IERC20Metadata(_liquidityToken);
         securitizeOffRamp = IBaseOffRamp(_securitizeOffRamp);
         assetToken = IERC20Metadata(IBaseOffRamp(_securitizeOffRamp).assetAddress());
-        __BaseExternalGroveBasinProvider_init(_groveBasin);
+        __BaseExternalProvider_init(_groveBasin);
         recipient = address(this);
     }
 
@@ -231,7 +231,9 @@ contract ExternalLiquidityProvider is IExternalLiquidityProvider, BaseExternalGr
 
     /**
      * @notice Calculates the effective liquidity token amount for a given input amount.
-     * @dev Grove Basin enforces a strict 1:1 peg, so the effective amount equals the input.
+     * @dev Identity by design: a Grove-accurate quote (rate + fee) is produced by
+     *      {ExternalLiquidityProviderOffRamp.calculateLiquidityTokenAmount} via
+     *      {IGroveBasin.previewSwapExactIn}, so this hook leaves the NAV gross unchanged.
      * @param _initialLiquidityAmount The initial liquidity amount.
      * @return amountToSupply The effective liquidity token amount to supply.
      */
@@ -254,14 +256,14 @@ contract ExternalLiquidityProvider is IExternalLiquidityProvider, BaseExternalGr
     }
 
     /**
-     * @inheritdoc BaseExternalGroveBasinProvider
+     * @inheritdoc BaseExternalProvider
      */
     function _expectedCollateralToken() internal view override returns (address) {
         return address(liquidityToken);
     }
 
     /**
-     * @inheritdoc BaseExternalGroveBasinProvider
+     * @inheritdoc BaseExternalProvider
      */
     function _expectedCreditToken() internal view override returns (address) {
         return address(assetToken);

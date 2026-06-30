@@ -51,11 +51,12 @@ task('deploy-redemption-external-liquidity-provider-protocol', 'Deploy Securitiz
 
         // assetBurn is forced to false: ExternalLiquidityProvider receives the asset and
         // swaps it through Grove Basin — burning it beforehand is not supported.
-        const { redemptionAddress } = await hre.run('deploy-offramp', {
-            asset: args.asset,
-            navProvider: args.navProvider,
-            feeManager: args.feeManager,
-            assetBurn: 'false',
+        // ExternalLiquidityProviderOffRamp quotes calculateLiquidityTokenAmount from the Grove Basin
+        // preview so the displayed amount reflects Grove Basin's own rate and fees.
+        const { proxyAddress: redemptionAddress } = await hre.run('deploy-proxy', {
+            contractName: 'ExternalLiquidityProviderOffRamp',
+            kind: 'uups',
+            args: [args.asset, args.navProvider, args.feeManager, 'false'],
             verify: args.verify,
             silenceLogs: args.silenceLogs,
         });
@@ -68,7 +69,7 @@ task('deploy-redemption-external-liquidity-provider-protocol', 'Deploy Securitiz
             silenceLogs: args.silenceLogs,
         });
 
-        const redemption = await hre.ethers.getContractAt('SecuritizeOffRamp', redemptionAddress);
+        const redemption = await hre.ethers.getContractAt('ExternalLiquidityProviderOffRamp', redemptionAddress);
         const liquidityProvider = await hre.ethers.getContractAt(
             'ExternalLiquidityProvider',
             liquidityProviderAddress,
