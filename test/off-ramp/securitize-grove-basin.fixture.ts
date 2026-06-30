@@ -7,7 +7,7 @@ export const ASSET_AMOUNT = 10_000_000n; // 10 units of a 6-decimals asset
 export const MIN_OUTPUT_AMOUNT = 0n;
 export const FEE_COLLECTOR = hre.ethers.Wallet.createRandom().address;
 export const TOLERANCE_DENOMINATOR = 100_000n;
-export const DEFAULT_REDEEM_TOLERANCE = 1_000n;
+export const DEFAULT_RATE_TOLERANCE = 1_000n;
 
 /** Tolerance values exercised in rate-divergence tests (1%, 5.5%, 50%, 99.99%). */
 export const RATE_DIVERGENCE_TOLERANCES = [

@@ -47,14 +47,14 @@ interface IExternalProvider is Errors {
      * @param oldTolerance Previous tolerance value.
      * @param newTolerance New tolerance value.
      */
-    event RedeemToleranceUpdated(uint256 oldTolerance, uint256 newTolerance);
+    event RateToleranceUpdated(uint256 oldTolerance, uint256 newTolerance);
 
     /**
-     * @dev Thrown when {redeemTolerance} exceeds {TOLERANCE_DENOMINATOR}.
+     * @dev Thrown when {rateTolerance} exceeds {TOLERANCE_DENOMINATOR}.
      * @param tolerance Invalid tolerance value.
      * @dev Selector: 0x290b405f
      */
-    error InvalidRedeemToleranceError(uint256 tolerance);
+    error InvalidRateToleranceError(uint256 tolerance);
 
     /**
      * @dev Thrown when a Grove Basin candidate address has no contract bytecode.
@@ -89,7 +89,7 @@ interface IExternalProvider is Errors {
      * @dev Thrown when the Grove Basin preview is below the minimum NAV tolerance band.
      * @param navQuote Securitize NAV quote before fees.
      * @param groveBasinPreview Grove Basin preview quote.
-     * @param tolerance Active {redeemTolerance} value.
+     * @param tolerance Active {rateTolerance} value.
      * @dev Selector: 0x2cf03264
      */
     error MinRateDivergenceError(uint256 navQuote, uint256 groveBasinPreview, uint256 tolerance);
@@ -98,7 +98,7 @@ interface IExternalProvider is Errors {
      * @dev Thrown when the Grove Basin preview is above the maximum NAV tolerance band.
      * @param navQuote Securitize NAV quote before fees.
      * @param groveBasinPreview Grove Basin preview quote.
-     * @param tolerance Active {redeemTolerance} value.
+     * @param tolerance Active {rateTolerance} value.
      * @dev Selector: 0xde75f695
      */
     error MaxRateDivergenceError(uint256 navQuote, uint256 groveBasinPreview, uint256 tolerance);
@@ -116,28 +116,36 @@ interface IExternalProvider is Errors {
     function setReferralCode(uint256 _referralCode) external;
 
     /**
-     * @notice Sets the maximum allowed divergence between Securitize NAV and Grove Basin preview quotes.
-     * @param _redeemTolerance New tolerance in units of {TOLERANCE_DENOMINATOR} (1_000 = 1%).
+     * @notice Sets the trust placed in the Grove Basin preview relative to the Securitize NAV.
+     * @dev In units of {TOLERANCE_DENOMINATOR} (1_000 = 1%). `0` requires the preview to equal the
+     *      NAV exactly (zero trust); {TOLERANCE_DENOMINATOR} (100%) skips the divergence check
+     *      entirely (full trust); any value in between enforces a symmetric tolerance band.
+     *
+     *      Note: because Grove Basin swaps carry fees and rounding, the preview practically never
+     *      equals the NAV to the wei. Setting `0` therefore reverts almost every swap and acts as a
+     *      de-facto kill switch for the external provider — use it to disable Grove Basin sourcing,
+     *      not as a "tight band" (the smallest meaningful band is `1`).
+     * @param _rateTolerance New tolerance in units of {TOLERANCE_DENOMINATOR} (1_000 = 1%).
      */
-    function setRedeemTolerance(uint256 _redeemTolerance) external;
+    function setRateTolerance(uint256 _rateTolerance) external;
 
     /**
-     * @notice Denominator for {redeemTolerance}; 100_000 equals 100%.
+     * @notice Denominator for {rateTolerance}; 100_000 equals 100%.
      * @return The tolerance denominator.
      */
     function TOLERANCE_DENOMINATOR() external view returns (uint256);
 
     /**
-     * @notice Default {redeemTolerance} applied on initialization (1_000 = 1%).
+     * @notice Default {rateTolerance} applied on initialization (1_000 = 1%).
      * @return The default tolerance value.
      */
-    function DEFAULT_REDEEM_TOLERANCE() external view returns (uint256);
+    function DEFAULT_RATE_TOLERANCE() external view returns (uint256);
 
     /**
      * @notice Maximum allowed divergence between Securitize NAV and Grove Basin preview quotes.
      * @return The active tolerance value.
      */
-    function redeemTolerance() external view returns (uint256);
+    function rateTolerance() external view returns (uint256);
 
     /**
      * @notice The referral code forwarded to Grove Basin on each swap.

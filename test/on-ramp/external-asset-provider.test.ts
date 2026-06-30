@@ -11,7 +11,7 @@ import {
     calcFee,
     FEE_CASES,
     TOLERANCE_DENOMINATOR,
-    DEFAULT_REDEEM_TOLERANCE,
+    DEFAULT_RATE_TOLERANCE,
     FEE_COLLECTOR,
 } from './external-asset-provider.fixture';
 
@@ -28,7 +28,7 @@ describe('On-Ramp External Asset Provider (swapExactIn via Grove Basin quote)', 
             expect(await assetProvider.securitizeOnRamp()).to.equal(await onRamp.getAddress());
             expect(await assetProvider.navProvider()).to.equal(await navProviderMock.getAddress());
             expect(await assetProvider.externalProvider()).to.equal(await groveBasinMock.getAddress());
-            expect(await assetProvider.redeemTolerance()).to.equal(DEFAULT_REDEEM_TOLERANCE);
+            expect(await assetProvider.rateTolerance()).to.equal(DEFAULT_RATE_TOLERANCE);
             expect(await assetProvider.TOLERANCE_DENOMINATOR()).to.equal(TOLERANCE_DENOMINATOR);
             // custodianWallet must point at the provider so net USDC settles there before the swap.
             expect(await onRamp.custodianWallet()).to.equal(await assetProvider.getAddress());
@@ -81,7 +81,7 @@ describe('On-Ramp External Asset Provider (swapExactIn via Grove Basin quote)', 
             }
         });
 
-        // initialize() validates the Grove Basin wiring via _validateGroveBasinConfig
+        // initialize() validates the Grove Basin wiring via _validateExternalProviderConfig
         // (initialize -> __BaseExternalProvider_init -> _setExternalProvider).
         describe('Grove Basin config validation at initialize', function () {
             const deployProxyWith = async (
@@ -194,7 +194,7 @@ describe('On-Ramp External Asset Provider (swapExactIn via Grove Basin quote)', 
             expect(await assetProvider.externalProvider()).to.equal(await newBasin.getAddress());
         });
 
-        it('setReferralCode and setRedeemTolerance validations and events', async function () {
+        it('setReferralCode and setRateTolerance validations and events', async function () {
             const { assetProvider, stranger } = await loadFixture(deployOnRampExternalAssetProvider);
 
             await expect(assetProvider.connect(stranger).setReferralCode(7)).revertedWithCustomError(
@@ -203,12 +203,12 @@ describe('On-Ramp External Asset Provider (swapExactIn via Grove Basin quote)', 
             );
             await expect(assetProvider.setReferralCode(7)).to.emit(assetProvider, 'ReferralCodeUpdated').withArgs(0, 7);
 
-            await expect(assetProvider.setRedeemTolerance(TOLERANCE_DENOMINATOR + 1n))
-                .revertedWithCustomError(assetProvider, 'InvalidRedeemToleranceError')
+            await expect(assetProvider.setRateTolerance(TOLERANCE_DENOMINATOR + 1n))
+                .revertedWithCustomError(assetProvider, 'InvalidRateToleranceError')
                 .withArgs(TOLERANCE_DENOMINATOR + 1n);
-            await expect(assetProvider.setRedeemTolerance(2_000n))
-                .to.emit(assetProvider, 'RedeemToleranceUpdated')
-                .withArgs(DEFAULT_REDEEM_TOLERANCE, 2_000n);
+            await expect(assetProvider.setRateTolerance(2_000n))
+                .to.emit(assetProvider, 'RateToleranceUpdated')
+                .withArgs(DEFAULT_RATE_TOLERANCE, 2_000n);
         });
 
         it('only admin can pause/unpause', async function () {

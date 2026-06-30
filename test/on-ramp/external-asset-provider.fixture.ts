@@ -4,7 +4,7 @@ export const investorId = 'investorId';
 export const investorCountry = 'AR';
 export const FEE_COLLECTOR = hre.ethers.Wallet.createRandom().address;
 export const TOLERANCE_DENOMINATOR = 100_000n;
-export const DEFAULT_REDEEM_TOLERANCE = 1_000n;
+export const DEFAULT_RATE_TOLERANCE = 1_000n;
 
 /** Fee manager precision: 100_000_000 == 100% (six decimal places of percentage). */
 export const FEE_DENOMINATOR = 100_000_000n;

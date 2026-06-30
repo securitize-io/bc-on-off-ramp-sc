@@ -3,7 +3,7 @@ import { expect } from 'chai';
 import hre from 'hardhat';
 import {
     ASSET_AMOUNT,
-    DEFAULT_REDEEM_TOLERANCE,
+    DEFAULT_RATE_TOLERANCE,
     FEE_COLLECTOR,
     MIN_OUTPUT_AMOUNT,
     RATE_DIVERGENCE_TOLERANCES,
@@ -262,10 +262,10 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
             expect(await liquidityProvider.externalProvider()).to.equal(await groveBasinMock.getAddress());
         });
 
-        it('should initialize redeemTolerance to 1% (1000)', async function () {
+        it('should initialize rateTolerance to 1% (1000)', async function () {
             const { liquidityProvider } = await loadFixture(deploySecuritizeGroveBasinProtocol);
-            expect(await liquidityProvider.redeemTolerance()).to.equal(DEFAULT_REDEEM_TOLERANCE);
-            expect(await liquidityProvider.DEFAULT_REDEEM_TOLERANCE()).to.equal(DEFAULT_REDEEM_TOLERANCE);
+            expect(await liquidityProvider.rateTolerance()).to.equal(DEFAULT_RATE_TOLERANCE);
+            expect(await liquidityProvider.DEFAULT_RATE_TOLERANCE()).to.equal(DEFAULT_RATE_TOLERANCE);
             expect(await liquidityProvider.TOLERANCE_DENOMINATOR()).to.equal(TOLERANCE_DENOMINATOR);
         });
 
@@ -282,7 +282,7 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
             ).revertedWithCustomError(liquidityProvider, 'InvalidInitialization');
         });
 
-        // initialize() validates the Grove Basin wiring via _validateGroveBasinConfig
+        // initialize() validates the Grove Basin wiring via _validateExternalProviderConfig
         // (initialize -> __BaseExternalProvider_init -> _setExternalProvider).
         describe('Grove Basin config validation at initialize', function () {
             const deployProxyWith = async (
@@ -850,7 +850,7 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
 
             await expect(redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT))
                 .revertedWithCustomError(liquidityProvider, 'MinRateDivergenceError')
-                .withArgs(navGross, gbPreview, DEFAULT_REDEEM_TOLERANCE);
+                .withArgs(navGross, gbPreview, DEFAULT_RATE_TOLERANCE);
         });
 
         it('should revert with MaxRateDivergenceError when Grove Basin rate is too high', async function () {
@@ -868,13 +868,13 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
 
             await expect(redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT))
                 .revertedWithCustomError(liquidityProvider, 'MaxRateDivergenceError')
-                .withArgs(navGross, gbPreview, DEFAULT_REDEEM_TOLERANCE);
+                .withArgs(navGross, gbPreview, DEFAULT_RATE_TOLERANCE);
         });
 
         it('should succeed with tolerance = 0 only when both oracle quotes match exactly', async function () {
             const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
             const { redemption, liquidityProvider, usdcMock, groveBasinMock, investor } = ctx;
-            await liquidityProvider.setRedeemTolerance(0);
+            await liquidityProvider.setRateTolerance(0);
             await prepareRedemption(ctx, ASSET_AMOUNT);
 
             await redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT);
@@ -888,28 +888,47 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
             );
         });
 
-        it('should allow admin to set redeemTolerance and emit RedeemToleranceUpdated', async function () {
-            const { liquidityProvider } = await loadFixture(deploySecuritizeGroveBasinProtocol);
-            const newTolerance = 5_500n;
-            await expect(liquidityProvider.setRedeemTolerance(newTolerance))
-                .to.emit(liquidityProvider, 'RedeemToleranceUpdated')
-                .withArgs(DEFAULT_REDEEM_TOLERANCE, newTolerance);
-            expect(await liquidityProvider.redeemTolerance()).to.equal(newTolerance);
+        it('should revert with MaxRateDivergenceError at tolerance = 0 when Grove Basin overprices', async function () {
+            const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
+            const { redemption, liquidityProvider, groveBasinMock, investor } = ctx;
+            await liquidityProvider.setRateTolerance(0);
+            await setGbPreviewFactor(groveBasinMock, 1_001n, 1_000n);
+            await prepareRedemption(ctx, ASSET_AMOUNT);
+
+            const navGross = ASSET_AMOUNT;
+            const gbPreview = await groveBasinMock.previewSwapExactIn(
+                await ctx.dsTokenMock.getAddress(),
+                await ctx.usdcMock.getAddress(),
+                ASSET_AMOUNT,
+            );
+
+            await expect(redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT))
+                .revertedWithCustomError(liquidityProvider, 'MaxRateDivergenceError')
+                .withArgs(navGross, gbPreview, 0n);
         });
 
-        it('should revert setRedeemTolerance for non-admin', async function () {
+        it('should allow admin to set rateTolerance and emit RateToleranceUpdated', async function () {
+            const { liquidityProvider } = await loadFixture(deploySecuritizeGroveBasinProtocol);
+            const newTolerance = 5_500n;
+            await expect(liquidityProvider.setRateTolerance(newTolerance))
+                .to.emit(liquidityProvider, 'RateToleranceUpdated')
+                .withArgs(DEFAULT_RATE_TOLERANCE, newTolerance);
+            expect(await liquidityProvider.rateTolerance()).to.equal(newTolerance);
+        });
+
+        it('should revert setRateTolerance for non-admin', async function () {
             const { liquidityProvider, stranger } = await loadFixture(deploySecuritizeGroveBasinProtocol);
-            await expect(liquidityProvider.connect(stranger).setRedeemTolerance(2_000n)).revertedWithCustomError(
+            await expect(liquidityProvider.connect(stranger).setRateTolerance(2_000n)).revertedWithCustomError(
                 liquidityProvider,
                 'AccessControlUnauthorizedAccount',
             );
         });
 
-        it('should revert setRedeemTolerance when tolerance exceeds denominator', async function () {
+        it('should revert setRateTolerance when tolerance exceeds denominator', async function () {
             const { liquidityProvider } = await loadFixture(deploySecuritizeGroveBasinProtocol);
             const invalidTolerance = TOLERANCE_DENOMINATOR + 1n;
-            await expect(liquidityProvider.setRedeemTolerance(invalidTolerance))
-                .revertedWithCustomError(liquidityProvider, 'InvalidRedeemToleranceError')
+            await expect(liquidityProvider.setRateTolerance(invalidTolerance))
+                .revertedWithCustomError(liquidityProvider, 'InvalidRateToleranceError')
                 .withArgs(invalidTolerance);
         });
 
@@ -917,8 +936,8 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
             describe(`tolerance ${label}`, function () {
                 const setup = async () => {
                     const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
-                    if (tolerance !== DEFAULT_REDEEM_TOLERANCE) {
-                        await ctx.liquidityProvider.setRedeemTolerance(tolerance);
+                    if (tolerance !== DEFAULT_RATE_TOLERANCE) {
+                        await ctx.liquidityProvider.setRateTolerance(tolerance);
                     }
                     return ctx;
                 };
@@ -1011,7 +1030,7 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
 
             await expect(redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT))
                 .revertedWithCustomError(liquidityProvider, 'MinRateDivergenceError')
-                .withArgs(navGross, gbPreview, DEFAULT_REDEEM_TOLERANCE);
+                .withArgs(navGross, gbPreview, DEFAULT_RATE_TOLERANCE);
         });
     });
 
@@ -1160,15 +1179,16 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
     });
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Extreme Grove Basin rate shifts with 100% tolerance — delivery vs. hard cap
+    // Extreme Grove Basin rate shifts with 100% tolerance — full trust, no band
     //
-    // The maximum settable tolerance (100%) admits divergences up to 2x; within it the redeemer
-    // receives the realized Grove Basin output. A 4.3x quote exceeds even the 100% cap and reverts.
+    // Full trust (rateTolerance == 100%) skips the NAV divergence check entirely: the redeemer
+    // always receives the realized Grove Basin output, with no upper or lower cap. Even a 4.3x
+    // quote — well beyond any band — is delivered.
     // ─────────────────────────────────────────────────────────────────────────
     describe('Extreme Grove Basin rate shifts — 100% tolerance', function () {
         const setup = async (num: bigint, den: bigint) => {
             const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
-            await ctx.liquidityProvider.setRedeemTolerance(TOLERANCE_DENOMINATOR); // 100%
+            await ctx.liquidityProvider.setRateTolerance(TOLERANCE_DENOMINATOR); // 100%
             await setGbPreviewFactor(ctx.groveBasinMock, num, den);
             await prepareRedemption(ctx, ASSET_AMOUNT, 1_000_000_000n);
             return ctx;
@@ -1177,8 +1197,9 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
         const deliverableCases = [
             { label: '1 RWA = 1 Liquidity', num: 1n, den: 1n, delivered: 10_000_000n },
             { label: '2 RWA = 1 Liquidity (0.5x)', num: 1n, den: 2n, delivered: 5_000_000n },
-            { label: '1 RWA = 2 Liquidity (2x, upper boundary)', num: 2n, den: 1n, delivered: 20_000_000n },
+            { label: '1 RWA = 2 Liquidity (2x)', num: 2n, den: 1n, delivered: 20_000_000n },
             { label: '4.5 RWA = 1 Liquidity (~0.222x)', num: 2n, den: 9n, delivered: 2_222_222n },
+            { label: '1 RWA = 4.3 Liquidity (4.3x, beyond any band)', num: 43n, den: 10n, delivered: 43_000_000n },
         ];
 
         for (const c of deliverableCases) {
@@ -1189,14 +1210,5 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
                 expect(await usdcMock.balanceOf(investor.address)).to.equal(c.delivered);
             });
         }
-
-        it('reverts even at 100% tolerance when Grove pays 4.3x (1 RWA = 4.3 Liquidity)', async function () {
-            const ctx = await setup(43n, 10n);
-            const { redemption, liquidityProvider, investor } = ctx;
-            await expect(redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT)).revertedWithCustomError(
-                liquidityProvider,
-                'MaxRateDivergenceError',
-            );
-        });
     });
 });

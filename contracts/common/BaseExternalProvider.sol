@@ -27,7 +27,7 @@ import {IGroveBasin} from "../off-ramp/third-party-contracts/IGroveBasin.sol";
  *         (PSM3): the on-ramp {ExternalAssetProvider} (USDC in, asset out) and the off-ramp
  *         {ExternalLiquidityProvider} (asset in, USDC out).
  * @dev    Holds the Grove Basin handle, the referral code and the NAV-divergence tolerance, and
- *         centralizes the configuration validation ({_validateGroveBasinConfig}) and the rate-band
+ *         centralizes the configuration validation ({_validateExternalProviderConfig}) and the rate-band
  *         protection ({_validateRateBand}). Token wiring is identical in both directions:
  *         the liquidity token must be Grove Basin's `collateralToken` and the asset must be its
  *         `creditToken`; concrete providers expose those addresses through {_expectedCollateralToken}
@@ -38,11 +38,11 @@ import {IGroveBasin} from "../off-ramp/third-party-contracts/IGroveBasin.sol";
  *         future shared state without disturbing the concrete providers' own variables.
  */
 abstract contract BaseExternalProvider is IExternalProvider, BaseContract {
-    /// @dev Denominator for {redeemTolerance}; 100_000 equals 100%.
+    /// @dev Denominator for {rateTolerance}; 100_000 equals 100%.
     uint256 public constant TOLERANCE_DENOMINATOR = 100_000;
 
-    /// @dev Default {redeemTolerance} set on initialization (1_000 = 1%).
-    uint256 public constant DEFAULT_REDEEM_TOLERANCE = 1_000;
+    /// @dev Default {rateTolerance} set on initialization (1_000 = 1%).
+    uint256 public constant DEFAULT_RATE_TOLERANCE = 1_000;
 
     /**
      * @dev Grove Basin (PSM3) contract used to perform the swap.
@@ -55,10 +55,18 @@ abstract contract BaseExternalProvider is IExternalProvider, BaseContract {
     uint256 public referralCode;
 
     /**
-     * @dev Maximum allowed divergence between Securitize NAV and Grove Basin preview quotes.
-     *      Expressed in units of {TOLERANCE_DENOMINATOR} (1_000 = 1%).
+     * @dev Trust placed in the external provider (Grove Basin) when its preview quote is checked
+     *      against the Securitize NAV. Expressed in units of {TOLERANCE_DENOMINATOR} (1_000 = 1%).
+     *      Three regimes, enforced in {_validateRateBand}:
+     *      - `0`: zero trust. The external quote must equal the NAV exactly (strict equality);
+     *        any divergence reverts. Since Grove Basin fees/rounding make an exact match practically
+     *        impossible, `0` reverts almost every swap and acts as a de-facto kill switch for the
+     *        external provider rather than a tight band (the smallest meaningful band is `1`).
+     *      - `TOLERANCE_DENOMINATOR` (100%): full trust. The band check is skipped entirely.
+     *      - `0 < rateTolerance < TOLERANCE_DENOMINATOR`: the quote must fall within the symmetric
+     *        tolerance band around the NAV.
      */
-    uint256 public redeemTolerance;
+    uint256 public rateTolerance;
 
     /// @dev Reserved storage to allow future shared variables without shifting child layout.
     uint256[47] private __gap;
@@ -71,7 +79,7 @@ abstract contract BaseExternalProvider is IExternalProvider, BaseContract {
      */
     function __BaseExternalProvider_init(address _groveBasin) internal onlyInitializing {
         _setExternalProvider(_groveBasin);
-        redeemTolerance = DEFAULT_REDEEM_TOLERANCE;
+        rateTolerance = DEFAULT_RATE_TOLERANCE;
     }
 
     /**
@@ -94,12 +102,12 @@ abstract contract BaseExternalProvider is IExternalProvider, BaseContract {
     /**
      * @inheritdoc IExternalProvider
      */
-    function setRedeemTolerance(uint256 _redeemTolerance) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (_redeemTolerance > TOLERANCE_DENOMINATOR) {
-            revert InvalidRedeemToleranceError(_redeemTolerance);
+    function setRateTolerance(uint256 _rateTolerance) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (_rateTolerance > TOLERANCE_DENOMINATOR) {
+            revert InvalidRateToleranceError(_rateTolerance);
         }
-        emit RedeemToleranceUpdated(redeemTolerance, _redeemTolerance);
-        redeemTolerance = _redeemTolerance;
+        emit RateToleranceUpdated(rateTolerance, _rateTolerance);
+        rateTolerance = _rateTolerance;
     }
 
     /**
@@ -122,7 +130,7 @@ abstract contract BaseExternalProvider is IExternalProvider, BaseContract {
         if (_groveBasin == address(0)) {
             revert NonZeroAddressError();
         }
-        _validateGroveBasinConfig(IGroveBasin(_groveBasin));
+        _validateExternalProviderConfig(IGroveBasin(_groveBasin));
         externalProvider = IGroveBasin(_groveBasin);
     }
 
@@ -132,7 +140,7 @@ abstract contract BaseExternalProvider is IExternalProvider, BaseContract {
      *      `creditToken`.
      * @param candidate Grove Basin contract to validate.
      */
-    function _validateGroveBasinConfig(IGroveBasin candidate) internal view {
+    function _validateExternalProviderConfig(IGroveBasin candidate) internal view {
         address candidateAddr = address(candidate);
         if (candidateAddr.code.length == 0) {
             revert NotAContract(candidateAddr);
@@ -151,12 +159,34 @@ abstract contract BaseExternalProvider is IExternalProvider, BaseContract {
     }
 
     /**
-     * @dev Reverts when the Grove Basin preview falls outside the NAV tolerance band.
+     * @dev Enforces the configured trust in the Grove Basin preview against the Securitize NAV.
+     *      Behaviour is driven by {rateTolerance}:
+     *      - `TOLERANCE_DENOMINATOR` (100%): full trust, the check is skipped.
+     *      - `0`: zero trust, the preview must equal the NAV exactly.
+     *      - otherwise: the preview must fall within the symmetric tolerance band around the NAV.
      * @param navQuote Securitize NAV quote before fees.
      * @param gbPreview Grove Basin preview quote for the same input amount.
      */
     function _validateRateBand(uint256 navQuote, uint256 gbPreview) internal view {
-        uint256 tolerance = redeemTolerance;
+        uint256 tolerance = rateTolerance;
+
+        // Full trust: skip the divergence check entirely.
+        if (tolerance == TOLERANCE_DENOMINATOR) {
+            return;
+        }
+
+        // Zero trust: require the external preview to match the NAV exactly.
+        if (tolerance == 0) {
+            if (gbPreview < navQuote) {
+                revert MinRateDivergenceError(navQuote, gbPreview, tolerance);
+            }
+            if (gbPreview > navQuote) {
+                revert MaxRateDivergenceError(navQuote, gbPreview, tolerance);
+            }
+            return;
+        }
+
+        // Partial trust: enforce the symmetric tolerance band around the NAV.
         uint256 minBand = (navQuote * (TOLERANCE_DENOMINATOR - tolerance)) / TOLERANCE_DENOMINATOR;
         uint256 maxBand = (navQuote * (TOLERANCE_DENOMINATOR + tolerance)) / TOLERANCE_DENOMINATOR;
 

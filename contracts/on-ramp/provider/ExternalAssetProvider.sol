@@ -46,7 +46,7 @@ import {IGroveBasin} from "../../off-ramp/third-party-contracts/IGroveBasin.sol"
  *
  *         Because Grove Basin sets the price the investor pays, {supplyTo} additionally cross-checks
  *         that quote against the Securitize NAV with the inherited tolerance band
- *         ({_validateRateBand}/{redeemTolerance}); a Grove Basin quote diverging beyond the band
+ *         ({_validateRateBand}/{rateTolerance}); a Grove Basin quote diverging beyond the band
  *         reverts. NAV math is computed internally from {navProvider} (which must match the on-ramp's
  *         NAV provider); the provider never calls back into the on-ramp.
  *

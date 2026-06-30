@@ -43,7 +43,7 @@ import {IGroveBasin} from "../third-party-contracts/IGroveBasin.sol";
  *         asset burning enabled, because the asset must be transferred here before the swap.
  *
  *         Before executing the Grove Basin swap, the provider compares the Securitize NAV quote
- *         with the Grove Basin preview quote and reverts when they diverge beyond {redeemTolerance}.
+ *         with the Grove Basin preview quote and reverts when they diverge beyond {rateTolerance}.
  *
  *         The shared Grove Basin handle, referral code and tolerance live in
  *         {BaseExternalProvider}.
