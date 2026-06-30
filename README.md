@@ -80,7 +80,7 @@ input against the Grove Basin `previewSwapExactOut`, reverting beyond `redeemTol
 **Grove Basin token wiring:** the `--liquidity-token` argument must match Grove Basin's `collateralToken`
 (USDC) and the `--asset` argument must match Grove Basin's `creditToken` (the RWA asset). This is
 the same wiring as the off-ramp `ExternalLiquidityProvider`; both share the
-`BaseExternalGroveBasinProvider` base contract.
+`BaseExternalProvider` base contract.
 
 ```sh
 npx hardhat deploy-on-ramp-external-asset-provider --network arbitrum --asset {dsToken} --liquidity-token {liquidityToken} --nav-provider {navProvider} --fee-manager {feeManager} --grove-basin {groveBasinContract}

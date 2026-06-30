@@ -17,7 +17,7 @@
  */
 pragma solidity ^0.8.22;
 
-import {BaseExternalGroveBasinProvider} from "../../common/BaseExternalGroveBasinProvider.sol";
+import {BaseExternalProvider} from "../../common/BaseExternalProvider.sol";
 import {IExternalAssetProvider} from "./IExternalAssetProvider.sol";
 import {IDSToken} from "@securitize/digital_securities/contracts/token/IDSToken.sol";
 import {ISecuritizeNavProvider} from "@securitize/digital_securities/contracts/nav/ISecuritizeNavProvider.sol";
@@ -51,10 +51,10 @@ import {IGroveBasin} from "../../off-ramp/third-party-contracts/IGroveBasin.sol"
  *         NAV provider); the provider never calls back into the on-ramp.
  *
  *         The shared Grove Basin handle, referral code and tolerance live in
- *         {BaseExternalGroveBasinProvider}. Token wiring mirrors the off-ramp: {liquidityToken} is
+ *         {BaseExternalProvider}. Token wiring mirrors the off-ramp: {liquidityToken} is
  *         Grove Basin's `collateralToken` and {asset} is its `creditToken`.
  */
-contract ExternalAssetProvider is IExternalAssetProvider, BaseExternalGroveBasinProvider {
+contract ExternalAssetProvider is IExternalAssetProvider, BaseExternalProvider {
     using SafeERC20 for IERC20Metadata;
 
     /**
@@ -118,7 +118,7 @@ contract ExternalAssetProvider is IExternalAssetProvider, BaseExternalGroveBasin
         liquidityToken = IERC20Metadata(_liquidityToken);
         asset = IDSToken(_asset);
         navProvider = ISecuritizeNavProvider(_navProvider);
-        __BaseExternalGroveBasinProvider_init(_groveBasin);
+        __BaseExternalProvider_init(_groveBasin);
     }
 
     /**
@@ -219,14 +219,14 @@ contract ExternalAssetProvider is IExternalAssetProvider, BaseExternalGroveBasin
     }
 
     /**
-     * @inheritdoc BaseExternalGroveBasinProvider
+     * @inheritdoc BaseExternalProvider
      */
     function _expectedCollateralToken() internal view override returns (address) {
         return address(liquidityToken);
     }
 
     /**
-     * @inheritdoc BaseExternalGroveBasinProvider
+     * @inheritdoc BaseExternalProvider
      */
     function _expectedCreditToken() internal view override returns (address) {
         return address(asset);

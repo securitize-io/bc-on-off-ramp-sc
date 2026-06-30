@@ -82,7 +82,7 @@ describe('On-Ramp External Asset Provider (swapExactIn via Grove Basin quote)', 
         });
 
         // initialize() validates the Grove Basin wiring via _validateGroveBasinConfig
-        // (initialize -> __BaseExternalGroveBasinProvider_init -> _setExternalProvider).
+        // (initialize -> __BaseExternalProvider_init -> _setExternalProvider).
         describe('Grove Basin config validation at initialize', function () {
             const deployProxyWith = async (
                 groveBasin: string,

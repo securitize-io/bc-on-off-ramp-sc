@@ -18,11 +18,11 @@
 pragma solidity ^0.8.22;
 
 import {BaseContract} from "./BaseContract.sol";
-import {IExternalGroveBasinProvider} from "./IExternalGroveBasinProvider.sol";
+import {IExternalProvider} from "./IExternalProvider.sol";
 import {IGroveBasin} from "../off-ramp/third-party-contracts/IGroveBasin.sol";
 
 /**
- * @title BaseExternalGroveBasinProvider
+ * @title BaseExternalProvider
  * @notice Shared base for providers that source the counter-asset by swapping through Grove Basin
  *         (PSM3): the on-ramp {ExternalAssetProvider} (USDC in, asset out) and the off-ramp
  *         {ExternalLiquidityProvider} (asset in, USDC out).
@@ -37,7 +37,7 @@ import {IGroveBasin} from "../off-ramp/third-party-contracts/IGroveBasin.sol";
  *         it occupies the storage slots right after {BaseContract}. A reserved gap keeps room for
  *         future shared state without disturbing the concrete providers' own variables.
  */
-abstract contract BaseExternalGroveBasinProvider is IExternalGroveBasinProvider, BaseContract {
+abstract contract BaseExternalProvider is IExternalProvider, BaseContract {
     /// @dev Denominator for {redeemTolerance}; 100_000 equals 100%.
     uint256 public constant TOLERANCE_DENOMINATOR = 100_000;
 
@@ -69,13 +69,13 @@ abstract contract BaseExternalGroveBasinProvider is IExternalGroveBasinProvider,
      *      validation reads them through {_expectedCollateralToken}/{_expectedCreditToken}.
      * @param _groveBasin Grove Basin (PSM3) contract used to perform swaps.
      */
-    function __BaseExternalGroveBasinProvider_init(address _groveBasin) internal onlyInitializing {
+    function __BaseExternalProvider_init(address _groveBasin) internal onlyInitializing {
         _setExternalProvider(_groveBasin);
         redeemTolerance = DEFAULT_REDEEM_TOLERANCE;
     }
 
     /**
-     * @inheritdoc IExternalGroveBasinProvider
+     * @inheritdoc IExternalProvider
      */
     function setExternalProvider(address _groveBasin) external onlyRole(DEFAULT_ADMIN_ROLE) {
         address old = address(externalProvider);
@@ -84,7 +84,7 @@ abstract contract BaseExternalGroveBasinProvider is IExternalGroveBasinProvider,
     }
 
     /**
-     * @inheritdoc IExternalGroveBasinProvider
+     * @inheritdoc IExternalProvider
      */
     function setReferralCode(uint256 _referralCode) external onlyRole(DEFAULT_ADMIN_ROLE) {
         emit ReferralCodeUpdated(referralCode, _referralCode);
@@ -92,7 +92,7 @@ abstract contract BaseExternalGroveBasinProvider is IExternalGroveBasinProvider,
     }
 
     /**
-     * @inheritdoc IExternalGroveBasinProvider
+     * @inheritdoc IExternalProvider
      */
     function setRedeemTolerance(uint256 _redeemTolerance) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (_redeemTolerance > TOLERANCE_DENOMINATOR) {

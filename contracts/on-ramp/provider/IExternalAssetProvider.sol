@@ -20,7 +20,7 @@ pragma solidity ^0.8.22;
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {ISecuritizeNavProvider} from "@securitize/digital_securities/contracts/nav/ISecuritizeNavProvider.sol";
 import {IAssetProvider} from "./IAssetProvider.sol";
-import {IExternalGroveBasinProvider} from "../../common/IExternalGroveBasinProvider.sol";
+import {IExternalProvider} from "../../common/IExternalProvider.sol";
 
 /**
  * @title IExternalAssetProvider
@@ -33,7 +33,7 @@ import {IExternalGroveBasinProvider} from "../../common/IExternalGroveBasinProvi
  *         re-derives the quote for its on-hand balance and reverts with {UnexpectedSwapOutputError}
  *         on a mismatch, and cross-checks the quote against the Securitize NAV tolerance band.
  */
-interface IExternalAssetProvider is IAssetProvider, IExternalGroveBasinProvider {
+interface IExternalAssetProvider is IAssetProvider, IExternalProvider {
     /**
      * @dev Emitted when the authorized on-ramp contract is updated.
      * @param oldOnRamp Previous on-ramp address.

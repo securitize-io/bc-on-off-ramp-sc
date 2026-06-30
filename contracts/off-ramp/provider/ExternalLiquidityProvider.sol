@@ -17,7 +17,7 @@
  */
 pragma solidity ^0.8.22;
 
-import {BaseExternalGroveBasinProvider} from "../../common/BaseExternalGroveBasinProvider.sol";
+import {BaseExternalProvider} from "../../common/BaseExternalProvider.sol";
 import {IExternalLiquidityProvider} from "./IExternalLiquidityProvider.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -46,9 +46,9 @@ import {IGroveBasin} from "../third-party-contracts/IGroveBasin.sol";
  *         with the Grove Basin preview quote and reverts when they diverge beyond {redeemTolerance}.
  *
  *         The shared Grove Basin handle, referral code and tolerance live in
- *         {BaseExternalGroveBasinProvider}.
+ *         {BaseExternalProvider}.
  */
-contract ExternalLiquidityProvider is IExternalLiquidityProvider, BaseExternalGroveBasinProvider {
+contract ExternalLiquidityProvider is IExternalLiquidityProvider, BaseExternalProvider {
     using SafeERC20 for IERC20Metadata;
 
     /**
@@ -126,7 +126,7 @@ contract ExternalLiquidityProvider is IExternalLiquidityProvider, BaseExternalGr
         liquidityToken = IERC20Metadata(_liquidityToken);
         securitizeOffRamp = IBaseOffRamp(_securitizeOffRamp);
         assetToken = IERC20Metadata(IBaseOffRamp(_securitizeOffRamp).assetAddress());
-        __BaseExternalGroveBasinProvider_init(_groveBasin);
+        __BaseExternalProvider_init(_groveBasin);
         recipient = address(this);
     }
 
@@ -256,14 +256,14 @@ contract ExternalLiquidityProvider is IExternalLiquidityProvider, BaseExternalGr
     }
 
     /**
-     * @inheritdoc BaseExternalGroveBasinProvider
+     * @inheritdoc BaseExternalProvider
      */
     function _expectedCollateralToken() internal view override returns (address) {
         return address(liquidityToken);
     }
 
     /**
-     * @inheritdoc BaseExternalGroveBasinProvider
+     * @inheritdoc BaseExternalProvider
      */
     function _expectedCreditToken() internal view override returns (address) {
         return address(assetToken);

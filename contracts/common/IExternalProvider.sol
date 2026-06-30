@@ -21,13 +21,13 @@ import {IGroveBasin} from "../off-ramp/third-party-contracts/IGroveBasin.sol";
 import {Errors} from "./Errors.sol";
 
 /**
- * @title IExternalGroveBasinProvider
+ * @title IExternalProvider
  * @notice Common surface shared by the on-ramp and off-ramp providers that route swaps through
  *         Grove Basin (PSM3). Both directions wire {liquidityToken} as Grove Basin's
  *         `collateralToken` and {asset} as its `creditToken`, and protect each swap with a NAV vs
  *         Grove Basin preview tolerance band.
  */
-interface IExternalGroveBasinProvider is Errors {
+interface IExternalProvider is Errors {
     /**
      * @dev Emitted when the owner updates the Grove Basin contract address.
      * @param oldGroveBasin Previous Grove Basin address.
