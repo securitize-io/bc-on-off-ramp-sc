@@ -231,7 +231,9 @@ contract ExternalLiquidityProvider is IExternalLiquidityProvider, BaseExternalGr
 
     /**
      * @notice Calculates the effective liquidity token amount for a given input amount.
-     * @dev Grove Basin enforces a strict 1:1 peg, so the effective amount equals the input.
+     * @dev Identity by design: a Grove-accurate quote (rate + fee) is produced by
+     *      {ExternalLiquidityProviderOffRamp.calculateLiquidityTokenAmount} via
+     *      {IGroveBasin.previewSwapExactIn}, so this hook leaves the NAV gross unchanged.
      * @param _initialLiquidityAmount The initial liquidity amount.
      * @return amountToSupply The effective liquidity token amount to supply.
      */

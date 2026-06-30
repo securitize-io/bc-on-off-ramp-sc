@@ -56,7 +56,7 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, BaseOffRamp {
         address _navProvider,
         address _feeManager,
         bool _assetBurn
-    ) public override initializer onlyProxy {
+    ) public virtual override initializer onlyProxy {
         __BaseOffRamp_init(_asset, _feeManager, _assetBurn, NAME, VERSION);
 
         if (_navProvider == address(0)) {
@@ -84,7 +84,7 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, BaseOffRamp {
      */
     function calculateLiquidityTokenAmount(
         uint256 _assetAmount
-    ) public view override nonZeroLiquidityProvider returns (uint256) {
+    ) public view virtual override nonZeroLiquidityProvider returns (uint256) {
         uint256 rate = navProvider.rate();
         if (rate == 0) {
             revert NonZeroNavRateError();

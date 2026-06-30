@@ -13,6 +13,10 @@ import {
     deploySecuritizeGroveBasinProtocolWithAssetBurn,
     deploySecuritizeGroveBasinProtocol6x18,
     deploySecuritizeGroveBasinProtocol18x6,
+    deploySecuritizeGroveBasinProtocol2x6,
+    deploySecuritizeGroveBasinProtocol1x6,
+    deploySecuritizeGroveBasinProtocol0x6,
+    deploySecuritizeGroveBasinProtocol12x6,
     expectedOutput,
     investorCountry,
     parityRate,
@@ -169,11 +173,54 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
             expect(amount).to.equal(expectedOutput(ASSET_AMOUNT_18, 18, 6));
         });
 
-        it('should revert when NAV rate is zero', async function () {
+        it('reflects the Grove Basin redemption fee and matches the delivered amount (6x6)', async function () {
+            const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
+            const { redemption, usdcMock, groveBasinMock, investor } = ctx;
+            await groveBasinMock.setRedemptionFeeBps(10); // 0.1% Grove Basin fee, within the default 1% band
+            await prepareRedemption(ctx, ASSET_AMOUNT);
+
+            const groveFee = (ASSET_AMOUNT * 10n + 9_999n) / 10_000n; // ceil, mirrors the mock (BPS = 10_000)
+            const quoted = ASSET_AMOUNT - groveFee;
+
+            // The quote now reflects the Grove Basin fee (no Securitize fee in this case)...
+            expect(await redemption.calculateLiquidityTokenAmount(ASSET_AMOUNT)).to.equal(quoted);
+
+            // ...and the realized redemption delivers exactly that quoted amount.
+            await redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT);
+            expect(await usdcMock.balanceOf(investor.address)).to.equal(quoted);
+        });
+
+        it('composes the Grove Basin fee then the Securitize fee, matching the delivered amount (6x6)', async function () {
+            const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
+            const { redemption, usdcMock, groveBasinMock, mockFeeManager, investor } = ctx;
+            await groveBasinMock.setRedemptionFeeBps(10); // 0.1% Grove Basin fee
+            await mockFeeManager.setRedemptionFee(2000); // 2% Securitize fee
+            await prepareRedemption(ctx, ASSET_AMOUNT);
+
+            const FEE_DENOMINATOR = 100_000n;
+            const groveFee = (ASSET_AMOUNT * 10n + 9_999n) / 10_000n;
+            const afterGrove = ASSET_AMOUNT - groveFee;
+            const securitizeFee = (afterGrove * 2000n + FEE_DENOMINATOR - 1n) / FEE_DENOMINATOR; // ceil
+            const quoted = afterGrove - securitizeFee;
+
+            // Quote applies the Grove Basin fee first, then the Securitize fee on the result.
+            expect(await redemption.calculateLiquidityTokenAmount(ASSET_AMOUNT)).to.equal(quoted);
+
+            await redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT);
+            expect(await usdcMock.balanceOf(investor.address)).to.equal(quoted);
+            expect(await usdcMock.balanceOf(FEE_COLLECTOR)).to.equal(securitizeFee);
+        });
+
+        it('quotes from Grove Basin independently of the NAV rate (pre-fee NAV quote still guards)', async function () {
             const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
             await prepareRedemption(ctx, ASSET_AMOUNT);
             await ctx.redemption.updateNavProvider(await ctx.zeroRateNavProviderMock.getAddress());
-            await expect(ctx.redemption.calculateLiquidityTokenAmount(ASSET_AMOUNT)).revertedWithCustomError(
+
+            // The Grove-based quote does not read the NAV rate, so a zero rate does not affect it.
+            expect(await ctx.redemption.calculateLiquidityTokenAmount(ASSET_AMOUNT)).to.equal(ASSET_AMOUNT);
+
+            // The NAV-based pre-fee quote (the tolerance-band anchor) still reverts on a zero rate.
+            await expect(ctx.redemption.calculateLiquidityTokenAmountBeforeFee(ASSET_AMOUNT)).revertedWithCustomError(
                 ctx.redemption,
                 'NonZeroNavRateError',
             );
@@ -965,6 +1012,191 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
             await expect(redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT))
                 .revertedWithCustomError(liquidityProvider, 'MinRateDivergenceError')
                 .withArgs(navGross, gbPreview, DEFAULT_REDEEM_TOLERANCE);
+        });
+    });
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Decimal pairs — fee-aware quote (calculateEffectiveLiquidityTokenAmount) matches delivery
+    //
+    // Each pair redeems 10 units of the RWA, which is exactly 10 USDC (10_000_000 at 6 decimals)
+    // pre-fee under parity NAV, so the expected quote/delivery is uniform across decimals. A 0.1%
+    // Grove Basin fee (inside the default 1% band) exercises the fee-aware quote.
+    // ─────────────────────────────────────────────────────────────────────────
+    describe('Asset decimals — fee-aware quote matches delivered amount', function () {
+        const GB_FEE_BPS = 10n; // 0.1%, within the default 1% band
+        const decimalCases = [
+            { label: '2 dec RWA × 6 dec liquidity', fixture: deploySecuritizeGroveBasinProtocol2x6, assetDecimals: 2 },
+            { label: '1 dec RWA × 6 dec liquidity', fixture: deploySecuritizeGroveBasinProtocol1x6, assetDecimals: 1 },
+            { label: '0 dec RWA × 6 dec liquidity', fixture: deploySecuritizeGroveBasinProtocol0x6, assetDecimals: 0 },
+            { label: '12 dec RWA × 6 dec liquidity', fixture: deploySecuritizeGroveBasinProtocol12x6, assetDecimals: 12 },
+            { label: '18 dec RWA × 6 dec liquidity', fixture: deploySecuritizeGroveBasinProtocol18x6, assetDecimals: 18 },
+        ];
+
+        for (const c of decimalCases) {
+            it(`quote reflects the Grove fee and equals the delivered amount (${c.label})`, async function () {
+                const ctx = await loadFixture(c.fixture);
+                const { redemption, usdcMock, groveBasinMock, investor } = ctx;
+                const assetAmount = 10n * 10n ** BigInt(c.assetDecimals); // 10 units
+                const navGross = expectedOutput(assetAmount, c.assetDecimals, 6); // 10_000_000 for every pair
+
+                await groveBasinMock.setRedemptionFeeBps(GB_FEE_BPS);
+                await prepareRedemption(ctx, assetAmount);
+
+                const groveFee = (navGross * GB_FEE_BPS + 9_999n) / 10_000n; // ceil, mirrors the mock
+                const quoted = navGross - groveFee;
+
+                // Quote now subtracts the Grove Basin fee...
+                expect(await redemption.calculateLiquidityTokenAmount(assetAmount)).to.equal(quoted);
+
+                // ...and the realized redemption delivers exactly that amount.
+                await redemption.connect(investor).redeem(assetAmount, MIN_OUTPUT_AMOUNT);
+                expect(await usdcMock.balanceOf(investor.address)).to.equal(quoted);
+            });
+        }
+    });
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Grove Basin fee shifts reflected in the quote (6x6, quote only)
+    //
+    // calculateRedemptionFee can change abruptly; the quote must track it. Quote-only because a fee
+    // beyond the tolerance band would (correctly) revert the redemption.
+    // ─────────────────────────────────────────────────────────────────────────
+    describe('Grove Basin fee shifts reflected in the quote', function () {
+        const feeCases = [0n, 10n, 100n, 1_000n, 5_000n]; // 0%, 0.1%, 1%, 10%, 50%
+        for (const feeBps of feeCases) {
+            it(`subtracts a ${Number(feeBps) / 100}% Grove fee from the quote`, async function () {
+                const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
+                const { redemption, groveBasinMock } = ctx;
+                await groveBasinMock.setRedemptionFeeBps(feeBps);
+                await prepareRedemption(ctx, ASSET_AMOUNT);
+
+                const groveFee = (ASSET_AMOUNT * feeBps + 9_999n) / 10_000n; // ceil
+                expect(await redemption.calculateLiquidityTokenAmount(ASSET_AMOUNT)).to.equal(ASSET_AMOUNT - groveFee);
+            });
+        }
+    });
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Quote reflects Grove Basin rate drift (not just fee)
+    //
+    // The off-ramp quotes calculateLiquidityTokenAmount from previewSwapExactIn, so a Grove Basin
+    // oracle that prices the asset off the Securitize NAV (within the band) is shown in the quote and
+    // matches what the redemption delivers — something a NAV-only quote (or a fee-only adjustment)
+    // could not capture.
+    // ─────────────────────────────────────────────────────────────────────────
+    describe('Quote reflects Grove Basin rate drift (not just fee)', function () {
+        it('reflects a +0.5% Grove drift in the quote and matches delivery', async function () {
+            const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
+            const { redemption, usdcMock, groveBasinMock, investor } = ctx;
+            await setGbPreviewFactor(groveBasinMock, 1_005n, 1_000n); // +0.5%, inside the default 1% band
+            await prepareRedemption(ctx, ASSET_AMOUNT, 20_000_000n); // fund for the higher output
+            const expected = (ASSET_AMOUNT * 1_005n) / 1_000n; // 10,050,000 — NAV quote would say 10,000,000
+
+            expect(await redemption.calculateLiquidityTokenAmount(ASSET_AMOUNT)).to.equal(expected);
+
+            await redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT);
+            expect(await usdcMock.balanceOf(investor.address)).to.equal(expected);
+        });
+
+        it('reflects a -0.5% Grove drift in the quote and matches delivery', async function () {
+            const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
+            const { redemption, usdcMock, groveBasinMock, investor } = ctx;
+            await setGbPreviewFactor(groveBasinMock, 995n, 1_000n); // -0.5%
+            await prepareRedemption(ctx, ASSET_AMOUNT);
+            const expected = (ASSET_AMOUNT * 995n) / 1_000n; // 9,950,000
+
+            expect(await redemption.calculateLiquidityTokenAmount(ASSET_AMOUNT)).to.equal(expected);
+
+            await redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT);
+            expect(await usdcMock.balanceOf(investor.address)).to.equal(expected);
+        });
+
+        it('combines Grove drift and Grove fee in the quote (matches delivery)', async function () {
+            const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
+            const { redemption, usdcMock, groveBasinMock, investor } = ctx;
+            await groveBasinMock.setPreviewFactor(1_005n, 1_000n); // +0.5% drift
+            await groveBasinMock.setRedemptionFeeBps(10n); // 0.1% Grove fee
+            await groveBasinMock.setOutputFactor(1n, 1n);
+            await prepareRedemption(ctx, ASSET_AMOUNT, 20_000_000n);
+
+            const afterDrift = (ASSET_AMOUNT * 1_005n) / 1_000n; // 10,050,000
+            const groveFee = (afterDrift * 10n + 9_999n) / 10_000n; // ceil
+            const expected = afterDrift - groveFee;
+
+            expect(await redemption.calculateLiquidityTokenAmount(ASSET_AMOUNT)).to.equal(expected);
+
+            await redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT);
+            expect(await usdcMock.balanceOf(investor.address)).to.equal(expected);
+        });
+    });
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Extreme Grove Basin rate shifts (previewSwapExactIn) — 6x6
+    //
+    // Abrupt moves away from the 1:1 peg. Under the default 1% band every one reverts; the band is
+    // the protection against a Grove Basin oracle that diverges sharply from the Securitize NAV.
+    // ─────────────────────────────────────────────────────────────────────────
+    describe('Extreme Grove Basin rate shifts — default band reverts', function () {
+        const rateScenarios = [
+            { label: '2 RWA = 1 Liquidity (0.5x)', num: 1n, den: 2n, error: 'MinRateDivergenceError' },
+            { label: '1 RWA = 2 Liquidity (2x)', num: 2n, den: 1n, error: 'MaxRateDivergenceError' },
+            { label: '1 RWA = 4.3 Liquidity (4.3x)', num: 43n, den: 10n, error: 'MaxRateDivergenceError' },
+            { label: '4.5 RWA = 1 Liquidity (~0.222x)', num: 2n, den: 9n, error: 'MinRateDivergenceError' },
+        ];
+
+        for (const s of rateScenarios) {
+            it(`reverts under the default 1% band: ${s.label}`, async function () {
+                const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
+                const { redemption, liquidityProvider, groveBasinMock, investor } = ctx;
+                await setGbPreviewFactor(groveBasinMock, s.num, s.den);
+                await prepareRedemption(ctx, ASSET_AMOUNT, 1_000_000_000n); // fund generously
+
+                await expect(redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT)).revertedWithCustomError(
+                    liquidityProvider,
+                    s.error,
+                );
+            });
+        }
+    });
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Extreme Grove Basin rate shifts with 100% tolerance — delivery vs. hard cap
+    //
+    // The maximum settable tolerance (100%) admits divergences up to 2x; within it the redeemer
+    // receives the realized Grove Basin output. A 4.3x quote exceeds even the 100% cap and reverts.
+    // ─────────────────────────────────────────────────────────────────────────
+    describe('Extreme Grove Basin rate shifts — 100% tolerance', function () {
+        const setup = async (num: bigint, den: bigint) => {
+            const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
+            await ctx.liquidityProvider.setRedeemTolerance(TOLERANCE_DENOMINATOR); // 100%
+            await setGbPreviewFactor(ctx.groveBasinMock, num, den);
+            await prepareRedemption(ctx, ASSET_AMOUNT, 1_000_000_000n);
+            return ctx;
+        };
+
+        const deliverableCases = [
+            { label: '1 RWA = 1 Liquidity', num: 1n, den: 1n, delivered: 10_000_000n },
+            { label: '2 RWA = 1 Liquidity (0.5x)', num: 1n, den: 2n, delivered: 5_000_000n },
+            { label: '1 RWA = 2 Liquidity (2x, upper boundary)', num: 2n, den: 1n, delivered: 20_000_000n },
+            { label: '4.5 RWA = 1 Liquidity (~0.222x)', num: 2n, den: 9n, delivered: 2_222_222n },
+        ];
+
+        for (const c of deliverableCases) {
+            it(`delivers the Grove Basin output: ${c.label}`, async function () {
+                const ctx = await setup(c.num, c.den);
+                const { redemption, usdcMock, investor } = ctx;
+                await redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT);
+                expect(await usdcMock.balanceOf(investor.address)).to.equal(c.delivered);
+            });
+        }
+
+        it('reverts even at 100% tolerance when Grove pays 4.3x (1 RWA = 4.3 Liquidity)', async function () {
+            const ctx = await setup(43n, 10n);
+            const { redemption, liquidityProvider, investor } = ctx;
+            await expect(redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT)).revertedWithCustomError(
+                liquidityProvider,
+                'MaxRateDivergenceError',
+            );
         });
     });
 });

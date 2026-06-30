@@ -196,6 +196,12 @@ export const deploySecuritizeGroveBasinProtocolWithAssetBurn = async (assetDecim
 export const deploySecuritizeGroveBasinProtocol6x18 = () => deploySecuritizeGroveBasinProtocol(6, 18);
 export const deploySecuritizeGroveBasinProtocol18x6 = () => deploySecuritizeGroveBasinProtocol(18, 6);
 
+// Asset/liquidity decimal pairs (RWA decimals × 6-decimals liquidity token) exercised in tests.
+export const deploySecuritizeGroveBasinProtocol2x6 = () => deploySecuritizeGroveBasinProtocol(2, 6);
+export const deploySecuritizeGroveBasinProtocol1x6 = () => deploySecuritizeGroveBasinProtocol(1, 6);
+export const deploySecuritizeGroveBasinProtocol0x6 = () => deploySecuritizeGroveBasinProtocol(0, 6);
+export const deploySecuritizeGroveBasinProtocol12x6 = () => deploySecuritizeGroveBasinProtocol(12, 6);
+
 /**
  * Prepares state for a redemption call:
  *   - mints assetAmount DSToken to the investor
