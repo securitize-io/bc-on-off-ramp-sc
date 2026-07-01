@@ -26,12 +26,14 @@ import {IExternalProvider} from "../../common/IExternalProvider.sol";
  * @title IExternalAssetProvider
  * @notice Asset provider that sources the asset by atomically swapping the liquidity token (USDC)
  *         received from the on-ramp for the asset (e.g. BUIDL) through Grove Basin (PSM3).
- * @dev    The swap uses {IGroveBasin.swapExactIn} on the whole on-hand liquidity balance. The
- *         companion {ExternalAssetProviderOnRamp} sizes the expected asset amount from {quoteAsset}
- *         (the same Grove Basin preview, over the net liquidity), so the amount the on-ramp forwards
- *         in two-step equals what Grove Basin delivers — no dust, no shortfall. The provider
- *         re-derives the quote for its on-hand balance and reverts with {UnexpectedSwapOutputError}
- *         on a mismatch, and cross-checks the quote against the Securitize NAV tolerance band.
+ * @dev    The swap uses {IGroveBasin.swapExactIn} bound to the subscription's net liquidity (via
+ *         {supplyExactIn}), not the whole on-hand balance, so a stray liquidity-token donation cannot
+ *         change the swapped amount or revert the subscription. The companion
+ *         {ExternalAssetProviderOnRamp} sizes the expected asset amount from {quoteAsset} (the same
+ *         Grove Basin preview, over the same net liquidity), so the amount the on-ramp forwards in
+ *         two-step equals what Grove Basin delivers — no dust, no shortfall. The provider re-derives
+ *         the quote for the net liquidity and reverts with {UnexpectedSwapOutputError} on an
+ *         inconsistent NAV state, and cross-checks the quote against the Securitize NAV tolerance band.
  */
 interface IExternalAssetProvider is IAssetProvider, IExternalProvider {
     /**
@@ -56,16 +58,25 @@ interface IExternalAssetProvider is IAssetProvider, IExternalProvider {
     error InsufficientAssetLiquidity(uint256 requested, uint256 available);
 
     /**
-     * @dev Thrown when the Grove Basin exact-in quote for the whole on-hand liquidity balance does
-     *      not equal the expected asset amount the on-ramp passed. The on-ramp sizes that amount
-     *      from {quoteAsset} over the net liquidity, so a mismatch means the on-hand balance is not
-     *      exactly this subscription's net (e.g. pre-existing or donated liquidity) and the call
-     *      reverts instead of swapping liquidity the buyer did not pay for.
+     * @dev Thrown when the Grove Basin exact-in quote for this subscription's net liquidity does not
+     *      equal the expected asset amount the on-ramp passed. The on-ramp sizes that amount from
+     *      {quoteAsset} over the same net liquidity, so a mismatch signals an inconsistent NAV/Grove
+     *      Basin state between the on-ramp quote and the swap; the call reverts instead of delivering
+     *      an amount the buyer did not agree to.
      * @param expectedAssetAmount Asset amount the on-ramp expects for this subscription.
-     * @param quotedAssetAmount Asset amount Grove Basin would deliver for the whole on-hand balance.
+     * @param quotedAssetAmount Asset amount Grove Basin would deliver for the net liquidity.
      * @dev Selector: 0x2c63620e
      */
     error UnexpectedSwapOutputError(uint256 expectedAssetAmount, uint256 quotedAssetAmount);
+
+    /**
+     * @dev Thrown when the on-hand liquidity balance is below the net liquidity the on-ramp intends
+     *      to swap for this subscription (i.e. the net was not settled on the provider).
+     * @param required Net liquidity the on-ramp intends to swap.
+     * @param available Liquidity-token balance currently held by the provider.
+     * @dev Selector: 0x9a0f5d2e
+     */
+    error InsufficientLiquidityToSwap(uint256 required, uint256 available);
 
     /**
      * @notice Proxy initializer.
@@ -75,6 +86,20 @@ interface IExternalAssetProvider is IAssetProvider, IExternalProvider {
      * @param _groveBasin Grove Basin (PSM3) contract used to perform the swap.
      */
     function initialize(address _liquidityToken, address _asset, address _navProvider, address _groveBasin) external;
+
+    /**
+     * @notice Swaps exactly `_netLiquidity` of the liquidity token held by this contract for the
+     *         asset through Grove Basin, delivering it to `_buyer`.
+     * @dev Called by the companion {ExternalAssetProviderOnRamp} after the net liquidity has been
+     *      settled on this contract. The swap is bound to `_netLiquidity` (the amount the on-ramp
+     *      just transferred) rather than the whole on-hand balance, so a stray token donation neither
+     *      changes the swapped amount nor reverts the subscription; any surplus stays on the provider
+     *      and is recoverable via {rescueTokens}.
+     * @param _buyer Recipient of the asset (the investor in single-step, the on-ramp in two-step).
+     * @param _netLiquidity Net liquidity (after the on-ramp fee) to swap for this subscription.
+     * @param _expectedAssetAmount Asset amount (before fee) the on-ramp expects for this subscription.
+     */
+    function supplyExactIn(address _buyer, uint256 _netLiquidity, uint256 _expectedAssetAmount) external;
 
     /**
      * @notice Sets the on-ramp contract authorized to request assets.

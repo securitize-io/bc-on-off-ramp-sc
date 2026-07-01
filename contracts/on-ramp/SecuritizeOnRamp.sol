@@ -135,8 +135,8 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, BaseOnRamp {
             _investorAttributeExpirations
         );
 
-        _executeLiquidityTransfer(_investorWallet, _liquidityAmount);
-        _executeAssetTransfer(_investorWallet, dsTokenAmount);
+        uint256 netLiquidity = _executeLiquidityTransfer(_investorWallet, _liquidityAmount);
+        _executeAssetTransfer(_investorWallet, dsTokenAmount, netLiquidity);
 
         emit DocumentSigned(_investorWallet, _agreementHash);
         emit Swap(_msgSender(), dsTokenAmount, _liquidityAmount, _investorWallet, rate, fee, address(liquidityToken));

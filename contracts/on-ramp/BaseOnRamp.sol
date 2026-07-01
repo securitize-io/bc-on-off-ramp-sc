@@ -77,8 +77,8 @@ abstract contract BaseOnRamp is IBaseOnRamp, BaseOnOffRamp {
             revert SlippageControlError();
         }
 
-        _executeLiquidityTransfer(_investorWallet, _liquidityAmount);
-        _executeAssetTransfer(_investorWallet, _dsTokenAmount);
+        uint256 netLiquidity = _executeLiquidityTransfer(_investorWallet, _liquidityAmount);
+        _executeAssetTransfer(_investorWallet, _dsTokenAmount, netLiquidity);
     }
 
     function updateAssetProvider(address _assetProvider) external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -108,7 +108,14 @@ abstract contract BaseOnRamp is IBaseOnRamp, BaseOnOffRamp {
         emit InvestorSubscriptionUpdated(_investorSubscription);
     }
 
-    function _executeLiquidityTransfer(address from, uint256 amount) internal {
+    /**
+     * @dev Transfers `amount` of the liquidity token from `from`, routes the fee to the fee collector
+     *      and forwards the net (fee-excluded) liquidity to the custodian wallet (bridged or local).
+     * @param from Investor paying the gross liquidity.
+     * @param amount Gross liquidity amount (before fee).
+     * @return amountExcludingFee Net liquidity forwarded to the custodian wallet.
+     */
+    function _executeLiquidityTransfer(address from, uint256 amount) internal returns (uint256 amountExcludingFee) {
         IERC20Metadata _liquidityToken = liquidityToken;
         if (_liquidityToken.balanceOf(from) < amount) {
             revert InsufficientERC20BalanceError();
@@ -121,7 +128,7 @@ abstract contract BaseOnRamp is IBaseOnRamp, BaseOnOffRamp {
             _liquidityToken.safeTransfer(_feeManager.feeCollector(), fee);
         }
 
-        uint256 amountExcludingFee = amount - fee;
+        amountExcludingFee = amount - fee;
         uint16 _bridgeChainId = bridgeChainId;
         IUSDCBridge _USDCBridge = USDCBridge;
         bool bridgeTransfer = _bridgeChainId != 0 && address(_USDCBridge) != address(0);
@@ -133,7 +140,14 @@ abstract contract BaseOnRamp is IBaseOnRamp, BaseOnOffRamp {
         }
     }
 
-    function _executeAssetTransfer(address to, uint256 amount) internal {
+    /**
+     * @dev Sources `amount` of asset for `to`. `netLiquidity` is the net liquidity forwarded to the
+     *      custodian wallet for this subscription; it is unused by the base (allowance/minting)
+     *      providers and consumed by external Grove Basin providers that bind the swap to it.
+     * @param to Recipient of the asset.
+     * @param amount Asset amount to deliver.
+     */
+    function _executeAssetTransfer(address to, uint256 amount, uint256 /* netLiquidity */) internal virtual {
         if (twoStepTransfer) {
             assetProvider.supplyTo(address(this), amount);
             IERC20Metadata(address(dsToken)).transfer(to, amount);

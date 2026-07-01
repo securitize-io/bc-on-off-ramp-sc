@@ -34,16 +34,24 @@ interface IExternalLiquidityProvider is ILiquidityProvider, IExternalProvider {
     error ZeroAmountToSwap();
 
     /**
-     * @dev Thrown when the on-hand asset balance does not correspond to the asset amount of the
-     *      current redemption (e.g. pre-existing or stuck asset sitting on the provider). The
-     *      swap is bound to the current redemption by comparing the NAV gross the off-ramp expects
-     *      with the NAV gross derived from the provider's on-hand balance; a mismatch means extra
-     *      balance would otherwise be swept into the caller's redemption.
+     * @dev Thrown when the NAV gross the off-ramp expects for the redeemed asset amount does not
+     *      equal the NAV gross the provider derives from that same amount, signalling an inconsistent
+     *      NAV state between the off-ramp quote and the swap. The swap is bound to the redemption's
+     *      own asset amount (not the on-hand balance), so a stray asset donation does not trigger it.
      * @param expectedNavGross NAV gross the off-ramp expects for the current redemption.
-     * @param actualNavGross NAV gross derived from the provider's on-hand asset balance.
+     * @param actualNavGross NAV gross the provider derives for the redeemed asset amount.
      * @dev Selector: 0x76a2631c
      */
     error UnexpectedAssetBalanceError(uint256 expectedNavGross, uint256 actualNavGross);
+
+    /**
+     * @dev Thrown when the on-hand asset balance is below the asset amount of the current redemption
+     *      (i.e. the redeemed asset was not transferred to the provider before the swap).
+     * @param required Asset amount the off-ramp intends to swap for this redemption.
+     * @param available Asset balance currently held by the provider.
+     * @dev Selector: 0x3b8f4a17
+     */
+    error InsufficientAssetToSwap(uint256 required, uint256 available);
 
     /**
      * @dev Thrown when the linked off-ramp does not have two-step transfer enabled.
@@ -66,6 +74,25 @@ interface IExternalLiquidityProvider is ILiquidityProvider, IExternalProvider {
      * @param _groveBasin Grove Basin (PSM3) contract used to perform the swap.
      */
     function initialize(address _liquidityToken, address _securitizeOffRamp, address _groveBasin) external;
+
+    /**
+     * @notice Swaps exactly `_assetAmount` of the asset held by this contract for the liquidity token
+     *         through Grove Basin, forwarding the proceeds to `_receiver`.
+     * @dev Called by the companion {ExternalLiquidityProviderOffRamp} two-step flow after the redeemed
+     *      asset has been transferred here. The swap is bound to `_assetAmount` (the amount this
+     *      redemption transferred) rather than the whole on-hand balance, so a stray asset donation
+     *      neither changes the swapped amount nor reverts the redemption; any surplus stays on the
+     *      provider and is recoverable via {rescueTokens}.
+     * @param _receiver Recipient of the liquidity token (the off-ramp contract).
+     * @param _assetAmount Asset amount redeemed in this operation, to be swapped through Grove Basin.
+     * @param _expectedLiquidityAmount NAV gross (before fee) the off-ramp expects for this redemption.
+     * @return amountOut Liquidity token amount delivered by Grove Basin.
+     */
+    function supplyExactIn(
+        address _receiver,
+        uint256 _assetAmount,
+        uint256 _expectedLiquidityAmount
+    ) external returns (uint256 amountOut);
 
     /**
      * @notice The asset token swapped into Grove Basin (e.g. BUIDL).

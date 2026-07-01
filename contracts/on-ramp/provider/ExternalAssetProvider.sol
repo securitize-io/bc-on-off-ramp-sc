@@ -32,20 +32,23 @@ import {IGroveBasin} from "../../off-ramp/third-party-contracts/IGroveBasin.sol"
  *         received from the on-ramp for the asset (e.g. BUIDL) through an external liquidity provider like Grove Basin
  *         (PSM3), delivering the exact NAV asset amount the on-ramp expects.
  * @dev    The on-ramp settles the net liquidity (after fee) on this contract right before calling
- *         {supplyTo} by being deployed with `custodianWallet == address(this)`. The contract holds
- *         no liquidity-token treasury: the swap spends the whole on-hand balance via
- *         {IGroveBasin.swapExactIn}, so nothing is left behind.
+ *         {supplyExactIn} by being deployed with `custodianWallet == address(this)`. The contract
+ *         holds no liquidity-token treasury: the swap spends exactly the subscription's net liquidity
+ *         via {IGroveBasin.swapExactIn}, so nothing of this subscription is left behind.
  *
- *         The swap uses {IGroveBasin.swapExactIn} (exact liquidity in) on the full on-hand balance.
- *         The companion {ExternalAssetProviderOnRamp} sizes each subscription's expected asset amount
- *         from {quoteAsset} (the same {IGroveBasin.previewSwapExactIn} quote used here, over the net
- *         liquidity), so the amount the on-ramp forwards in two-step equals what Grove Basin delivers
- *         — by construction, with no dust and no shortfall. {supplyTo} re-derives the quote for its
- *         on-hand balance and reverts with {UnexpectedSwapOutputError} if it does not match the
- *         expected amount (which also rejects donated/stuck liquidity).
+ *         The swap uses {IGroveBasin.swapExactIn} (exact liquidity in) bound to the net liquidity the
+ *         on-ramp forwards (not the whole on-hand balance), so a stray liquidity-token donation is
+ *         neither swept into the swap nor able to revert the subscription; any surplus stays on the
+ *         provider and is recoverable via {rescueTokens}. The companion {ExternalAssetProviderOnRamp}
+ *         sizes each subscription's expected asset amount from {quoteAsset} (the same
+ *         {IGroveBasin.previewSwapExactIn} quote used here, over the same net liquidity), so the
+ *         amount the on-ramp forwards in two-step equals what Grove Basin delivers — by construction,
+ *         with no dust and no shortfall. {supplyExactIn} re-derives the quote for the net liquidity
+ *         and reverts with {UnexpectedSwapOutputError} on an inconsistent NAV/Grove Basin state. The
+ *         balance-based {supplyTo} entrypoint is disabled ({DirectSupplyNotSupported}).
  *
- *         Because Grove Basin sets the price the investor pays, {supplyTo} additionally cross-checks
- *         that quote against the Securitize NAV with the inherited tolerance band
+ *         Because Grove Basin sets the price the investor pays, {supplyExactIn} additionally
+ *         cross-checks that quote against the Securitize NAV with the inherited tolerance band
  *         ({_validateRateBand}/{rateTolerance}); a Grove Basin quote diverging beyond the band
  *         reverts. NAV math is computed internally from {navProvider} (which must match the on-ramp's
  *         NAV provider); the provider never calls back into the on-ramp.
@@ -133,51 +136,82 @@ contract ExternalAssetProvider is IExternalAssetProvider, BaseExternalProvider {
     }
 
     /**
-     * @notice Swaps the liquidity token held by this contract for the asset through Grove Basin.
+     * @notice Disabled balance-based entrypoint; use {supplyExactIn}.
+     * @dev The external Grove Basin provider binds each swap to the subscription's net liquidity via
+     *      {supplyExactIn} so a token donation cannot change the swapped amount. The companion
+     *      {ExternalAssetProviderOnRamp} always drives the provider through {supplyExactIn}; this
+     *      balance-based entrypoint is intentionally disabled.
+     */
+    function supplyTo(address, uint256) public pure {
+        revert DirectSupplyNotSupported();
+    }
+
+    /**
+     * @notice Swaps exactly `_netLiquidity` of the liquidity token held by this contract for the
+     *         asset through Grove Basin.
      * @dev Called by the on-ramp after the net liquidity has been settled on this contract
-     *      (`custodianWallet == address(this)`). It previews swapping the whole on-hand balance
-     *      through Grove Basin with {previewSwapExactIn}. The on-ramp sizes `_expectedAssetAmount`
-     *      from the same quote over the net liquidity (see {quoteAsset}), so the two must match
-     *      exactly; a mismatch means the on-hand balance is not this subscription's net (e.g.
-     *      donated/stuck liquidity) and reverts with {UnexpectedSwapOutputError}.
+     *      (`custodianWallet == address(this)`). The swap is bound to `_netLiquidity` (the amount the
+     *      on-ramp just transferred) rather than the whole on-hand balance, so a stray token donation
+     *      neither changes the swapped amount nor reverts the subscription; any surplus stays on the
+     *      provider and is recoverable via {rescueTokens}.
+     *
+     *      It previews swapping `_netLiquidity` through Grove Basin with {previewSwapExactIn}. The
+     *      on-ramp sizes `_expectedAssetAmount` from the same quote over the same net liquidity (see
+     *      {quoteAsset}), so the two must match; a mismatch signals an inconsistent NAV/Grove Basin
+     *      state and reverts with {UnexpectedSwapOutputError}.
      *
      *      It then cross-checks the Grove Basin quote against the Securitize NAV with the tolerance
      *      band ({_validateRateBand}) so a diverged Grove Basin oracle cannot set an arbitrary price,
-     *      and executes {swapExactIn} for the whole balance with `minAmountOut == _expectedAssetAmount`
+     *      and executes {swapExactIn} for `_netLiquidity` with `minAmountOut == _expectedAssetAmount`
      *      as Grove Basin's native floor.
      * @param _buyer Recipient of the asset (the investor in single-step, the on-ramp in two-step).
+     * @param _netLiquidity Net liquidity (after the on-ramp fee) to swap for this subscription.
      * @param _expectedAssetAmount Asset amount (before fee) the on-ramp expects for this subscription.
      */
-    function supplyTo(address _buyer, uint256 _expectedAssetAmount) public whenNotPaused onlySecuritizeOnRamp {
-        uint256 balance = liquidityToken.balanceOf(address(this));
-        if (balance == 0) {
+    function supplyExactIn(
+        address _buyer,
+        uint256 _netLiquidity,
+        uint256 _expectedAssetAmount
+    ) external whenNotPaused onlySecuritizeOnRamp {
+        if (_netLiquidity == 0) {
             revert ZeroAmountToSwap();
         }
 
-        // Asset amount Grove Basin would deliver for the whole on-hand balance. The on-ramp sizes the
-        // expected amount from this same quote over the net liquidity, so a mismatch means the on-hand
-        // balance is not exactly this subscription's net (e.g. donated/stuck liquidity); reject it
-        // instead of swapping liquidity the buyer did not pay for.
-        uint256 gbAmountOut = externalProvider.previewSwapExactIn(address(liquidityToken), address(asset), balance);
+        IERC20Metadata _liquidityToken = liquidityToken;
+        uint256 balance = _liquidityToken.balanceOf(address(this));
+        if (balance < _netLiquidity) {
+            revert InsufficientLiquidityToSwap(_netLiquidity, balance);
+        }
+
+        // Asset amount Grove Basin would deliver for exactly this subscription's net liquidity. The
+        // on-ramp sizes the expected amount from this same quote over the same net, so a mismatch
+        // signals an inconsistent NAV/Grove Basin state; reject it instead of delivering an amount
+        // the buyer did not agree to. Binding to the net (not the balance) means a donation is ignored.
+        IDSToken _asset = asset;
+        uint256 gbAmountOut = externalProvider.previewSwapExactIn(
+            address(_liquidityToken),
+            address(_asset),
+            _netLiquidity
+        );
         if (gbAmountOut != _expectedAssetAmount) {
             revert UnexpectedSwapOutputError(_expectedAssetAmount, gbAmountOut);
         }
 
         // Grove Basin sets the price the investor pays; cross-check it against the Securitize NAV so a
         // manipulated/diverged Grove Basin oracle cannot price the swap outside the tolerance band.
-        _validateRateBand(_assetForLiquidity(balance), gbAmountOut);
+        _validateRateBand(_assetForLiquidity(_netLiquidity), gbAmountOut);
 
         uint256 available = availableAsset();
         if (gbAmountOut > available) {
             revert InsufficientAssetLiquidity(gbAmountOut, available);
         }
 
-        liquidityToken.forceApprove(address(externalProvider), balance);
+        _liquidityToken.forceApprove(address(externalProvider), _netLiquidity);
 
         externalProvider.swapExactIn(
-            address(liquidityToken),
-            address(asset),
-            balance,
+            address(_liquidityToken),
+            address(_asset),
+            _netLiquidity,
             _expectedAssetAmount,
             _buyer,
             referralCode

@@ -50,6 +50,23 @@ interface IExternalProvider is Errors {
     event RateToleranceUpdated(uint256 oldTolerance, uint256 newTolerance);
 
     /**
+     * @dev Emitted when an admin rescues tokens stuck on the provider (e.g. a token donation).
+     * @param token Rescued ERC-20 token address.
+     * @param to Recipient of the rescued tokens.
+     * @param amount Amount rescued.
+     */
+    event TokensRescued(address indexed token, address indexed to, uint256 amount);
+
+    /**
+     * @dev Thrown when the legacy {ILiquidityProvider.supplyTo}/{IAssetProvider.supplyTo} entrypoint
+     *      is called on an external Grove Basin provider. These providers bind each swap to the exact
+     *      input amount of the current operation and must be driven through their `supplyExactIn`
+     *      entrypoint by the companion external ramp; the balance-based entrypoint is disabled.
+     * @dev Selector: 0x1d3f4c1b
+     */
+    error DirectSupplyNotSupported();
+
+    /**
      * @dev Thrown when {rateTolerance} exceeds {TOLERANCE_DENOMINATOR}.
      * @param tolerance Invalid tolerance value.
      * @dev Selector: 0x290b405f
@@ -102,6 +119,17 @@ interface IExternalProvider is Errors {
      * @dev Selector: 0xde75f695
      */
     error MaxRateDivergenceError(uint256 navQuote, uint256 groveBasinPreview, uint256 tolerance);
+
+    /**
+     * @notice Rescues tokens stuck on the provider (e.g. a token donation) to a recipient.
+     * @dev The external providers bind each swap to the exact input amount of the current operation,
+     *      so any stray balance is ignored by the swap and can be swept out here without affecting
+     *      liveness. Restricted to the admin role.
+     * @param _token ERC-20 token to rescue.
+     * @param _to Recipient of the rescued tokens.
+     * @param _amount Amount to rescue.
+     */
+    function rescueTokens(address _token, address _to, uint256 _amount) external;
 
     /**
      * @notice Sets a new Grove Basin contract address.

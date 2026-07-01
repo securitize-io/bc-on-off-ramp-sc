@@ -20,6 +20,7 @@ pragma solidity ^0.8.22;
 import {SecuritizeOffRamp} from "./SecuritizeOffRamp.sol";
 import {IExternalLiquidityProvider} from "./provider/IExternalLiquidityProvider.sol";
 import {TokenCalculator} from "./TokenCalculator.sol";
+import {RedemptionManager} from "./RedemptionManager.sol";
 
 /**
  * @title ExternalLiquidityProviderOffRamp
@@ -85,5 +86,18 @@ contract ExternalLiquidityProviderOffRamp is SecuritizeOffRamp {
 
         uint256 fee = TokenCalculator.calculateFee(feeManager, grossLiquidity);
         return grossLiquidity - fee;
+    }
+
+    /**
+     * @notice Executes the two-step redemption bound to the redemption's own asset amount.
+     * @dev Drives the {ExternalLiquidityProvider} through {IExternalLiquidityProvider.supplyExactIn},
+     *      binding the Grove Basin swap to the redemption's own asset amount instead of the provider's
+     *      on-hand balance. This makes a stray asset donation to the provider irrelevant to the swap:
+     *      it is neither swept into the redemption nor able to revert it.
+     */
+    function _executeTwoStepRedemption(
+        RedemptionManager.RedemptionParams memory _params
+    ) internal override returns (uint256 fee, uint256 liquidityValue) {
+        return RedemptionManager.executeTwoStepRedemptionExactIn(_params, address(this));
     }
 }
