@@ -1,0 +1,113 @@
+/**
+ * Copyright 2026 Securitize Inc. All rights reserved.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+pragma solidity ^0.8.22;
+
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {ISecuritizeNavProvider} from "@securitize/digital_securities/contracts/nav/ISecuritizeNavProvider.sol";
+import {IAssetProvider} from "./IAssetProvider.sol";
+import {IExternalProvider} from "../../common/IExternalProvider.sol";
+
+/**
+ * @title IExternalAssetProvider
+ * @notice Asset provider that sources the asset by atomically swapping the liquidity token (USDC)
+ *         received from the on-ramp for the asset (e.g. BUIDL) through Grove Basin (PSM3).
+ * @dev    The swap uses {IGroveBasin.swapExactIn} on the whole on-hand liquidity balance. The
+ *         companion {ExternalAssetProviderOnRamp} sizes the expected asset amount from {quoteAsset}
+ *         (the same Grove Basin preview, over the net liquidity), so the amount the on-ramp forwards
+ *         in two-step equals what Grove Basin delivers — no dust, no shortfall. The provider
+ *         re-derives the quote for its on-hand balance and reverts with {UnexpectedSwapOutputError}
+ *         on a mismatch, and cross-checks the quote against the Securitize NAV tolerance band.
+ */
+interface IExternalAssetProvider is IAssetProvider, IExternalProvider {
+    /**
+     * @dev Emitted when the authorized on-ramp contract is updated.
+     * @param oldOnRamp Previous on-ramp address.
+     * @param newOnRamp New on-ramp address.
+     */
+    event SecuritizeOnRampUpdated(address oldOnRamp, address newOnRamp);
+
+    /**
+     * @dev Thrown when there is no liquidity-token balance available to swap.
+     * @dev Selector: 0xa80f0106
+     */
+    error ZeroAmountToSwap();
+
+    /**
+     * @dev Thrown when Grove Basin cannot satisfy the requested asset output.
+     * @param requested Asset amount requested from Grove Basin.
+     * @param available Asset amount available at the Grove Basin asset custodian.
+     * @dev Selector: 0x48b12e37
+     */
+    error InsufficientAssetLiquidity(uint256 requested, uint256 available);
+
+    /**
+     * @dev Thrown when the Grove Basin exact-in quote for the whole on-hand liquidity balance does
+     *      not equal the expected asset amount the on-ramp passed. The on-ramp sizes that amount
+     *      from {quoteAsset} over the net liquidity, so a mismatch means the on-hand balance is not
+     *      exactly this subscription's net (e.g. pre-existing or donated liquidity) and the call
+     *      reverts instead of swapping liquidity the buyer did not pay for.
+     * @param expectedAssetAmount Asset amount the on-ramp expects for this subscription.
+     * @param quotedAssetAmount Asset amount Grove Basin would deliver for the whole on-hand balance.
+     * @dev Selector: 0x2c63620e
+     */
+    error UnexpectedSwapOutputError(uint256 expectedAssetAmount, uint256 quotedAssetAmount);
+
+    /**
+     * @notice Proxy initializer.
+     * @param _liquidityToken Liquidity token (stablecoin) supplied by the investor.
+     * @param _asset Asset (DSToken) delivered to the investor.
+     * @param _navProvider Securitize NAV provider (must match the on-ramp's NAV provider).
+     * @param _groveBasin Grove Basin (PSM3) contract used to perform the swap.
+     */
+    function initialize(address _liquidityToken, address _asset, address _navProvider, address _groveBasin) external;
+
+    /**
+     * @notice Sets the on-ramp contract authorized to request assets.
+     * @dev Set after deployment to break the deploy-time circular dependency: the on-ramp is
+     *      initialized with `custodianWallet == address(this)`, so the provider must exist first.
+     * @param _securitizeOnRamp New authorized on-ramp address.
+     */
+    function setSecuritizeOnRamp(address _securitizeOnRamp) external;
+
+    /**
+     * @notice The liquidity token (stablecoin) swapped into Grove Basin (e.g. USDC).
+     * @return The liquidity token.
+     */
+    function liquidityToken() external view returns (IERC20Metadata);
+
+    /**
+     * @notice The Securitize NAV provider used to price the swap.
+     * @return The NAV provider.
+     */
+    function navProvider() external view returns (ISecuritizeNavProvider);
+
+    /**
+     * @notice Grove Basin quote: asset amount delivered for swapping `_netLiquidity` of the liquidity
+     *         token in. The on-ramp uses this to size the expected asset amount so the amount it
+     *         forwards in two-step equals what the swap in {supplyTo} delivers.
+     * @param _netLiquidity Net liquidity amount (after the on-ramp fee) to be swapped.
+     * @return The asset amount Grove Basin would deliver for `_netLiquidity`.
+     */
+    function quoteAsset(uint256 _netLiquidity) external view returns (uint256);
+
+    /**
+     * @notice Returns the asset amount available for purchases in Grove Basin.
+     * @return The asset amount available at the Grove Basin asset custodian.
+     */
+    function availableAsset() external view returns (uint256);
+}
