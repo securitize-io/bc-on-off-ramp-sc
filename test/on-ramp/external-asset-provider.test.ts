@@ -421,6 +421,71 @@ describe('On-Ramp External Asset Provider (swapExactIn via Grove Basin quote)', 
             expect(await dsTokenMock.balanceOf(investor.address)).to.equal(delivered);
             expect(await dsTokenMock.balanceOf(await onRamp.getAddress())).to.equal(0n);
         });
+
+        // Mode B analog: in the old swapExactOut design a Grove Basin quote *better* than the NAV
+        // (Grove needing less input than the settled balance) reverted with LiquidityNotFullyConsumed,
+        // even inside the tolerance band. The exact-in binding has no leftover check, so an
+        // above-parity quote inside the band is delivered straight to the investor.
+        it('delivers when Grove Basin quotes 0.5% above NAV, inside the band (no LiquidityNotFullyConsumed)', async function () {
+            const ctx = await loadFixture(deployOnRampExternalAssetProvider);
+            const { onRamp, assetProvider, usdcMock, dsTokenMock, groveBasinMock, investor } = ctx;
+            const gross = 1_000_000_000n;
+            const net = gross; // 0% Securitize fee => net == gross
+            // Grove Basin quotes 0.5% MORE asset than the NAV parity — well within the 1% band.
+            const delivered = (net * 1_005n) / 1_000n;
+            await prepareSwap(ctx, gross, 0n, delivered);
+            await setGbPreviewFactor(groveBasinMock, 1_005n, 1_000n);
+
+            await onRamp.connect(investor).swap(gross, MIN_OUT);
+
+            expect(await dsTokenMock.balanceOf(investor.address)).to.equal(delivered);
+            expect(await dsTokenMock.balanceOf(await onRamp.getAddress())).to.equal(0n);
+            expect(await dsTokenMock.balanceOf(await assetProvider.getAddress())).to.equal(0n);
+            expect(await usdcMock.balanceOf(await groveBasinMock.getAddress())).to.equal(net);
+            expect(await usdcMock.balanceOf(await assetProvider.getAddress())).to.equal(0n);
+        });
+
+        // Exact band edges: the cross-check reverts on `gbPreview < minBand` / `gbPreview > maxBand`,
+        // so a quote landing *exactly* on either edge must still be accepted and delivered. With
+        // parity decimals the internal NAV quote equals `net`, so previewFactor (DENOM ∓ tol)/DENOM
+        // places the Grove Basin quote precisely on minBand/maxBand.
+        it('delivers at exactly the lower band edge (gbPreview == minBand)', async function () {
+            const ctx = await loadFixture(deployOnRampExternalAssetProvider);
+            const { onRamp, assetProvider, usdcMock, dsTokenMock, groveBasinMock, investor } = ctx;
+            const gross = 1_000_000_000n;
+            const net = gross;
+            const edgeNumerator = TOLERANCE_DENOMINATOR - DEFAULT_RATE_TOLERANCE; // 99_000 (-1%)
+            const delivered = (net * edgeNumerator) / TOLERANCE_DENOMINATOR; // == minBand (floor)
+            await prepareSwap(ctx, gross, 0n, delivered);
+            await setGbPreviewFactor(groveBasinMock, edgeNumerator, TOLERANCE_DENOMINATOR);
+
+            await onRamp.connect(investor).swap(gross, MIN_OUT);
+
+            expect(await dsTokenMock.balanceOf(investor.address)).to.equal(delivered);
+            expect(await dsTokenMock.balanceOf(await onRamp.getAddress())).to.equal(0n);
+            expect(await dsTokenMock.balanceOf(await assetProvider.getAddress())).to.equal(0n);
+            expect(await usdcMock.balanceOf(await groveBasinMock.getAddress())).to.equal(net);
+            expect(await usdcMock.balanceOf(await assetProvider.getAddress())).to.equal(0n);
+        });
+
+        it('delivers at exactly the upper band edge (gbPreview == maxBand)', async function () {
+            const ctx = await loadFixture(deployOnRampExternalAssetProvider);
+            const { onRamp, assetProvider, usdcMock, dsTokenMock, groveBasinMock, investor } = ctx;
+            const gross = 1_000_000_000n;
+            const net = gross;
+            const edgeNumerator = TOLERANCE_DENOMINATOR + DEFAULT_RATE_TOLERANCE; // 101_000 (+1%)
+            const delivered = (net * edgeNumerator) / TOLERANCE_DENOMINATOR; // == maxBand (floor)
+            await prepareSwap(ctx, gross, 0n, delivered);
+            await setGbPreviewFactor(groveBasinMock, edgeNumerator, TOLERANCE_DENOMINATOR);
+
+            await onRamp.connect(investor).swap(gross, MIN_OUT);
+
+            expect(await dsTokenMock.balanceOf(investor.address)).to.equal(delivered);
+            expect(await dsTokenMock.balanceOf(await onRamp.getAddress())).to.equal(0n);
+            expect(await dsTokenMock.balanceOf(await assetProvider.getAddress())).to.equal(0n);
+            expect(await usdcMock.balanceOf(await groveBasinMock.getAddress())).to.equal(net);
+            expect(await usdcMock.balanceOf(await assetProvider.getAddress())).to.equal(0n);
+        });
     });
 
     describe('NAV cross-check (rate band) & execution floor', function () {
@@ -447,6 +512,39 @@ describe('On-Ramp External Asset Provider (swapExactIn via Grove Basin quote)', 
             await expect(onRamp.connect(investor).swap(gross, MIN_OUT)).revertedWithCustomError(
                 assetProvider,
                 'MinRateDivergenceError',
+            );
+        });
+
+        // Tight boundary complement to the exact-edge delivery tests: one unit past the edge reverts.
+        // With parity decimals the internal NAV quote equals `net`, so minBand == net*(DENOM-tol)/DENOM.
+        // Quoting exactly minBand - 1 must fall out of the band.
+        it('reverts one unit below the lower band edge (gbPreview == minBand - 1)', async function () {
+            const ctx = await loadFixture(deployOnRampExternalAssetProvider);
+            const { onRamp, assetProvider, groveBasinMock, investor } = ctx;
+            const gross = 1_000_000_000n;
+            const net = gross;
+            await prepareSwap(ctx, gross, 0n);
+            const minBand = (net * (TOLERANCE_DENOMINATOR - DEFAULT_RATE_TOLERANCE)) / TOLERANCE_DENOMINATOR;
+            // previewFactor (minBand - 1)/net => gbPreview == minBand - 1, just outside the band.
+            await setGbPreviewFactor(groveBasinMock, minBand - 1n, net);
+            await expect(onRamp.connect(investor).swap(gross, MIN_OUT)).revertedWithCustomError(
+                assetProvider,
+                'MinRateDivergenceError',
+            );
+        });
+
+        it('reverts one unit above the upper band edge (gbPreview == maxBand + 1)', async function () {
+            const ctx = await loadFixture(deployOnRampExternalAssetProvider);
+            const { onRamp, assetProvider, groveBasinMock, investor } = ctx;
+            const gross = 1_000_000_000n;
+            const net = gross;
+            await prepareSwap(ctx, gross, 0n);
+            const maxBand = (net * (TOLERANCE_DENOMINATOR + DEFAULT_RATE_TOLERANCE)) / TOLERANCE_DENOMINATOR;
+            // previewFactor (maxBand + 1)/net => gbPreview == maxBand + 1, just outside the band.
+            await setGbPreviewFactor(groveBasinMock, maxBand + 1n, net);
+            await expect(onRamp.connect(investor).swap(gross, MIN_OUT)).revertedWithCustomError(
+                assetProvider,
+                'MaxRateDivergenceError',
             );
         });
 
