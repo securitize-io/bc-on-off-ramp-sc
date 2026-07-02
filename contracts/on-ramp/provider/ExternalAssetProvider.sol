@@ -51,7 +51,10 @@ import {IGroveBasin} from "../../off-ramp/third-party-contracts/IGroveBasin.sol"
  *         cross-checks that quote against the Securitize NAV with the inherited tolerance band
  *         ({_validateRateBand}/{rateTolerance}); a Grove Basin quote diverging beyond the band
  *         reverts. NAV math is computed internally from {navProvider} (which must match the on-ramp's
- *         NAV provider); the provider never calls back into the on-ramp.
+ *         NAV provider); the provider never calls back into the on-ramp. Because the reference is a
+ *         local copy, it is admin-rotatable via {updateNavProvider} and MUST be rotated together with
+ *         the on-ramp's {SecuritizeOnRamp.updateNavProvider}: a divergence would price the band cross-check
+ *         off a stale NAV and revert every subscription until realigned (no UUPS upgrade required).
  *
  *         The shared Grove Basin handle, referral code and tolerance live in
  *         {BaseExternalProvider}. Token wiring mirrors the off-ramp: {liquidityToken} is
@@ -77,6 +80,7 @@ contract ExternalAssetProvider is IExternalAssetProvider, BaseExternalProvider {
 
     /**
      * @dev Securitize NAV provider used to price the swap (must match the on-ramp's NAV provider).
+     *      Admin-rotatable via {updateNavProvider}; keep it aligned with the on-ramp's NAV provider.
      */
     ISecuritizeNavProvider public navProvider;
 
@@ -133,6 +137,17 @@ contract ExternalAssetProvider is IExternalAssetProvider, BaseExternalProvider {
         }
         emit SecuritizeOnRampUpdated(address(securitizeOnRamp), _securitizeOnRamp);
         securitizeOnRamp = IBaseOnRamp(_securitizeOnRamp);
+    }
+
+    /**
+     * @inheritdoc IExternalAssetProvider
+     */
+    function updateNavProvider(address _navProvider) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (_navProvider == address(0)) {
+            revert NonZeroAddressError();
+        }
+        emit NavProviderUpdated(address(navProvider), _navProvider);
+        navProvider = ISecuritizeNavProvider(_navProvider);
     }
 
     /**

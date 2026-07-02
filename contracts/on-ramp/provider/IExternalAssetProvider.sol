@@ -44,6 +44,13 @@ interface IExternalAssetProvider is IAssetProvider, IExternalProvider {
     event SecuritizeOnRampUpdated(address oldOnRamp, address newOnRamp);
 
     /**
+     * @dev Emitted when the NAV provider used for the Grove Basin cross-check is updated.
+     * @param oldProvider Previous NAV provider address.
+     * @param newProvider New NAV provider address.
+     */
+    event NavProviderUpdated(address indexed oldProvider, address indexed newProvider);
+
+    /**
      * @dev Thrown when there is no liquidity-token balance available to swap.
      * @dev Selector: 0xa80f0106
      */
@@ -108,6 +115,18 @@ interface IExternalAssetProvider is IAssetProvider, IExternalProvider {
      * @param _securitizeOnRamp New authorized on-ramp address.
      */
     function setSecuritizeOnRamp(address _securitizeOnRamp) external;
+
+    /**
+     * @notice Updates the Securitize NAV provider used to cross-check the Grove Basin quote against
+     *         the NAV tolerance band.
+     * @dev Must be rotated together with the on-ramp's NAV provider (see
+     *      {SecuritizeOnRamp.updateNavProvider}) so the two stay aligned: the provider prices the
+     *      NAV side of the tolerance band ({_validateRateBand}) from this reference, and a divergence
+     *      from the on-ramp's NAV would revert every subscription. Without this setter, realigning a
+     *      rotated NAV provider would require a UUPS upgrade. Admin-gated; reverts on the zero address.
+     * @param _navProvider New NAV provider address (must be non-zero).
+     */
+    function updateNavProvider(address _navProvider) external;
 
     /**
      * @notice The liquidity token (stablecoin) swapped into Grove Basin (e.g. USDC).
