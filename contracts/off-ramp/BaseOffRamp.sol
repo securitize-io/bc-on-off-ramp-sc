@@ -188,9 +188,23 @@ abstract contract BaseOffRamp is IBaseOffRamp, BaseOnOffRamp {
         });
 
         if (twoStepTransfer) {
-            (fee, liquidityValue) = RedemptionManager.executeTwoStepRedemption(params, address(this));
+            (fee, liquidityValue) = _executeTwoStepRedemption(params);
         } else {
             (fee, liquidityValue) = RedemptionManager.executeSingleStepRedemption(params);
         }
+    }
+
+    /**
+     * @dev Executes the two-step redemption. Overridable so specialized off-ramps can bind the
+     *      provider swap to the redemption's own asset amount. The base flow uses the balance-based
+     *      {RedemptionManager.executeTwoStepRedemption}.
+     * @param _params Redemption parameters payload.
+     * @return fee Fee charged in liquidity tokens.
+     * @return liquidityValue Amount supplied to redeemer after fee.
+     */
+    function _executeTwoStepRedemption(
+        RedemptionManager.RedemptionParams memory _params
+    ) internal virtual returns (uint256 fee, uint256 liquidityValue) {
+        return RedemptionManager.executeTwoStepRedemption(_params, address(this));
     }
 }

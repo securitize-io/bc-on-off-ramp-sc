@@ -32,14 +32,17 @@ import {IGroveBasin} from "../third-party-contracts/IGroveBasin.sol";
  *         (e.g. BUIDL) for the liquidity token (e.g. USDC) through Grove Basin (PSM3),
  *         forwarding the proceeds to the off-ramp in the same transaction.
  * @dev    `recipient()` resolves to this contract so the off-ramp two-step flow transfers the
- *         asset here right before calling {supplyTo}. The contract never holds asset nor
- *         liquidity token beyond the duration of a single redemption call.
+ *         asset here right before calling {supplyExactIn}. The swap is bound to the redemption's own
+ *         asset amount (not the on-hand balance), so a stray asset donation is neither swept into the
+ *         redemption nor able to revert it; any surplus stays on the provider and is recoverable via
+ *         {rescueTokens}. The balance-based {supplyTo} entrypoint is disabled
+ *         ({DirectSupplyNotSupported}).
  *
- *         {supplyTo} reverts with {TwoStepTransferRequired} unless the linked off-ramp has
- *         two-step transfer enabled. Single-step redemptions are unsupported because this
- *         provider swaps the full on-hand asset balance on each call.
+ *         {supplyExactIn} reverts with {TwoStepTransferRequired} unless the linked off-ramp has
+ *         two-step transfer enabled. Single-step redemptions are unsupported because the asset must
+ *         be transferred here before the swap.
  *
- *         {supplyTo} also reverts with {AssetBurnNotSupported} when the linked off-ramp has
+ *         {supplyExactIn} also reverts with {AssetBurnNotSupported} when the linked off-ramp has
  *         asset burning enabled, because the asset must be transferred here before the swap.
  *
  *         Before executing the Grove Basin swap, the provider compares the Securitize NAV quote
@@ -117,16 +120,16 @@ contract ExternalLiquidityProvider is IExternalLiquidityProvider, BaseExternalPr
     function initialize(
         address _liquidityToken,
         address _securitizeOffRamp,
-        address _groveBasin
+        address _externalProvider
     ) public onlyProxy initializer {
-        if (_liquidityToken == address(0) || _securitizeOffRamp == address(0) || _groveBasin == address(0)) {
+        if (_liquidityToken == address(0) || _securitizeOffRamp == address(0) || _externalProvider == address(0)) {
             revert NonZeroAddressError();
         }
         __BaseContract_init();
         liquidityToken = IERC20Metadata(_liquidityToken);
         securitizeOffRamp = IBaseOffRamp(_securitizeOffRamp);
         assetToken = IERC20Metadata(IBaseOffRamp(_securitizeOffRamp).assetAddress());
-        __BaseExternalProvider_init(_groveBasin);
+        __BaseExternalProvider_init(_externalProvider);
         recipient = address(this);
     }
 
@@ -159,27 +162,57 @@ contract ExternalLiquidityProvider is IExternalLiquidityProvider, BaseExternalPr
     }
 
     /**
-     * @notice Swaps the asset held by this contract for liquidity token through Grove Basin.
-     * @dev Called by the off-ramp two-step flow after the asset has been transferred here.
+     * @notice Disabled balance-based entrypoint; use {supplyExactIn}.
+     * @dev The external Grove Basin provider binds each swap to the redemption's own asset amount via
+     *      {supplyExactIn} so a token donation cannot change the swapped amount. The companion
+     *      {ExternalLiquidityProviderOffRamp} always drives the provider through {supplyExactIn}; this
+     *      balance-based entrypoint is intentionally disabled and reverts with
+     *      {DirectSupplyNotSupported}.
+     *
+     *      The configuration guards are kept ahead of the disable so a misconfigured pairing (e.g. a
+     *      base off-ramp in single-step or with asset burning) still surfaces the precise
+     *      {TwoStepTransferRequired}/{AssetBurnNotSupported} diagnostic instead of the generic revert.
+     */
+    function supplyTo(
+        address,
+        uint256
+    )
+        public
+        view
+        whenNotPaused
+        onlySecuritizeRedemption
+        onlyTwoStepTransfer
+        onlyWithoutAssetBurn
+        returns (uint256)
+    {
+        revert DirectSupplyNotSupported();
+    }
+
+    /**
+     * @notice Swaps exactly `_assetAmount` of the asset held by this contract for liquidity token
+     *         through Grove Basin.
+     * @dev Called by the off-ramp two-step flow after the redeemed asset has been transferred here.
      *      Reverts with {AssetBurnNotSupported} when the linked off-ramp burns redeemed assets,
      *      because this provider must receive the asset before swapping it through Grove Basin.
      *
-     *      The swap is bound to the current redemption: the off-ramp forwards, as the second
-     *      argument, the NAV gross it expects for the redeemed asset amount. This function derives
-     *      the NAV gross from its on-hand asset balance and reverts with {UnexpectedAssetBalanceError}
-     *      when the two differ, so any pre-existing or stuck asset sitting on this contract is not
-     *      swept into the caller's redemption (the provider must hold only the current redemption's
-     *      asset, per its single-redemption custody model).
+     *      The swap is bound to `_assetAmount` (the amount this redemption transferred) rather than
+     *      the whole on-hand balance, so a stray asset donation neither changes the swapped amount nor
+     *      reverts the redemption; any surplus stays on the provider and is recoverable via
+     *      {rescueTokens}. The off-ramp forwards the NAV gross it expects for `_assetAmount`; this
+     *      function re-derives it from the same amount and reverts with {UnexpectedAssetBalanceError}
+     *      on an inconsistent NAV state.
      *
      *      Afterwards it compares the Securitize NAV quote with the Grove Basin preview before
      *      spending swap gas. The swap floor is set to the Grove Basin preview so Basin's native
      *      slippage protection is enforced as a second line of defense.
      * @param _receiver Recipient of the liquidity token (the off-ramp contract).
+     * @param _assetAmount Asset amount redeemed in this operation, to be swapped through Grove Basin.
      * @param _expectedLiquidityAmount NAV gross (before fee) the off-ramp expects for this redemption.
      * @return amountOut Liquidity token amount delivered by Grove Basin.
      */
-    function supplyTo(
+    function supplyExactIn(
         address _receiver,
+        uint256 _assetAmount,
         uint256 _expectedLiquidityAmount
     )
         public
@@ -189,26 +222,31 @@ contract ExternalLiquidityProvider is IExternalLiquidityProvider, BaseExternalPr
         onlyWithoutAssetBurn
         returns (uint256 amountOut)
     {
-        IERC20Metadata _assetToken = assetToken;
-        uint256 amountIn = _assetToken.balanceOf(address(this));
-        if (amountIn == 0) {
+        if (_assetAmount == 0) {
             revert ZeroAmountToSwap();
         }
 
-        IGroveBasin _groveBasin = externalProvider;
+        IERC20Metadata _assetToken = assetToken;
+        uint256 balance = _assetToken.balanceOf(address(this));
+        if (balance < _assetAmount) {
+            revert InsufficientAssetToSwap(_assetAmount, balance);
+        }
+
+        IGroveBasin _externalProvider = externalProvider;
 
         uint256 navGross = ISecuritizeOffRamp(address(securitizeOffRamp)).calculateLiquidityTokenAmountBeforeFee(
-            amountIn
+            _assetAmount
         );
 
-        // Bind the swap to the asset delivered by THIS redemption. A mismatch means the on-hand
-        // balance includes asset that does not belong to the current redemption; reject instead of
-        // sweeping it (which would pay the redeemer for asset they did not redeem).
+        // Bind the swap to the asset delivered by THIS redemption. A mismatch signals an inconsistent
+        // NAV state between the off-ramp quote and the swap; reject instead of paying an amount the
+        // redeemer did not agree to. Binding to `_assetAmount` (not the balance) means a donation is
+        // ignored by the swap.
         if (navGross != _expectedLiquidityAmount) {
             revert UnexpectedAssetBalanceError(_expectedLiquidityAmount, navGross);
         }
 
-        uint256 gbPreview = _groveBasin.previewSwapExactIn(address(_assetToken), address(liquidityToken), amountIn);
+        uint256 gbPreview = _externalProvider.previewSwapExactIn(address(_assetToken), address(liquidityToken), _assetAmount);
 
         _validateRateBand(navGross, gbPreview);
 
@@ -217,12 +255,12 @@ contract ExternalLiquidityProvider is IExternalLiquidityProvider, BaseExternalPr
             revert InsufficientLiquidity(gbPreview, available);
         }
 
-        _assetToken.forceApprove(address(_groveBasin), amountIn);
+        _assetToken.forceApprove(address(_externalProvider), _assetAmount);
 
-        amountOut = _groveBasin.swapExactIn(
+        amountOut = _externalProvider.swapExactIn(
             address(_assetToken),
             address(liquidityToken),
-            amountIn,
+            _assetAmount,
             gbPreview,
             _receiver,
             referralCode

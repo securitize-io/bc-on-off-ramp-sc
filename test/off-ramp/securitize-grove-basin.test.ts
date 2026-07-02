@@ -340,11 +340,68 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
     // ExternalLiquidityProvider — Access Control
     // ─────────────────────────────────────────────────────────────────────────
     describe('ExternalLiquidityProvider — Access Control', function () {
-        it('should revert supplyTo when caller is not the off-ramp', async function () {
+        it('should revert supplyExactIn when caller is not the off-ramp', async function () {
             const { liquidityProvider, stranger } = await loadFixture(deploySecuritizeGroveBasinProtocol);
             await expect(
-                liquidityProvider.connect(stranger).supplyTo(stranger.address, ASSET_AMOUNT),
+                liquidityProvider.connect(stranger).supplyExactIn(stranger.address, ASSET_AMOUNT, ASSET_AMOUNT),
             ).revertedWithCustomError(liquidityProvider, 'RedemptionUnauthorizedAccount');
+        });
+
+        it('disables the legacy balance-based supplyTo entrypoint (once the config guards pass)', async function () {
+            const { redemption, liquidityProvider, stranger } = await loadFixture(deploySecuritizeGroveBasinProtocol);
+            // The off-ramp (two-step, no burn) is the only caller that clears the guards; the legacy
+            // balance-based entrypoint then reverts so no swap can be driven through it.
+            const redemptionAddress = await redemption.getAddress();
+            await hre.network.provider.send('hardhat_impersonateAccount', [redemptionAddress]);
+            await hre.network.provider.send('hardhat_setBalance', [redemptionAddress, '0x1000000000000000000']);
+            const redemptionSigner = await hre.ethers.getSigner(redemptionAddress);
+
+            await expect(
+                liquidityProvider.connect(redemptionSigner).supplyTo(stranger.address, ASSET_AMOUNT),
+            ).revertedWithCustomError(liquidityProvider, 'DirectSupplyNotSupported');
+        });
+
+        it('should revert supplyExactIn with ZeroAmountToSwap when the asset amount is zero', async function () {
+            const { redemption, liquidityProvider } = await loadFixture(deploySecuritizeGroveBasinProtocol);
+            const redemptionAddress = await redemption.getAddress();
+            await hre.network.provider.send('hardhat_impersonateAccount', [redemptionAddress]);
+            await hre.network.provider.send('hardhat_setBalance', [redemptionAddress, '0x1000000000000000000']);
+            const redemptionSigner = await hre.ethers.getSigner(redemptionAddress);
+            await expect(
+                liquidityProvider.connect(redemptionSigner).supplyExactIn(redemptionAddress, 0n, 0n),
+            ).revertedWithCustomError(liquidityProvider, 'ZeroAmountToSwap');
+        });
+
+        it('should revert supplyExactIn with InsufficientAssetToSwap when the provider holds less than the amount', async function () {
+            const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
+            const { redemption, liquidityProvider, dsTokenMock } = ctx;
+            const redemptionAddress = await redemption.getAddress();
+            await dsTokenMock.mint(await liquidityProvider.getAddress(), ASSET_AMOUNT - 1n);
+            const expected = await redemption.calculateLiquidityTokenAmountBeforeFee(ASSET_AMOUNT);
+            await hre.network.provider.send('hardhat_impersonateAccount', [redemptionAddress]);
+            await hre.network.provider.send('hardhat_setBalance', [redemptionAddress, '0x1000000000000000000']);
+            const redemptionSigner = await hre.ethers.getSigner(redemptionAddress);
+            await expect(
+                liquidityProvider.connect(redemptionSigner).supplyExactIn(redemptionAddress, ASSET_AMOUNT, expected),
+            )
+                .revertedWithCustomError(liquidityProvider, 'InsufficientAssetToSwap')
+                .withArgs(ASSET_AMOUNT, ASSET_AMOUNT - 1n);
+        });
+
+        it('should revert supplyExactIn with UnexpectedAssetBalanceError on an inconsistent expected NAV gross', async function () {
+            const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
+            const { redemption, liquidityProvider, dsTokenMock } = ctx;
+            const redemptionAddress = await redemption.getAddress();
+            await dsTokenMock.mint(await liquidityProvider.getAddress(), ASSET_AMOUNT);
+            const expected = await redemption.calculateLiquidityTokenAmountBeforeFee(ASSET_AMOUNT);
+            await hre.network.provider.send('hardhat_impersonateAccount', [redemptionAddress]);
+            await hre.network.provider.send('hardhat_setBalance', [redemptionAddress, '0x1000000000000000000']);
+            const redemptionSigner = await hre.ethers.getSigner(redemptionAddress);
+            await expect(
+                liquidityProvider.connect(redemptionSigner).supplyExactIn(redemptionAddress, ASSET_AMOUNT, expected + 1n),
+            )
+                .revertedWithCustomError(liquidityProvider, 'UnexpectedAssetBalanceError')
+                .withArgs(expected + 1n, expected);
         });
 
         it('should revert setExternalProvider for non-admin', async function () {
@@ -401,7 +458,7 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
             );
         });
 
-        it('should revert supplyTo when the linked off-ramp has assetBurn enabled', async function () {
+        it('should revert supplyExactIn when the linked off-ramp has assetBurn enabled', async function () {
             const { redemption, liquidityProvider } = await loadFixture(
                 deploySecuritizeGroveBasinProtocolWithAssetBurn,
             );
@@ -413,7 +470,7 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
             const redemptionSigner = await hre.ethers.getSigner(redemptionAddress);
 
             await expect(
-                liquidityProvider.connect(redemptionSigner).supplyTo(redemptionAddress, ASSET_AMOUNT),
+                liquidityProvider.connect(redemptionSigner).supplyExactIn(redemptionAddress, ASSET_AMOUNT, ASSET_AMOUNT),
             ).revertedWithCustomError(liquidityProvider, 'AssetBurnNotSupported');
         });
 
@@ -595,12 +652,12 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
     });
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Redeem — accounting binding (BC-2207, BugPocer TP: full-balance sweep)
+    // Redeem — accounting binding (BC-2207, Cyfrin: donation-brick / full-balance sweep)
     //
-    // supplyTo must swap only the asset delivered by the CURRENT redemption, never any
-    // pre-existing/stuck asset already sitting on the provider. The binding is enforced by
-    // comparing the NAV gross the off-ramp expects with the NAV gross derived from the
-    // provider's on-hand balance; a mismatch reverts with {UnexpectedAssetBalanceError}.
+    // supplyExactIn swaps only the asset delivered by the CURRENT redemption, never any
+    // pre-existing/stuck/donated asset sitting on the provider. Binding to the redemption's own
+    // asset amount (not the on-hand balance) means a donation is neither swept into the redemption
+    // nor able to revert (brick) it; any surplus stays on the provider and is recoverable.
     // ─────────────────────────────────────────────────────────────────────────
     describe('Redeem — accounting binding', function () {
         it('should settle a clean redemption and leave no asset on the provider', async function () {
@@ -616,31 +673,41 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
             expect(await dsTokenMock.balanceOf(await liquidityProvider.getAddress())).to.equal(0n);
         });
 
-        it('should revert without sweeping pre-existing/stuck asset on the provider', async function () {
+        it('should ignore pre-existing/donated asset: redemption succeeds and the donation is retained', async function () {
             const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
             const { redemption, usdcMock, dsTokenMock, liquidityProvider, investor } = ctx;
-            const STUCK_ASSET_AMOUNT = 5_000_000n; // 5 units sitting on the provider before the redemption
+            const DONATED_ASSET = 5_000_000n; // 5 units donated to the provider before the redemption
 
-            await prepareRedemption(ctx, ASSET_AMOUNT);
+            const { preFeeExpected } = await prepareRedemption(ctx, ASSET_AMOUNT);
             const providerAddress = await liquidityProvider.getAddress();
-            await dsTokenMock.mint(providerAddress, STUCK_ASSET_AMOUNT);
+            await dsTokenMock.mint(providerAddress, DONATED_ASSET);
 
-            // The off-ramp expects the NAV gross for ASSET_AMOUNT, but the on-hand balance during
-            // supplyTo would be ASSET_AMOUNT + STUCK_ASSET_AMOUNT.
-            const expectedNavGross = await redemption.calculateLiquidityTokenAmountBeforeFee(ASSET_AMOUNT);
-            const actualNavGross = await redemption.calculateLiquidityTokenAmountBeforeFee(
-                ASSET_AMOUNT + STUCK_ASSET_AMOUNT,
-            );
+            // The swap is bound to ASSET_AMOUNT (this redemption), not the on-hand balance, so it
+            // succeeds and pays exactly for what the investor redeemed.
+            await redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT);
 
-            await expect(redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT))
-                .revertedWithCustomError(liquidityProvider, 'UnexpectedAssetBalanceError')
-                .withArgs(expectedNavGross, actualNavGross);
+            expect(await usdcMock.balanceOf(investor.address)).to.equal(preFeeExpected);
+            // The donation stays on the provider (recoverable via rescueTokens), never swept.
+            expect(await dsTokenMock.balanceOf(providerAddress)).to.equal(DONATED_ASSET);
+        });
 
-            // Atomic revert: investor keeps their asset, receives no liquidity, and the stuck
-            // balance is untouched (not converted and handed to the redeemer).
-            expect(await usdcMock.balanceOf(investor.address)).to.equal(0n);
-            expect(await dsTokenMock.balanceOf(investor.address)).to.equal(ASSET_AMOUNT);
-            expect(await dsTokenMock.balanceOf(providerAddress)).to.equal(STUCK_ASSET_AMOUNT);
+        it('should let the admin rescue a donated asset and revert rescue for a non-admin', async function () {
+            const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
+            const { dsTokenMock, liquidityProvider, stranger } = ctx;
+            const providerAddress = await liquidityProvider.getAddress();
+            const DONATED_ASSET = 3_000_000n;
+            await dsTokenMock.mint(providerAddress, DONATED_ASSET);
+
+            await expect(
+                liquidityProvider
+                    .connect(stranger)
+                    .rescueTokens(await dsTokenMock.getAddress(), stranger.address, DONATED_ASSET),
+            ).revertedWithCustomError(liquidityProvider, 'AccessControlUnauthorizedAccount');
+
+            await expect(liquidityProvider.rescueTokens(await dsTokenMock.getAddress(), stranger.address, DONATED_ASSET))
+                .to.emit(liquidityProvider, 'TokensRescued')
+                .withArgs(await dsTokenMock.getAddress(), stranger.address, DONATED_ASSET);
+            expect(await dsTokenMock.balanceOf(providerAddress)).to.equal(0n);
         });
     });
 

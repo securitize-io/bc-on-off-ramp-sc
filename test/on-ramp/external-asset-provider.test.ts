@@ -309,23 +309,77 @@ describe('On-Ramp External Asset Provider (swapExactIn via Grove Basin quote)', 
         }
     });
 
-    describe('Swap binding (anti-manipulation)', function () {
-        it('reverts when liquidity is donated to the provider before the swap', async function () {
+    describe('Swap binding (donation resilience)', function () {
+        it('ignores a liquidity donation to the provider: swap succeeds and the donation is retained', async function () {
             const ctx = await loadFixture(deployOnRampExternalAssetProvider);
-            const { onRamp, assetProvider, usdcMock, investor, stranger } = ctx;
+            const { onRamp, assetProvider, usdcMock, dsTokenMock, groveBasinMock, investor, stranger } = ctx;
 
             const gross = 1_000_000_000n;
-            await prepareSwap(ctx, gross, 0n);
+            const { expected, net } = await prepareSwap(ctx, gross, 0n);
 
-            await usdcMock.mint(stranger.address, 5n);
-            await usdcMock.connect(stranger).transfer(await assetProvider.getAddress(), 5n);
+            // An arbitrary (non-investor) address donates USDC to the provider before the swap.
+            const DONATION = 1_000_000n; // 1 USDC
+            await usdcMock.mint(stranger.address, DONATION);
+            await usdcMock.connect(stranger).transfer(await assetProvider.getAddress(), DONATION);
 
-            // The on-ramp sizes the expected amount from the quote over the net; the on-hand balance
-            // now includes the donation, so the provider's re-quote no longer matches and reverts.
-            await expect(onRamp.connect(investor).swap(gross, MIN_OUT)).revertedWithCustomError(
-                assetProvider,
-                'UnexpectedSwapOutputError',
-            );
+            // The swap is bound to the net liquidity (not the on-hand balance), so it still succeeds
+            // and delivers exactly the expected asset amount.
+            await onRamp.connect(investor).swap(gross, MIN_OUT);
+            expect(await dsTokenMock.balanceOf(investor.address)).to.equal(expected);
+
+            // Only the net was swapped into Grove Basin; the donation stays on the provider (recoverable
+            // via rescueTokens), never swept into the buyer's subscription.
+            expect(await usdcMock.balanceOf(await groveBasinMock.getAddress())).to.equal(net);
+            expect(await usdcMock.balanceOf(await assetProvider.getAddress())).to.equal(DONATION);
+        });
+
+        it('remains live for subsequent subscriptions after a donation (no permanent brick)', async function () {
+            const ctx = await loadFixture(deployOnRampExternalAssetProvider);
+            const { onRamp, assetProvider, usdcMock, dsTokenMock, groveBasinMock, investor, stranger } = ctx;
+
+            const gross = 1_000_000_000n;
+            const { expected } = await prepareSwap(ctx, gross, 0n);
+
+            // Fund a second subscription: extra asset in Grove Basin + extra USDC and a 2x approval.
+            await dsTokenMock.mint(await groveBasinMock.getAddress(), expected);
+            await usdcMock.mint(investor.address, gross);
+            await usdcMock.connect(investor).approve(await onRamp.getAddress(), gross * 2n);
+
+            const DONATION = 7n;
+            await usdcMock.mint(stranger.address, DONATION);
+            await usdcMock.connect(stranger).transfer(await assetProvider.getAddress(), DONATION);
+
+            await onRamp.connect(investor).swap(gross, MIN_OUT);
+            await onRamp.connect(investor).swap(gross, MIN_OUT);
+
+            expect(await dsTokenMock.balanceOf(investor.address)).to.equal(expected * 2n);
+            expect(await usdcMock.balanceOf(await assetProvider.getAddress())).to.equal(DONATION);
+        });
+    });
+
+    describe('rescueTokens', function () {
+        it('lets the admin recover a donation and reverts for a non-admin caller', async function () {
+            const ctx = await loadFixture(deployOnRampExternalAssetProvider);
+            const { assetProvider, usdcMock, stranger } = ctx;
+            const DONATION = 1_234n;
+            await usdcMock.mint(await assetProvider.getAddress(), DONATION);
+
+            await expect(
+                assetProvider.connect(stranger).rescueTokens(await usdcMock.getAddress(), stranger.address, DONATION),
+            ).revertedWithCustomError(assetProvider, 'AccessControlUnauthorizedAccount');
+
+            await expect(assetProvider.rescueTokens(await usdcMock.getAddress(), stranger.address, DONATION))
+                .to.emit(assetProvider, 'TokensRescued')
+                .withArgs(await usdcMock.getAddress(), stranger.address, DONATION);
+            expect(await usdcMock.balanceOf(stranger.address)).to.equal(DONATION);
+            expect(await usdcMock.balanceOf(await assetProvider.getAddress())).to.equal(0n);
+        });
+
+        it('reverts when rescuing to the zero address', async function () {
+            const { assetProvider, usdcMock } = await loadFixture(deployOnRampExternalAssetProvider);
+            await expect(
+                assetProvider.rescueTokens(await usdcMock.getAddress(), hre.ethers.ZeroAddress, 0n),
+            ).revertedWithCustomError(assetProvider, 'NonZeroAddressError');
         });
     });
 
@@ -458,34 +512,43 @@ describe('On-Ramp External Asset Provider (swapExactIn via Grove Basin quote)', 
         });
     });
 
-    describe('supplyTo direct access', function () {
+    describe('supplyExactIn direct access', function () {
         it('reverts for non on-ramp callers', async function () {
             const { assetProvider, stranger, investor } = await loadFixture(deployOnRampExternalAssetProvider);
-            await expect(assetProvider.connect(stranger).supplyTo(investor.address, 1n)).revertedWithCustomError(
-                assetProvider,
-                'UnauthorizedAccount',
-            );
+            await expect(
+                assetProvider.connect(stranger).supplyExactIn(investor.address, 1n, 1n),
+            ).revertedWithCustomError(assetProvider, 'UnauthorizedAccount');
         });
 
-        it('reverts with ZeroAmountToSwap when the provider holds no liquidity', async function () {
+        it('reverts with ZeroAmountToSwap when the net liquidity is zero', async function () {
             const { onRamp, assetProvider, investor } = await loadFixture(deployOnRampExternalAssetProvider);
             const onRampAddress = await onRamp.getAddress();
             await hre.network.provider.send('hardhat_setBalance', [onRampAddress, '0x56BC75E2D63100000']);
             const onRampSigner = await hre.ethers.getImpersonatedSigner(onRampAddress);
-            await expect(assetProvider.connect(onRampSigner).supplyTo(investor.address, 0n)).revertedWithCustomError(
-                assetProvider,
-                'ZeroAmountToSwap',
-            );
+            await expect(
+                assetProvider.connect(onRampSigner).supplyExactIn(investor.address, 0n, 0n),
+            ).revertedWithCustomError(assetProvider, 'ZeroAmountToSwap');
+        });
+
+        it('reverts with InsufficientLiquidityToSwap when the provider holds less than the net', async function () {
+            const { onRamp, assetProvider, usdcMock, investor } = await loadFixture(deployOnRampExternalAssetProvider);
+            await usdcMock.mint(await assetProvider.getAddress(), 500_000n);
+            const onRampAddress = await onRamp.getAddress();
+            await hre.network.provider.send('hardhat_setBalance', [onRampAddress, '0x56BC75E2D63100000']);
+            const onRampSigner = await hre.ethers.getImpersonatedSigner(onRampAddress);
+            await expect(assetProvider.connect(onRampSigner).supplyExactIn(investor.address, 1_000_000n, 1_000_000n))
+                .revertedWithCustomError(assetProvider, 'InsufficientLiquidityToSwap')
+                .withArgs(1_000_000n, 500_000n);
         });
 
         it('reverts with NonZeroNavRateError when the NAV rate is zero', async function () {
             const { onRamp, assetProvider, usdcMock, navProviderMock, investor } = await loadFixture(
                 deployOnRampExternalAssetProvider,
             );
-            // Fund the provider directly and drive supplyTo as the on-ramp with a zero NAV rate so the
-            // provider's NAV cross-check (_assetForLiquidity) hits its guard. The expected amount must
-            // match the Grove Basin quote for the on-hand balance (1:1 parity) so the binding passes
-            // first and execution reaches the NAV band.
+            // Fund the provider directly and drive supplyExactIn as the on-ramp with a zero NAV rate so
+            // the provider's NAV cross-check (_assetForLiquidity) hits its guard. The expected amount
+            // must match the Grove Basin quote for the net (1:1 parity) so the binding passes first and
+            // execution reaches the NAV band.
             await usdcMock.mint(await assetProvider.getAddress(), 1_000_000n);
             await navProviderMock.setRate(0);
 
@@ -493,8 +556,28 @@ describe('On-Ramp External Asset Provider (swapExactIn via Grove Basin quote)', 
             await hre.network.provider.send('hardhat_setBalance', [onRampAddress, '0x56BC75E2D63100000']);
             const onRampSigner = await hre.ethers.getImpersonatedSigner(onRampAddress);
             await expect(
-                assetProvider.connect(onRampSigner).supplyTo(investor.address, 1_000_000n),
+                assetProvider.connect(onRampSigner).supplyExactIn(investor.address, 1_000_000n, 1_000_000n),
             ).revertedWithCustomError(assetProvider, 'NonZeroNavRateError');
+        });
+
+        it('reverts with UnexpectedSwapOutputError on an inconsistent expected amount', async function () {
+            const { onRamp, assetProvider, usdcMock, investor } = await loadFixture(deployOnRampExternalAssetProvider);
+            await usdcMock.mint(await assetProvider.getAddress(), 1_000_000n);
+            const onRampAddress = await onRamp.getAddress();
+            await hre.network.provider.send('hardhat_setBalance', [onRampAddress, '0x56BC75E2D63100000']);
+            const onRampSigner = await hre.ethers.getImpersonatedSigner(onRampAddress);
+            // net = 1e6 → Grove 1:1 preview = 1e6; passing a mismatched expected reverts before the swap.
+            await expect(assetProvider.connect(onRampSigner).supplyExactIn(investor.address, 1_000_000n, 1_000_001n))
+                .revertedWithCustomError(assetProvider, 'UnexpectedSwapOutputError')
+                .withArgs(1_000_001n, 1_000_000n);
+        });
+
+        it('disables the legacy balance-based supplyTo entrypoint', async function () {
+            const { assetProvider, investor } = await loadFixture(deployOnRampExternalAssetProvider);
+            await expect(assetProvider.supplyTo(investor.address, 1n)).revertedWithCustomError(
+                assetProvider,
+                'DirectSupplyNotSupported',
+            );
         });
     });
 });

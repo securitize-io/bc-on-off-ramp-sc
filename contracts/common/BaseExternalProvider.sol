@@ -20,6 +20,8 @@ pragma solidity ^0.8.22;
 import {BaseContract} from "./BaseContract.sol";
 import {IExternalProvider} from "./IExternalProvider.sol";
 import {IGroveBasin} from "../off-ramp/third-party-contracts/IGroveBasin.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /**
  * @title BaseExternalProvider
@@ -38,6 +40,8 @@ import {IGroveBasin} from "../off-ramp/third-party-contracts/IGroveBasin.sol";
  *         future shared state without disturbing the concrete providers' own variables.
  */
 abstract contract BaseExternalProvider is IExternalProvider, BaseContract {
+    using SafeERC20 for IERC20;
+
     /// @dev Denominator for {rateTolerance}; 100_000 equals 100%.
     uint256 public constant TOLERANCE_DENOMINATOR = 100_000;
 
@@ -80,6 +84,17 @@ abstract contract BaseExternalProvider is IExternalProvider, BaseContract {
     function __BaseExternalProvider_init(address _groveBasin) internal onlyInitializing {
         _setExternalProvider(_groveBasin);
         rateTolerance = DEFAULT_RATE_TOLERANCE;
+    }
+
+    /**
+     * @inheritdoc IExternalProvider
+     */
+    function rescueTokens(address _token, address _to, uint256 _amount) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (_to == address(0)) {
+            revert NonZeroAddressError();
+        }
+        IERC20(_token).safeTransfer(_to, _amount);
+        emit TokensRescued(_token, _to, _amount);
     }
 
     /**

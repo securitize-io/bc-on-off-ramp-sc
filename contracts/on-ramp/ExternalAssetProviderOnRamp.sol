@@ -19,6 +19,7 @@ pragma solidity ^0.8.22;
 
 import {SecuritizeOnRamp} from "./SecuritizeOnRamp.sol";
 import {IExternalAssetProvider} from "./provider/IExternalAssetProvider.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 /**
  * @title ExternalAssetProviderOnRamp
@@ -81,5 +82,22 @@ contract ExternalAssetProviderOnRamp is SecuritizeOnRamp {
 
         rate = navProvider.rate();
         dsTokenAmount = IExternalAssetProvider(address(assetProvider)).quoteAsset(netLiquidity);
+    }
+
+    /**
+     * @notice Sources the asset by binding the Grove Basin swap to the subscription's net liquidity.
+     * @dev Drives the {ExternalAssetProvider} through {IExternalAssetProvider.supplyExactIn}, binding
+     *      the Grove Basin swap to `netLiquidity` (the net just settled on the provider) instead of
+     *      the provider's on-hand balance. This makes a stray liquidity-token donation to the provider
+     *      irrelevant to the swap: it is neither swept nor able to revert the subscription.
+     */
+    function _executeAssetTransfer(address to, uint256 amount, uint256 netLiquidity) internal override {
+        IExternalAssetProvider provider = IExternalAssetProvider(address(assetProvider));
+        if (twoStepTransfer) {
+            provider.supplyExactIn(address(this), netLiquidity, amount);
+            IERC20Metadata(address(dsToken)).transfer(to, amount);
+        } else {
+            provider.supplyExactIn(to, netLiquidity, amount);
+        }
     }
 }
