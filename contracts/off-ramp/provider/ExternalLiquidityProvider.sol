@@ -248,6 +248,14 @@ contract ExternalLiquidityProvider is IExternalLiquidityProvider, BaseExternalPr
 
         uint256 gbPreview = _externalProvider.previewSwapExactIn(address(_assetToken), address(liquidityToken), _assetAmount);
 
+        // Reject dust-sized redemptions whose NAV or Grove Basin quote floors to zero. A zero preview
+        // would be forwarded as Grove Basin's `minAmountOut`, silently removing the swap floor
+        // (`amountOut < 0` never holds), and a zero NAV would collapse the tolerance band to (0,0).
+        // Rejecting here keeps the documented price floor intact for every accepted redemption.
+        if (gbPreview == 0 || navGross == 0) {
+            revert ZeroAmountToSwap();
+        }
+
         _validateRateBand(navGross, gbPreview);
 
         uint256 available = _availableLiquidity();

@@ -404,6 +404,69 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
                 .withArgs(expected + 1n, expected);
         });
 
+        it('should revert supplyExactIn with ZeroAmountToSwap when the Grove Basin preview floors to zero', async function () {
+            // Dust-sized redemption: the Grove Basin preview floors to 0 while the NAV gross stays > 0.
+            // Without the provider-level guard this would forward a 0 floor to Grove Basin (or revert
+            // with MinRateDivergenceError once the NAV band is reached); with the guard it is rejected
+            // up front so the documented price floor always holds.
+            const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
+            const { redemption, liquidityProvider, dsTokenMock, groveBasinMock } = ctx;
+            const redemptionAddress = await redemption.getAddress();
+
+            await dsTokenMock.mint(await liquidityProvider.getAddress(), ASSET_AMOUNT);
+            const navGross = await redemption.calculateLiquidityTokenAmountBeforeFee(ASSET_AMOUNT);
+            expect(navGross).to.be.greaterThan(0n);
+
+            // Force the Grove Basin preview to floor to zero (numerator = 0).
+            await setGbPreviewFactor(groveBasinMock, 0n, 1n);
+            expect(
+                await groveBasinMock.previewSwapExactIn(
+                    await dsTokenMock.getAddress(),
+                    await liquidityProvider.liquidityToken(),
+                    ASSET_AMOUNT,
+                ),
+            ).to.equal(0n);
+
+            await hre.network.provider.send('hardhat_impersonateAccount', [redemptionAddress]);
+            await hre.network.provider.send('hardhat_setBalance', [redemptionAddress, '0x1000000000000000000']);
+            const redemptionSigner = await hre.ethers.getSigner(redemptionAddress);
+            await expect(
+                liquidityProvider.connect(redemptionSigner).supplyExactIn(redemptionAddress, ASSET_AMOUNT, navGross),
+            ).revertedWithCustomError(liquidityProvider, 'ZeroAmountToSwap');
+        });
+
+        it('should revert supplyExactIn with ZeroAmountToSwap when the NAV gross floors to zero', async function () {
+            // Dust-sized redemption: a sub-unit asset amount priced below one liquidity base unit makes
+            // the NAV gross floor to 0 (with a non-zero rate) while the Grove Basin preview stays > 0.
+            // Without the guard the tolerance band would collapse to a (0, gbPreview) anchor; with the
+            // guard the redemption is rejected so the band always cross-checks a meaningful NAV anchor.
+            const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
+            const { redemption, liquidityProvider, dsTokenMock, navProviderMock } = ctx;
+            const redemptionAddress = await redemption.getAddress();
+            const dustAmount = 1n; // one base unit of a 6-decimals asset
+
+            await dsTokenMock.mint(await liquidityProvider.getAddress(), ASSET_AMOUNT);
+
+            // Rate just below parity so navGross = floor(dust * rate * 1e6 / 1e12) = 0 for the dust amount,
+            // while the Grove Basin preview (which divides by a smaller factor) stays > 0.
+            await navProviderMock.setRate(parityRate(6) - 1n);
+            expect(await redemption.calculateLiquidityTokenAmountBeforeFee(dustAmount)).to.equal(0n);
+            expect(
+                await ctx.groveBasinMock.previewSwapExactIn(
+                    await dsTokenMock.getAddress(),
+                    await liquidityProvider.liquidityToken(),
+                    dustAmount,
+                ),
+            ).to.be.greaterThan(0n);
+
+            await hre.network.provider.send('hardhat_impersonateAccount', [redemptionAddress]);
+            await hre.network.provider.send('hardhat_setBalance', [redemptionAddress, '0x1000000000000000000']);
+            const redemptionSigner = await hre.ethers.getSigner(redemptionAddress);
+            await expect(
+                liquidityProvider.connect(redemptionSigner).supplyExactIn(redemptionAddress, dustAmount, 0n),
+            ).revertedWithCustomError(liquidityProvider, 'ZeroAmountToSwap');
+        });
+
         it('should revert setExternalProvider for non-admin', async function () {
             const { liquidityProvider, stranger } = await loadFixture(deploySecuritizeGroveBasinProtocol);
             await expect(

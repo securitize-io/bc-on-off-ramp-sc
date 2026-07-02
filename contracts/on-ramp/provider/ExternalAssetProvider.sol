@@ -212,6 +212,14 @@ contract ExternalAssetProvider is IExternalAssetProvider, BaseExternalProvider {
             revert UnexpectedSwapOutputError(_expectedAssetAmount, gbAmountOut);
         }
 
+        // Reject dust-sized subscriptions whose Grove Basin quote floors to zero. `gbAmountOut` is
+        // forwarded as Grove Basin's `minAmountOut` (via `_expectedAssetAmount`), so a zero quote would
+        // silently remove the swap floor (`amountOut < 0` never holds). Rejecting here keeps the
+        // documented price floor intact for every accepted subscription.
+        if (gbAmountOut == 0) {
+            revert ZeroAmountToSwap();
+        }
+
         // Grove Basin sets the price the investor pays; cross-check it against the Securitize NAV so a
         // manipulated/diverged Grove Basin oracle cannot price the swap outside the tolerance band.
         _validateRateBand(_assetForLiquidity(_netLiquidity), gbAmountOut);
