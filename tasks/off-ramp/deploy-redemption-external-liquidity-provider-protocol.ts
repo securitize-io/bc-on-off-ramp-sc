@@ -33,6 +33,13 @@ task('deploy-redemption-external-liquidity-provider-protocol', 'Deploy Securitiz
         'Rate divergence tolerance in units of 100_000 (1000 = 1%). Overrides the 1% contract default when set',
     )
 
+    // Admin handover (optional)
+    .addOptionalParam(
+        'admin',
+        'Address that receives DEFAULT_ADMIN_ROLE on the deployed contracts; the deployer then renounces its own role. Defaults to the zero address, which keeps the deployer as admin (no handover)',
+        '0x0000000000000000000000000000000000000000',
+    )
+
     // Verification flag
     .addFlag('verify', 'Verify contracts on Etherscan')
     .addFlag('silenceLogs', 'Suppress console output')
@@ -46,8 +53,11 @@ task('deploy-redemption-external-liquidity-provider-protocol', 'Deploy Securitiz
             console.log(`- Liquidity Token: ${args.liquidityToken}`);
             console.log(`- Grove Basin: ${args.groveBasin}`);
             console.log(`- Redeem Tolerance: ${args.redeemTolerance ?? '(contract default 1000 = 1%)'}`);
+            console.log(`- Admin: ${args.admin} ${args.admin === hre.ethers.ZeroAddress ? '(no handover)' : ''}`);
             console.log(`- Verify: ${args.verify}`);
         }
+
+        const [deployer] = await hre.ethers.getSigners();
 
         // assetBurn is forced to false: ExternalLiquidityProvider receives the asset and
         // swaps it through Grove Basin — burning it beforehand is not supported.
@@ -102,10 +112,39 @@ task('deploy-redemption-external-liquidity-provider-protocol', 'Deploy Securitiz
             await toleranceTx.wait(1);
         }
 
+        // Admin handover MUST be the last step: every configuration call above requires the
+        // deployer to still hold DEFAULT_ADMIN_ROLE. Granting the role to the new admin before
+        // the deployer renounces it guarantees the contract is never left without an admin.
+        // NOTE: renouncing also drops the deployer's UUPS upgrade rights (_authorizeUpgrade is
+        // gated by DEFAULT_ADMIN_ROLE), leaving `admin` as the sole controller.
+        if (args.admin !== hre.ethers.ZeroAddress) {
+            if (!hre.ethers.isAddress(args.admin)) {
+                throw new Error(`Invalid admin address: ${args.admin}`);
+            }
+
+            const transferAdmin = async (
+                contract: Awaited<ReturnType<typeof hre.ethers.getContractAt>>,
+                label: string,
+            ) => {
+                if (!args.silenceLogs) {
+                    consoleYellow(`Transferring DEFAULT_ADMIN_ROLE of ${label} to ${args.admin}...`);
+                }
+                const role = await contract.DEFAULT_ADMIN_ROLE();
+                await (await contract.grantRole(role, args.admin)).wait(1);
+                await (await contract.renounceRole(role, deployer.address)).wait(1);
+            };
+
+            await transferAdmin(redemption, 'ExternalLiquidityProviderOffRamp');
+            await transferAdmin(liquidityProvider, 'ExternalLiquidityProvider');
+        }
+
         if (!args.silenceLogs) {
             consoleGreen('Securitize + Grove Basin Off-Ramp Protocol deployed and configured successfully');
             consoleMagenta(`- Off-Ramp Address: ${redemptionAddress}`);
             consoleMagenta(`- Liquidity Provider Address: ${liquidityProviderAddress}`);
+            if (args.admin !== hre.ethers.ZeroAddress) {
+                consoleMagenta(`- Admin (DEFAULT_ADMIN_ROLE): ${args.admin} — deployer renounced its role`);
+            }
         }
 
         return { redemption, liquidityProvider };

@@ -42,6 +42,13 @@ task('deploy-on-ramp-external-asset-provider', 'Deploy Securitize On-Ramp + Grov
     )
     .addOptionalParam('referralCode', 'Referral code forwarded to Grove Basin on each swap')
 
+    // Admin handover (optional)
+    .addOptionalParam(
+        'admin',
+        'Address that receives DEFAULT_ADMIN_ROLE on the deployed contracts; the deployer then renounces its own role. Defaults to the zero address, which keeps the deployer as admin (no handover)',
+        '0x0000000000000000000000000000000000000000',
+    )
+
     // Transfer mode (two-step is the default for RWA compliance)
     .addFlag('singleStep', 'Deliver the asset straight from Grove Basin to the investor (skips two-step)')
 
@@ -60,8 +67,11 @@ task('deploy-on-ramp-external-asset-provider', 'Deploy Securitize On-Ramp + Grov
             console.log(`- Redeem Tolerance: ${args.redeemTolerance ?? '(contract default 1000 = 1%)'}`);
             console.log(`- Referral Code: ${args.referralCode ?? '0'}`);
             console.log(`- Transfer mode: ${args.singleStep ? 'single-step' : 'two-step (default)'}`);
+            console.log(`- Admin: ${args.admin} ${args.admin === hre.ethers.ZeroAddress ? '(no handover)' : ''}`);
             console.log(`- Verify: ${args.verify}`);
         }
+
+        const [deployer] = await hre.ethers.getSigners();
 
         // The provider is deployed FIRST so the on-ramp can be initialized with
         // custodianWallet = provider (no on-ramp setter, no circular dependency).
@@ -143,6 +153,37 @@ task('deploy-on-ramp-external-asset-provider', 'Deploy Securitize On-Ramp + Grov
         }
 
         await onRamp.toggleInvestorSubscription(true);
+
+        // Admin handover MUST be the last step: every configuration call above (including
+        // toggleInvestorSubscription) requires the deployer to still hold DEFAULT_ADMIN_ROLE.
+        // Granting the role to the new admin before the deployer renounces it guarantees the
+        // contract is never left without an admin.
+        // NOTE: renouncing also drops the deployer's UUPS upgrade rights (_authorizeUpgrade is
+        // gated by DEFAULT_ADMIN_ROLE), leaving `admin` as the sole controller.
+        if (args.admin !== hre.ethers.ZeroAddress) {
+            if (!hre.ethers.isAddress(args.admin)) {
+                throw new Error(`Invalid admin address: ${args.admin}`);
+            }
+
+            const transferAdmin = async (
+                contract: Awaited<ReturnType<typeof hre.ethers.getContractAt>>,
+                label: string,
+            ) => {
+                if (!args.silenceLogs) {
+                    consoleYellow(`Transferring DEFAULT_ADMIN_ROLE of ${label} to ${args.admin}...`);
+                }
+                const role = await contract.DEFAULT_ADMIN_ROLE();
+                await (await contract.grantRole(role, args.admin)).wait(1);
+                await (await contract.renounceRole(role, deployer.address)).wait(1);
+            };
+
+            await transferAdmin(onRamp, 'ExternalAssetProviderOnRamp');
+            await transferAdmin(assetProvider, 'ExternalAssetProvider');
+
+            if (!args.silenceLogs) {
+                consoleMagenta(`- Admin (DEFAULT_ADMIN_ROLE): ${args.admin} — deployer renounced its role`);
+            }
+        }
 
         return { onRamp, assetProvider, onRampAddress, assetProviderAddress };
     });

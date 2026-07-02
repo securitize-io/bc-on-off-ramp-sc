@@ -10,6 +10,7 @@ import {
     TOLERANCE_DENOMINATOR,
     investorId,
     deploySecuritizeGroveBasinProtocol,
+    deploySecuritizeGroveBasinProtocolWithAdmin,
     deploySecuritizeGroveBasinProtocolWithAssetBurn,
     deploySecuritizeGroveBasinProtocol6x18,
     deploySecuritizeGroveBasinProtocol18x6,
@@ -27,6 +28,49 @@ import {
 } from './securitize-grove-basin.fixture';
 
 describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
+    // ─────────────────────────────────────────────────────────────────────────
+    // Deploy task — optional admin handover
+    // ─────────────────────────────────────────────────────────────────────────
+    describe('Deploy task — admin handover', function () {
+        it('keeps the deployer as DEFAULT_ADMIN_ROLE when no admin is provided', async function () {
+            const { redemption, liquidityProvider } = await loadFixture(deploySecuritizeGroveBasinProtocol);
+            const [deployer] = await hre.ethers.getSigners();
+            const role = await redemption.DEFAULT_ADMIN_ROLE();
+
+            expect(await redemption.hasRole(role, deployer.address)).to.equal(true);
+            expect(await liquidityProvider.hasRole(role, deployer.address)).to.equal(true);
+        });
+
+        it('grants DEFAULT_ADMIN_ROLE to the new admin on both contracts', async function () {
+            const { redemption, liquidityProvider, admin } = await loadFixture(
+                deploySecuritizeGroveBasinProtocolWithAdmin,
+            );
+            const role = await redemption.DEFAULT_ADMIN_ROLE();
+
+            expect(await redemption.hasRole(role, admin.address)).to.equal(true);
+            expect(await liquidityProvider.hasRole(role, admin.address)).to.equal(true);
+        });
+
+        it('renounces the deployer DEFAULT_ADMIN_ROLE on both contracts', async function () {
+            const { redemption, liquidityProvider, deployer } = await loadFixture(
+                deploySecuritizeGroveBasinProtocolWithAdmin,
+            );
+            const role = await redemption.DEFAULT_ADMIN_ROLE();
+
+            expect(await redemption.hasRole(role, deployer.address)).to.equal(false);
+            expect(await liquidityProvider.hasRole(role, deployer.address)).to.equal(false);
+        });
+
+        it('lets the new admin exercise an admin-only function while the deployer cannot', async function () {
+            const { redemption, admin, deployer } = await loadFixture(deploySecuritizeGroveBasinProtocolWithAdmin);
+
+            // pause() is gated by DEFAULT_ADMIN_ROLE (BaseContract): admin succeeds, deployer reverts.
+            await expect(redemption.connect(admin).pause()).to.not.be.reverted;
+            await expect(redemption.connect(deployer).unpause()).to.be.reverted;
+            await expect(redemption.connect(admin).unpause()).to.not.be.reverted;
+        });
+    });
+
     // ─────────────────────────────────────────────────────────────────────────
     // SecuritizeOffRamp — Initialization
     // ─────────────────────────────────────────────────────────────────────────

@@ -70,6 +70,7 @@ export const deployOnRampExternalAssetProvider = async (
     liquidityDecimals = 6,
     feeNumerator = 0n,
     singleStep = false,
+    adminAddress?: string,
 ) => {
     const [securitizeWallet, investor, stranger] = await hre.ethers.getSigners();
 
@@ -107,6 +108,7 @@ export const deployOnRampExternalAssetProvider = async (
         feeManager: await feeManagerMock.getAddress(),
         groveBasin: await groveBasinMock.getAddress(),
         singleStep,
+        ...(adminAddress !== undefined ? { admin: adminAddress } : {}),
         silenceLogs: true,
     });
 
@@ -116,6 +118,7 @@ export const deployOnRampExternalAssetProvider = async (
     return {
         onRamp,
         assetProvider,
+        adminAddress,
         dsTokenMock,
         usdcMock,
         groveBasinMock,
@@ -127,6 +130,19 @@ export const deployOnRampExternalAssetProvider = async (
         investor,
         stranger,
     };
+};
+
+/**
+ * Deploys the on-ramp protocol handing DEFAULT_ADMIN_ROLE to a dedicated admin signer.
+ * The deployer (signer[0]) grants the role to `admin` and then renounces its own, so after
+ * deployment `admin` must be the sole holder of DEFAULT_ADMIN_ROLE on both contracts.
+ */
+export const deployOnRampExternalAssetProviderWithAdmin = async () => {
+    const signers = await hre.ethers.getSigners();
+    const admin = signers[3];
+    const deployer = signers[0];
+    const ctx = await deployOnRampExternalAssetProvider(6, 6, 0n, false, admin.address);
+    return { ...ctx, admin, deployer };
 };
 
 export const deployOnRampExternalAssetProvider6x18 = () => deployOnRampExternalAssetProvider(6, 18);
