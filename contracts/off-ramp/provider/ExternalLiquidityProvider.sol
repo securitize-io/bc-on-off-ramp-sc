@@ -47,6 +47,10 @@ import {IGroveBasin} from "../third-party-contracts/IGroveBasin.sol";
  *
  *         Before executing the Grove Basin swap, the provider compares the Securitize NAV quote
  *         with the Grove Basin preview quote and reverts when they diverge beyond {rateTolerance}.
+ *         The NAV side of that check is pre-fee while the Grove Basin preview is net of Grove Basin's
+ *         redemption fee, so admins MUST keep {rateTolerance} at or above the expected Grove Basin fee
+ *         plus a margin (see {BaseExternalProvider.rateTolerance}); otherwise a Grove Basin fee near
+ *         the band reverts legitimate redemptions with {MinRateDivergenceError}.
  *
  *         The shared Grove Basin handle, referral code and tolerance live in
  *         {BaseExternalProvider}.

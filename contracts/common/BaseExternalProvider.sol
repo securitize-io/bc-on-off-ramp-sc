@@ -69,6 +69,24 @@ abstract contract BaseExternalProvider is IExternalProvider, BaseContract {
      *      - `TOLERANCE_DENOMINATOR` (100%): full trust. The band check is skipped entirely.
      *      - `0 < rateTolerance < TOLERANCE_DENOMINATOR`: the quote must fall within the symmetric
      *        tolerance band around the NAV.
+     *
+     *      OPERATIONAL REQUIREMENT — the band must absorb Grove Basin's fee. {_validateRateBand}
+     *      compares the Securitize NAV taken *before* fees (the off-ramp's
+     *      {ISecuritizeOffRamp.calculateLiquidityTokenAmountBeforeFee}, the on-ramp's
+     *      {ExternalAssetProvider._assetForLiquidity}) against Grove Basin's preview, which is already
+     *      *net* of Grove Basin's {IGroveBasin.redemptionFee} (redemptions) or
+     *      {IGroveBasin.purchaseFee} (subscriptions). The fee is therefore charged only to the lower
+     *      side of the band, so the effective downside tolerance is `rateTolerance - feeFraction`.
+     *      When Grove Basin's fee approaches or exceeds `rateTolerance`, legitimate swaps revert with
+     *      {MinRateDivergenceError} even though the underlying rates are aligned (a liveness/DoS
+     *      condition, not a mispricing — the swap floor still protects the amount).
+     *
+     *      Admins MUST therefore keep `rateTolerance >= expectedGroveFeeFraction + margin`. Grove
+     *      Basin's {IGroveBasin.maxFee} is the worst case (up to 5%); convert Grove BPS into
+     *      {TOLERANCE_DENOMINATOR} units by multiplying by `TOLERANCE_DENOMINATOR / IGroveBasin.BPS()`
+     *      (e.g. a 5% = 500 BPS max fee maps to 5_000). Note the trade-off: widening the band to
+     *      absorb the fee equally widens the upper side, weakening protection against a genuinely
+     *      diverged Grove Basin oracle, so size the margin deliberately rather than maximally.
      */
     uint256 public rateTolerance;
 
@@ -116,6 +134,10 @@ abstract contract BaseExternalProvider is IExternalProvider, BaseContract {
 
     /**
      * @inheritdoc IExternalProvider
+     * @dev The configured value MUST cover Grove Basin's fee plus a margin
+     *      (`rateTolerance >= expectedGroveFeeFraction + margin`); otherwise legitimate swaps revert
+     *      at {_validateRateBand} once Grove Basin enables a fee near the band. See {rateTolerance}
+     *      for the full operational requirement and the upper-side trade-off.
      */
     function setRateTolerance(uint256 _rateTolerance) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (_rateTolerance > TOLERANCE_DENOMINATOR) {
@@ -179,8 +201,13 @@ abstract contract BaseExternalProvider is IExternalProvider, BaseContract {
      *      - `TOLERANCE_DENOMINATOR` (100%): full trust, the check is skipped.
      *      - `0`: zero trust, the preview must equal the NAV exactly.
      *      - otherwise: the preview must fall within the symmetric tolerance band around the NAV.
+     *
+     *      Asymmetry note: `navQuote` is a *pre-fee* NAV figure while `gbPreview` is already *net* of
+     *      Grove Basin's fee, so the fee only ever pushes `gbPreview` toward `minBand`. `rateTolerance`
+     *      must be configured to cover Grove Basin's fee (see {rateTolerance}); otherwise this reverts
+     *      with {MinRateDivergenceError} on fee-only divergence, not a genuine rate dislocation.
      * @param navQuote Securitize NAV quote before fees.
-     * @param gbPreview Grove Basin preview quote for the same input amount.
+     * @param gbPreview Grove Basin preview quote (net of Grove Basin's fee) for the same input amount.
      */
     function _validateRateBand(uint256 navQuote, uint256 gbPreview) internal view {
         uint256 tolerance = rateTolerance;

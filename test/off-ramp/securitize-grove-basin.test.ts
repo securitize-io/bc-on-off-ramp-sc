@@ -1102,6 +1102,48 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
     });
 
     // ─────────────────────────────────────────────────────────────────────────
+    // Grove Basin fee vs rate tolerance — operational configuration (mitigation "option A")
+    //
+    // _validateRateBand compares the *pre-fee* NAV (calculateLiquidityTokenAmountBeforeFee) against
+    // Grove Basin's *net-of-fee* preview, so a Grove Basin redemption fee consumes the lower side of
+    // the band. When the fee approaches/exceeds rateTolerance, legitimate redemptions revert with
+    // MinRateDivergenceError even though the rates are aligned. The operational mitigation is to keep
+    // rateTolerance >= expectedGroveFee + margin. These tests pin both the failure and the fix.
+    // ─────────────────────────────────────────────────────────────────────────
+    describe('Grove Basin fee vs rate tolerance (operational configuration)', function () {
+        const GB_FEE_BPS = 200n; // 2% Grove Basin redemption fee — above the default 1% band
+        const ceilFee = (amount: bigint, bps: bigint) => (amount * bps + 9_999n) / 10_000n;
+
+        it('reverts with MinRateDivergenceError when the Grove fee exceeds the default tolerance', async function () {
+            const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
+            const { redemption, liquidityProvider, groveBasinMock, investor } = ctx;
+            await groveBasinMock.setRedemptionFeeBps(GB_FEE_BPS);
+            await prepareRedemption(ctx, ASSET_AMOUNT);
+
+            const navGross = ASSET_AMOUNT;
+            const gbPreview = navGross - ceilFee(navGross, GB_FEE_BPS); // 9_800_000, below the 1% minBand
+
+            await expect(redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT))
+                .revertedWithCustomError(liquidityProvider, 'MinRateDivergenceError')
+                .withArgs(navGross, gbPreview, DEFAULT_RATE_TOLERANCE);
+        });
+
+        it('completes the redemption after raising rateTolerance above the Grove fee + margin', async function () {
+            const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
+            const { redemption, liquidityProvider, usdcMock, groveBasinMock, investor } = ctx;
+            await groveBasinMock.setRedemptionFeeBps(GB_FEE_BPS);
+            // Widen the band to 3% (2% fee + 1% margin), the documented "option A" mitigation.
+            await liquidityProvider.setRateTolerance(3_000n);
+            await prepareRedemption(ctx, ASSET_AMOUNT);
+
+            const delivered = ASSET_AMOUNT - ceilFee(ASSET_AMOUNT, GB_FEE_BPS); // 9_800_000, now inside the band
+
+            await redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT);
+            expect(await usdcMock.balanceOf(investor.address)).to.equal(delivered);
+        });
+    });
+
+    // ─────────────────────────────────────────────────────────────────────────
     // Decimal pairs — fee-aware quote (calculateEffectiveLiquidityTokenAmount) matches delivery
     //
     // Each pair redeems 10 units of the RWA, which is exactly 10 USDC (10_000_000 at 6 decimals)

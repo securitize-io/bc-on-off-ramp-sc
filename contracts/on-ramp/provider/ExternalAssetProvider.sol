@@ -50,7 +50,11 @@ import {IGroveBasin} from "../../off-ramp/third-party-contracts/IGroveBasin.sol"
  *         Because Grove Basin sets the price the investor pays, {supplyExactIn} additionally
  *         cross-checks that quote against the Securitize NAV with the inherited tolerance band
  *         ({_validateRateBand}/{rateTolerance}); a Grove Basin quote diverging beyond the band
- *         reverts. NAV math is computed internally from {navProvider} (which must match the on-ramp's
+ *         reverts. The NAV side of that check is pre-fee while the Grove Basin quote is net of Grove
+ *         Basin's purchase fee, so admins MUST keep {rateTolerance} at or above the expected Grove
+ *         Basin fee plus a margin (see {BaseExternalProvider.rateTolerance}); otherwise a Grove Basin
+ *         fee near the band reverts legitimate subscriptions with {MinRateDivergenceError}. NAV math
+ *         is computed internally from {navProvider} (which must match the on-ramp's
  *         NAV provider); the provider never calls back into the on-ramp. Because the reference is a
  *         local copy, it is admin-rotatable via {updateNavProvider} and MUST be rotated together with
  *         the on-ramp's {SecuritizeOnRamp.updateNavProvider}: a divergence would price the band cross-check
