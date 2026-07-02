@@ -18,6 +18,8 @@
 pragma solidity ^0.8.22;
 
 import {SecuritizeOnRamp} from "./SecuritizeOnRamp.sol";
+import {BaseOnRamp} from "./BaseOnRamp.sol";
+import {IBaseOnRamp} from "./IBaseOnRamp.sol";
 import {IExternalAssetProvider} from "./provider/IExternalAssetProvider.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
@@ -41,6 +43,14 @@ import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IER
  *         and only the net is swapped — which is exactly the amount quoted here.
  */
 contract ExternalAssetProviderOnRamp is SecuritizeOnRamp {
+    /**
+     * @notice Thrown when bridge mode is enabled on this on-ramp.
+     * @dev The {ExternalAssetProvider} settles the net liquidity same-chain (it must arrive on the
+     *      provider before {ExternalAssetProvider.supplyExactIn} runs). Bridge mode routes the net
+     *      cross-chain instead, so it is structurally incompatible with this on-ramp and rejected.
+     */
+    error BridgeModeNotSupported();
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -65,6 +75,21 @@ contract ExternalAssetProviderOnRamp is SecuritizeOnRamp {
         address _custodianWallet
     ) public override {
         super.initialize(_dsToken, _liquidity, _navProvider, _feeManager, _custodianWallet);
+    }
+
+    /**
+     * @notice Disabled on this on-ramp: bridge mode is incompatible with the same-chain provider.
+     * @dev The {ExternalAssetProvider} requires the subscription's net liquidity to be settled on it
+     *      (same chain, `custodianWallet == provider`) before {ExternalAssetProvider.supplyExactIn}
+     *      swaps it through Grove Basin. Bridge mode in {BaseOnRamp._executeLiquidityTransfer} instead
+     *      forwards the net cross-chain, so the provider would revert every subscription with
+     *      {ExternalAssetProvider.InsufficientLiquidityToSwap}. Rather than let an admin brick the
+     *      ramp through a valid-looking configuration, this leaf on-ramp rejects the call outright.
+     *      Bridge mode therefore stays permanently off (its default), and the base parameters are
+     *      never mutated. Parameters are intentionally unused.
+     */
+    function updateBridgeParams(uint16, address) external pure override(BaseOnRamp, IBaseOnRamp) {
+        revert BridgeModeNotSupported();
     }
 
     /**

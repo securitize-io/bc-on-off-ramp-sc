@@ -94,7 +94,7 @@ abstract contract BaseOnRamp is IBaseOnRamp, BaseOnOffRamp {
         minSubscriptionAmount = _minSubscriptionAmount;
     }
 
-    function updateBridgeParams(uint16 _chainId, address _bridge) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function updateBridgeParams(uint16 _chainId, address _bridge) external virtual onlyRole(DEFAULT_ADMIN_ROLE) {
         bridgeChainId = _chainId;
         USDCBridge = IUSDCBridge(_bridge);
         emit BridgeParamsUpdated(_chainId, _bridge);

@@ -652,6 +652,62 @@ describe('On-Ramp External Asset Provider (swapExactIn via Grove Basin quote)', 
         });
     });
 
+    describe('updateBridgeParams (bridge mode disabled)', function () {
+        it('reverts for the admin: bridge mode is incompatible with the same-chain provider', async function () {
+            const { onRamp, groveBasinMock } = await loadFixture(deployOnRampExternalAssetProvider);
+            await expect(onRamp.updateBridgeParams(1, await groveBasinMock.getAddress())).revertedWithCustomError(
+                onRamp,
+                'BridgeModeNotSupported',
+            );
+            // Even a zero-address "reset" is rejected outright.
+            await expect(onRamp.updateBridgeParams(0, hre.ethers.ZeroAddress)).revertedWithCustomError(
+                onRamp,
+                'BridgeModeNotSupported',
+            );
+        });
+
+        it('reverts for a non-admin caller (unconditional, before any role check)', async function () {
+            const { onRamp, stranger } = await loadFixture(deployOnRampExternalAssetProvider);
+            await expect(
+                onRamp.connect(stranger).updateBridgeParams(1, stranger.address),
+            ).revertedWithCustomError(onRamp, 'BridgeModeNotSupported');
+        });
+
+        it('leaves bridge params at their disabled default after a rejected call', async function () {
+            const { onRamp, groveBasinMock } = await loadFixture(deployOnRampExternalAssetProvider);
+            expect(await onRamp.bridgeChainId()).to.equal(0);
+            expect(await onRamp.USDCBridge()).to.equal(hre.ethers.ZeroAddress);
+
+            await expect(onRamp.updateBridgeParams(1, await groveBasinMock.getAddress())).revertedWithCustomError(
+                onRamp,
+                'BridgeModeNotSupported',
+            );
+
+            // State is untouched, so _executeLiquidityTransfer keeps settling on the provider.
+            expect(await onRamp.bridgeChainId()).to.equal(0);
+            expect(await onRamp.USDCBridge()).to.equal(hre.ethers.ZeroAddress);
+        });
+
+        it('subscriptions keep working after a rejected bridge-enable attempt (net settles same-chain)', async function () {
+            const ctx = await loadFixture(deployOnRampExternalAssetProvider);
+            const { onRamp, assetProvider, usdcMock, dsTokenMock, groveBasinMock, investor } = ctx;
+            const gross = 1_000_000_000n;
+            const { expected, net } = await prepareSwap(ctx, gross, 0n);
+
+            await expect(onRamp.updateBridgeParams(1, await groveBasinMock.getAddress())).revertedWithCustomError(
+                onRamp,
+                'BridgeModeNotSupported',
+            );
+
+            // Because bridge mode never turned on, the net still settles on the provider and the swap
+            // succeeds exactly as in the happy path.
+            await onRamp.connect(investor).swap(gross, MIN_OUT);
+            expect(await dsTokenMock.balanceOf(investor.address)).to.equal(expected);
+            expect(await usdcMock.balanceOf(await groveBasinMock.getAddress())).to.equal(net);
+            expect(await usdcMock.balanceOf(await assetProvider.getAddress())).to.equal(0n);
+        });
+    });
+
     describe('supplyExactIn direct access', function () {
         it('reverts for non on-ramp callers', async function () {
             const { assetProvider, stranger, investor } = await loadFixture(deployOnRampExternalAssetProvider);
