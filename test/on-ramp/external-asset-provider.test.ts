@@ -160,6 +160,48 @@ describe('On-Ramp External Asset Provider (swapExactIn via Grove Basin quote)', 
         });
     });
 
+    describe('updateNavProvider', function () {
+        it('validates, emits and updates state, restricted to admin', async function () {
+            const { assetProvider, stranger, navProviderMock, zeroRateNavProviderMock } = await loadFixture(
+                deployOnRampExternalAssetProvider,
+            );
+
+            await expect(
+                assetProvider.connect(stranger).updateNavProvider(await zeroRateNavProviderMock.getAddress()),
+            ).revertedWithCustomError(assetProvider, 'AccessControlUnauthorizedAccount');
+
+            await expect(assetProvider.updateNavProvider(hre.ethers.ZeroAddress)).revertedWithCustomError(
+                assetProvider,
+                'NonZeroAddressError',
+            );
+
+            await expect(assetProvider.updateNavProvider(await zeroRateNavProviderMock.getAddress()))
+                .to.emit(assetProvider, 'NavProviderUpdated')
+                .withArgs(await navProviderMock.getAddress(), await zeroRateNavProviderMock.getAddress());
+            expect(await assetProvider.navProvider()).to.equal(await zeroRateNavProviderMock.getAddress());
+        });
+
+        it('rewires the NAV used in the rate-band cross-check and realigns a bricked provider', async function () {
+            const ctx = await loadFixture(deployOnRampExternalAssetProvider);
+            const { onRamp, assetProvider, investor, navProviderMock, zeroRateNavProviderMock } = ctx;
+            const gross = 1_000_000_000n;
+            const { expected } = await prepareSwap(ctx, gross, 0n);
+
+            // Point the provider's NAV to a zero-rate source: the band cross-check now reverts,
+            // bricking every subscription while the on-ramp's NAV stays healthy.
+            await assetProvider.updateNavProvider(await zeroRateNavProviderMock.getAddress());
+            await expect(onRamp.connect(investor).swap(gross, MIN_OUT)).revertedWithCustomError(
+                assetProvider,
+                'NonZeroNavRateError',
+            );
+
+            // Realign the provider back with the on-ramp's NAV: subscriptions recover with no upgrade.
+            await assetProvider.updateNavProvider(await navProviderMock.getAddress());
+            await expect(onRamp.connect(investor).swap(gross, MIN_OUT)).to.emit(onRamp, 'Swap');
+            expect(await ctx.dsTokenMock.balanceOf(investor.address)).to.equal(expected);
+        });
+    });
+
     describe('Admin configuration', function () {
         it('setExternalProvider validations and event', async function () {
             const ctx = await loadFixture(deployOnRampExternalAssetProvider);
