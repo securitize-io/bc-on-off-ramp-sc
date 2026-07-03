@@ -174,7 +174,13 @@ abstract contract BaseExternalProvider is IExternalProvider, BaseContract {
     /**
      * @dev Reverts when a Grove Basin candidate does not match this integration's token wiring.
      *      The liquidity token must match Grove Basin's `collateralToken` and the asset must match
-     *      `creditToken`.
+     *      `creditToken`, and Grove Basin's `swapToken` must be distinct from both. The `swapToken`
+     *      distinctness is a structural invariant of the wired Grove Basin: {_custodianOf} resolves
+     *      the inventory custodian by comparing the queried token against `swapToken`, so an overlap
+     *      with the liquidity token or the asset would silently misroute the balance accounting for
+     *      that leg. Runtime-mutable properties (the swap fee and the per-direction pause flags) are
+     *      intentionally not validated here: a wiring-time snapshot would offer no durable guarantee
+     *      and their failure mode is a safe revert on the swap itself.
      * @param candidate Grove Basin contract to validate.
      */
     function _validateExternalProviderConfig(IGroveBasin candidate) internal view {
@@ -189,6 +195,10 @@ abstract contract BaseExternalProvider is IExternalProvider, BaseContract {
         address expectedCredit = _expectedCreditToken();
         if (candidate.creditToken() != expectedCredit) {
             revert CreditTokenMismatch(expectedCredit, candidate.creditToken());
+        }
+        address candidateSwapToken = candidate.swapToken();
+        if (candidateSwapToken == expectedCollateral || candidateSwapToken == expectedCredit) {
+            revert SwapTokenOverlap(candidateSwapToken);
         }
         if (candidate.pocket() == address(0)) {
             revert PocketZeroAddressError();
