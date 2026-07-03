@@ -253,10 +253,19 @@ contract ExternalAssetProvider is IExternalAssetProvider, BaseExternalProvider {
     }
 
     /**
-     * @notice Returns the asset amount available for purchases in Grove Basin.
-     * @dev Reads the asset balance at the Grove Basin asset custodian. In this integration the
+     * @notice Returns a best-effort upper bound on the asset amount available for purchases in Grove Basin.
+     * @dev Reads the raw asset balance at the Grove Basin asset custodian. In this integration the
      *      asset is Grove Basin's `creditToken`, held by the Grove Basin contract itself.
-     * @return The asset amount available at the Grove Basin asset custodian.
+     *
+     *      This is an UPPER BOUND, not the exact deliverable capacity. It reads the raw ERC-20 balance
+     *      and does NOT net out portions that Grove Basin may treat as non-deliverable (e.g. seed
+     *      deposit, fee-claimer accrual, or collateral reserved against pending redemptions), and it
+     *      does NOT model the {asset} DSToken compliance rules (whitelist, lock-ups, holder caps,
+     *      jurisdiction) that may reject the swap output for a specific buyer. Off-chain integrators
+     *      sizing batches from this view should treat it as an optimistic ceiling. The hard guarantee
+     *      is enforced on-chain: Grove Basin reverts the swap when the pool cannot satisfy the output,
+     *      and the DSToken reverts the delivery when compliance rejects it for the buyer.
+     * @return A best-effort upper bound on the asset amount available at the Grove Basin asset custodian.
      */
     function availableAsset() public view returns (uint256) {
         return asset.balanceOf(_custodianOf(address(asset)));
