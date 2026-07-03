@@ -57,7 +57,11 @@ export const expectedOutput = (assetAmount: bigint, assetDecimals: number, liqui
  *
  * The deploy task automatically sets twoStepTransfer = true on the off-ramp.
  */
-export const deploySecuritizeGroveBasinProtocol = async (assetDecimals = 6, liquidityDecimals = 6) => {
+export const deploySecuritizeGroveBasinProtocol = async (
+    assetDecimals = 6,
+    liquidityDecimals = 6,
+    adminAddress?: string,
+) => {
     const [securitizeWallet, investor, stranger] = await hre.ethers.getSigners();
 
     // Registry and trust services — required for DSToken compliance checks in SecuritizeOffRamp.
@@ -98,11 +102,13 @@ export const deploySecuritizeGroveBasinProtocol = async (assetDecimals = 6, liqu
         feeManager: await mockFeeManager.getAddress(),
         liquidityToken: await usdcMock.getAddress(),
         groveBasin: await groveBasinMock.getAddress(),
+        ...(adminAddress !== undefined ? { admin: adminAddress } : {}),
         silenceLogs: true,
     });
 
     return {
         ...contracts,
+        adminAddress,
         dsTokenMock,
         usdcMock,
         groveBasinMock,
@@ -191,6 +197,19 @@ export const deploySecuritizeGroveBasinProtocolWithAssetBurn = async (assetDecim
         investor,
         stranger,
     };
+};
+
+/**
+ * Deploys the off-ramp protocol handing DEFAULT_ADMIN_ROLE to a dedicated admin signer.
+ * The deployer (signer[0]) grants the role to `admin` and then renounces its own, so after
+ * deployment `admin` must be the sole holder of DEFAULT_ADMIN_ROLE on both contracts.
+ */
+export const deploySecuritizeGroveBasinProtocolWithAdmin = async () => {
+    const signers = await hre.ethers.getSigners();
+    const admin = signers[3];
+    const deployer = signers[0];
+    const ctx = await deploySecuritizeGroveBasinProtocol(6, 6, admin.address);
+    return { ...ctx, admin, deployer };
 };
 
 export const deploySecuritizeGroveBasinProtocol6x18 = () => deploySecuritizeGroveBasinProtocol(6, 18);

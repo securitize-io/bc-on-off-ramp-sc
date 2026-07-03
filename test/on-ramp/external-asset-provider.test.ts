@@ -3,6 +3,7 @@ import { loadFixture } from '@nomicfoundation/hardhat-network-helpers';
 import hre from 'hardhat';
 import {
     deployOnRampExternalAssetProvider,
+    deployOnRampExternalAssetProviderWithAdmin,
     deployOnRampExternalAssetProvider6x18,
     deployOnRampExternalAssetProvider18x6,
     deployOnRampExternalAssetProviderSingleStep,
@@ -18,6 +19,42 @@ import {
 const MIN_OUT = 0n;
 
 describe('On-Ramp External Asset Provider (swapExactIn via Grove Basin quote)', function () {
+    describe('Deploy task — admin handover', function () {
+        it('keeps the deployer as DEFAULT_ADMIN_ROLE when no admin is provided', async function () {
+            const { onRamp, assetProvider } = await loadFixture(deployOnRampExternalAssetProvider);
+            const [deployer] = await hre.ethers.getSigners();
+            const role = await onRamp.DEFAULT_ADMIN_ROLE();
+
+            expect(await onRamp.hasRole(role, deployer.address)).to.equal(true);
+            expect(await assetProvider.hasRole(role, deployer.address)).to.equal(true);
+        });
+
+        it('grants DEFAULT_ADMIN_ROLE to the new admin on both contracts', async function () {
+            const { onRamp, assetProvider, admin } = await loadFixture(deployOnRampExternalAssetProviderWithAdmin);
+            const role = await onRamp.DEFAULT_ADMIN_ROLE();
+
+            expect(await onRamp.hasRole(role, admin.address)).to.equal(true);
+            expect(await assetProvider.hasRole(role, admin.address)).to.equal(true);
+        });
+
+        it('renounces the deployer DEFAULT_ADMIN_ROLE on both contracts', async function () {
+            const { onRamp, assetProvider, deployer } = await loadFixture(deployOnRampExternalAssetProviderWithAdmin);
+            const role = await onRamp.DEFAULT_ADMIN_ROLE();
+
+            expect(await onRamp.hasRole(role, deployer.address)).to.equal(false);
+            expect(await assetProvider.hasRole(role, deployer.address)).to.equal(false);
+        });
+
+        it('lets the new admin exercise an admin-only function while the deployer cannot', async function () {
+            const { onRamp, admin, deployer } = await loadFixture(deployOnRampExternalAssetProviderWithAdmin);
+
+            // pause() is gated by DEFAULT_ADMIN_ROLE (BaseContract): admin succeeds, deployer reverts.
+            await expect(onRamp.connect(admin).pause()).to.not.be.reverted;
+            await expect(onRamp.connect(deployer).unpause()).to.be.reverted;
+            await expect(onRamp.connect(admin).unpause()).to.not.be.reverted;
+        });
+    });
+
     describe('Creation & initialization', function () {
         it('stores the configured wiring', async function () {
             const { onRamp, assetProvider, usdcMock, dsTokenMock, groveBasinMock, navProviderMock } = await loadFixture(
