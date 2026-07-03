@@ -605,6 +605,47 @@ describe('On-Ramp External Asset Provider (swapExactIn via Grove Basin quote)', 
         });
     });
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // Grove Basin fee vs rate tolerance — operational configuration (mitigation "option A")
+    //
+    // _validateRateBand compares the *pre-fee* NAV (_assetForLiquidity) against Grove Basin's
+    // *net-of-fee* preview, so a Grove Basin purchase fee consumes the lower side of the band. When
+    // the fee approaches/exceeds rateTolerance, legitimate subscriptions revert with
+    // MinRateDivergenceError even though the rates are aligned. The operational mitigation is to keep
+    // rateTolerance >= expectedGroveFee + margin. These tests pin both the failure and the fix.
+    // ─────────────────────────────────────────────────────────────────────────
+    describe('Grove Basin fee vs rate tolerance (operational configuration)', function () {
+        const GB_FEE_BPS = 200n; // 2% Grove Basin purchase fee — above the default 1% band
+
+        it('reverts with MinRateDivergenceError when the Grove fee exceeds the default tolerance', async function () {
+            const ctx = await loadFixture(deployOnRampExternalAssetProvider);
+            const { onRamp, assetProvider, groveBasinMock, investor } = ctx;
+            const gross = 1_000_000_000n;
+            await prepareSwap(ctx, gross, 0n);
+            // The fee (net-of-fee preview) drops the Grove quote below the 1% lower band.
+            await groveBasinMock.setRedemptionFeeBps(GB_FEE_BPS);
+            await expect(onRamp.connect(investor).swap(gross, MIN_OUT)).revertedWithCustomError(
+                assetProvider,
+                'MinRateDivergenceError',
+            );
+        });
+
+        it('completes the subscription after raising rateTolerance above the Grove fee + margin', async function () {
+            const ctx = await loadFixture(deployOnRampExternalAssetProvider);
+            const { onRamp, assetProvider, dsTokenMock, groveBasinMock, investor } = ctx;
+            const gross = 1_000_000_000n;
+            const { expected } = await prepareSwap(ctx, gross, 0n);
+            await groveBasinMock.setRedemptionFeeBps(GB_FEE_BPS);
+            // Widen the band to 3% (2% fee + 1% margin), the documented "option A" mitigation.
+            await assetProvider.setRateTolerance(3_000n);
+
+            const delivered = expected - (expected * GB_FEE_BPS + 9_999n) / 10_000n; // net of the ceil fee
+
+            await onRamp.connect(investor).swap(gross, MIN_OUT);
+            expect(await dsTokenMock.balanceOf(investor.address)).to.equal(delivered);
+        });
+    });
+
     describe('Swap liquidity & guards', function () {
         it('reverts when Grove Basin lacks asset (InsufficientAssetLiquidity)', async function () {
             const ctx = await loadFixture(deployOnRampExternalAssetProvider);
