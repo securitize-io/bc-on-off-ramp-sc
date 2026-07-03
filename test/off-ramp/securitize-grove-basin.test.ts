@@ -486,6 +486,127 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
     });
 
     // ─────────────────────────────────────────────────────────────────────────
+    // ExternalLiquidityProvider — setSecuritizeOffRamp (off-ramp rotation)
+    // ─────────────────────────────────────────────────────────────────────────
+    describe('ExternalLiquidityProvider — setSecuritizeOffRamp', function () {
+        // Deploys a second ExternalLiquidityProviderOffRamp for the SAME asset so the provider can be
+        // rotated onto it (e.g. an off-ramp redeploy). Mirrors the deploy task wiring.
+        const deploySameAssetOffRamp = async (ctx: Awaited<ReturnType<typeof deploySecuritizeGroveBasinProtocol>>) => {
+            const Factory = await hre.ethers.getContractFactory('ExternalLiquidityProviderOffRamp');
+            const offRamp = await hre.upgrades.deployProxy(
+                Factory,
+                [
+                    await ctx.dsTokenMock.getAddress(),
+                    await ctx.navProviderMock.getAddress(),
+                    await ctx.mockFeeManager.getAddress(),
+                    false,
+                ],
+                { kind: 'uups' },
+            );
+            await offRamp.waitForDeployment();
+            return hre.ethers.getContractAt('ExternalLiquidityProviderOffRamp', await offRamp.getAddress());
+        };
+
+        it('rotates the off-ramp and emits SecuritizeOffRampUpdated', async function () {
+            const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
+            const { liquidityProvider, redemption } = ctx;
+            const newOffRamp = await deploySameAssetOffRamp(ctx);
+            const oldAddress = await redemption.getAddress();
+            const newAddress = await newOffRamp.getAddress();
+
+            await expect(liquidityProvider.setSecuritizeOffRamp(newAddress))
+                .to.emit(liquidityProvider, 'SecuritizeOffRampUpdated')
+                .withArgs(oldAddress, newAddress);
+
+            expect(await liquidityProvider.securitizeOffRamp()).to.equal(newAddress);
+        });
+
+        it('supports a full redemption through the rotated off-ramp', async function () {
+            const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
+            const { liquidityProvider, dsTokenMock, usdcMock, groveBasinMock, investor } = ctx;
+            const newOffRamp = await deploySameAssetOffRamp(ctx);
+
+            // Wire both directions and enable two-step (required by the provider), then redeem.
+            await liquidityProvider.setSecuritizeOffRamp(await newOffRamp.getAddress());
+            await newOffRamp.updateLiquidityProvider(await liquidityProvider.getAddress());
+            await newOffRamp.toggleTwoStepTransfer(true);
+
+            await dsTokenMock.mint(investor.address, ASSET_AMOUNT);
+            await usdcMock.mint(await groveBasinMock.getAddress(), ASSET_AMOUNT);
+            await dsTokenMock.connect(investor).approve(await newOffRamp.getAddress(), ASSET_AMOUNT);
+
+            await newOffRamp.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT);
+
+            expect(await dsTokenMock.balanceOf(investor.address)).to.equal(0n);
+            expect(await usdcMock.balanceOf(investor.address)).to.equal(ASSET_AMOUNT);
+        });
+
+        it('rejects the previous off-ramp after rotation', async function () {
+            const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
+            const { liquidityProvider, redemption, investor } = ctx;
+            const newOffRamp = await deploySameAssetOffRamp(ctx);
+            await prepareRedemption(ctx, ASSET_AMOUNT);
+
+            // The original off-ramp still points at the provider but is no longer the authorized caller,
+            // so its redemptions revert in onlySecuritizeRedemption.
+            await liquidityProvider.setSecuritizeOffRamp(await newOffRamp.getAddress());
+
+            await expect(redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT)).revertedWithCustomError(
+                liquidityProvider,
+                'RedemptionUnauthorizedAccount',
+            );
+        });
+
+        it('reverts for the zero address', async function () {
+            const { liquidityProvider } = await loadFixture(deploySecuritizeGroveBasinProtocol);
+            await expect(liquidityProvider.setSecuritizeOffRamp(hre.ethers.ZeroAddress)).revertedWithCustomError(
+                liquidityProvider,
+                'NonZeroAddressError',
+            );
+        });
+
+        it('reverts when the new off-ramp redeems a different asset (AssetMismatch)', async function () {
+            const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
+            const { liquidityProvider, dsTokenMock, navProviderMock, mockFeeManager, mockRegistryService } = ctx;
+
+            // A second DSToken (different asset) backed by the same registry and a fresh trust service.
+            const otherTrust = await hre.ethers.deployContract('MockTrustService', []);
+            const otherAsset = await hre.ethers.deployContract('MockDSToken', [
+                'DSToken2',
+                'DSToken2',
+                6,
+                await mockRegistryService.getAddress(),
+                await otherTrust.getAddress(),
+            ]);
+            const Factory = await hre.ethers.getContractFactory('ExternalLiquidityProviderOffRamp');
+            const otherOffRamp = await hre.upgrades.deployProxy(
+                Factory,
+                [
+                    await otherAsset.getAddress(),
+                    await navProviderMock.getAddress(),
+                    await mockFeeManager.getAddress(),
+                    false,
+                ],
+                { kind: 'uups' },
+            );
+            await otherOffRamp.waitForDeployment();
+
+            await expect(liquidityProvider.setSecuritizeOffRamp(await otherOffRamp.getAddress()))
+                .revertedWithCustomError(liquidityProvider, 'AssetMismatch')
+                .withArgs(await dsTokenMock.getAddress(), await otherAsset.getAddress());
+        });
+
+        it('reverts for a non-admin caller', async function () {
+            const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
+            const { liquidityProvider, stranger } = ctx;
+            const newOffRamp = await deploySameAssetOffRamp(ctx);
+            await expect(
+                liquidityProvider.connect(stranger).setSecuritizeOffRamp(await newOffRamp.getAddress()),
+            ).revertedWithCustomError(liquidityProvider, 'AccessControlUnauthorizedAccount');
+        });
+    });
+
+    // ─────────────────────────────────────────────────────────────────────────
     // ExternalLiquidityProvider — availableLiquidity
     // ─────────────────────────────────────────────────────────────────────────
     describe('ExternalLiquidityProvider — availableLiquidity', function () {
