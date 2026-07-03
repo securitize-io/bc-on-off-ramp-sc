@@ -150,8 +150,12 @@ interface IExternalAssetProvider is IAssetProvider, IExternalProvider {
     function quoteAsset(uint256 _netLiquidity) external view returns (uint256);
 
     /**
-     * @notice Returns the asset amount available for purchases in Grove Basin.
-     * @return The asset amount available at the Grove Basin asset custodian.
+     * @notice Returns a best-effort upper bound on the asset amount available for purchases in Grove Basin.
+     * @dev Upper bound, not exact deliverable capacity: it does NOT net out non-deliverable portions
+     *      (seed deposit, fee-claimer accrual, collateral reserved against pending redemptions) and does
+     *      NOT model the asset DSToken compliance rules that may reject the swap output for a specific
+     *      buyer. See {ExternalAssetProvider.availableAsset} for the full semantics.
+     * @return A best-effort upper bound on the asset amount available at the Grove Basin asset custodian.
      */
     function availableAsset() external view returns (uint256);
 }

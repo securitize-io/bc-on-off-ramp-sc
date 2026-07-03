@@ -189,8 +189,14 @@ contract ExternalLiquidityProvider is IExternalLiquidityProvider, BaseExternalPr
     }
 
     /**
-     * @notice Returns the currently available liquidity.
-     * @return Available liquidity amount.
+     * @notice Returns a best-effort upper bound on the currently available liquidity.
+     * @dev Reads the raw liquidity-token balance at {getLiquidityCustodian} (see {_availableLiquidity}).
+     *      This is an UPPER BOUND, not exact deliverable capacity: it does NOT net out portions Grove
+     *      Basin may treat as non-deliverable (e.g. seed deposit, fee-claimer accrual, or collateral
+     *      reserved against pending redemptions). Off-chain integrators sizing batches from this view
+     *      should treat it as an optimistic ceiling; the hard guarantee is enforced on-chain by Grove
+     *      Basin reverting the swap when the pool cannot satisfy the requested output.
+     * @return A best-effort upper bound on the available liquidity amount.
      */
     function availableLiquidity() external view returns (uint256) {
         return _availableLiquidity();
