@@ -797,6 +797,34 @@ describe('On-Ramp External Asset Provider (swapExactIn via Grove Basin quote)', 
             ).revertedWithCustomError(assetProvider, 'NonZeroNavRateError');
         });
 
+        it('reverts with ZeroAmountToSwap when the Grove Basin quote floors to zero', async function () {
+            // Dust-sized subscription: the Grove Basin quote floors to 0, so the expected amount forwarded
+            // as Grove Basin's minAmountOut would also be 0, silently removing the swap floor. The
+            // provider-level guard rejects it up front instead (without the guard this would reach the NAV
+            // band and revert with MinRateDivergenceError).
+            const { onRamp, assetProvider, usdcMock, dsTokenMock, groveBasinMock, investor } = await loadFixture(
+                deployOnRampExternalAssetProvider,
+            );
+            await usdcMock.mint(await assetProvider.getAddress(), 1_000_000n);
+
+            // Force the Grove Basin quote to floor to zero (numerator = 0).
+            await setGbPreviewFactor(groveBasinMock, 0n, 1n);
+            expect(
+                await groveBasinMock.previewSwapExactIn(
+                    await usdcMock.getAddress(),
+                    await dsTokenMock.getAddress(),
+                    1_000_000n,
+                ),
+            ).to.equal(0n);
+
+            const onRampAddress = await onRamp.getAddress();
+            await hre.network.provider.send('hardhat_setBalance', [onRampAddress, '0x56BC75E2D63100000']);
+            const onRampSigner = await hre.ethers.getImpersonatedSigner(onRampAddress);
+            await expect(
+                assetProvider.connect(onRampSigner).supplyExactIn(investor.address, 1_000_000n, 0n),
+            ).revertedWithCustomError(assetProvider, 'ZeroAmountToSwap');
+        });
+
         it('reverts with UnexpectedSwapOutputError on an inconsistent expected amount', async function () {
             const { onRamp, assetProvider, usdcMock, investor } = await loadFixture(deployOnRampExternalAssetProvider);
             await usdcMock.mint(await assetProvider.getAddress(), 1_000_000n);
