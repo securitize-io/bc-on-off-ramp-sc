@@ -29,16 +29,6 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, BaseOffRamp {
 
     ISecuritizeNavProvider public navProvider;
 
-    /**
-     * @dev Throws if the NAV rate is zero or not set
-     */
-    modifier nonZeroNavRate() {
-        if (navProvider.rate() <= 0) {
-            revert NonZeroNavRateError();
-        }
-        _;
-    }
-
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -125,8 +115,8 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, BaseOffRamp {
         public
         override
         whenNotPaused
-        nonZeroNavRate
     {
+        // Single NAV read for this redemption path; the zero-rate guard is enforced by {_redeem}.
         uint256 rate = navProvider.rate();
         (uint256 fee, uint256 liquidityValue) = _redeem(_assetAmount, _minOutputAmount, rate, _msgSender());
 
