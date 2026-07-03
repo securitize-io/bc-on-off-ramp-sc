@@ -908,6 +908,93 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
     });
 
     // ─────────────────────────────────────────────────────────────────────────
+    // Redeem — Grove pocket-backed collateral (Cyfrin: local liquidity gate too strict)
+    //
+    // The provider used to reject a redemption with InsufficientLiquidity whenever the USDC held
+    // DIRECTLY by Grove Basin (getLiquidityCustodian => the Basin contract for the collateralToken
+    // wiring) was below the Grove Basin preview. But Grove Basin tops up any collateral deficit from
+    // its configured pocket (see GroveBasin._withdrawLiquidityInPocket) before pushing the output, so
+    // that gate wrongly blocked redemptions Grove Basin could actually satisfy. The gate was removed;
+    // sufficiency is now delegated entirely to Grove Basin.
+    // ─────────────────────────────────────────────────────────────────────────
+    describe('Redeem — Grove pocket-backed collateral', function () {
+        const DIRECT_BASIN_LIQUIDITY = ASSET_AMOUNT / 10n; // 1 unit sits directly on Basin
+        const POCKET_LIQUIDITY = ASSET_AMOUNT; // pocket can cover the full output
+
+        const deployPocketBacked = async (
+            ctx: Awaited<ReturnType<typeof deploySecuritizeGroveBasinProtocol>>,
+        ) => {
+            const { liquidityProvider, dsTokenMock, usdcMock, stranger } = ctx;
+
+            const PocketBackedGrove = await hre.ethers.getContractFactory(
+                'MockGroveBasinPocketBackedCollateral',
+            );
+            const pocketBackedGrove = await PocketBackedGrove.deploy(
+                await usdcMock.getAddress(),
+                await dsTokenMock.getAddress(),
+            );
+
+            // The pocket-equivalent source (stranger) holds USDC and approves Basin to pull it,
+            // mirroring GroveBasinPocket.withdrawLiquidity feeding collateral back to Basin.
+            await pocketBackedGrove.setCollateralLiquiditySource(stranger.address);
+            await usdcMock
+                .connect(stranger)
+                .approve(await pocketBackedGrove.getAddress(), hre.ethers.MaxUint256);
+
+            await liquidityProvider.setExternalProvider(await pocketBackedGrove.getAddress());
+            return pocketBackedGrove;
+        };
+
+        it('should complete the redemption using pocket-backed collateral (previously blocked)', async function () {
+            const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
+            const { redemption, liquidityProvider, dsTokenMock, usdcMock, investor, stranger } = ctx;
+
+            const pocketBackedGrove = await deployPocketBacked(ctx);
+
+            // Basin holds too little USDC directly, but the pocket source can cover the deficit.
+            await usdcMock.mint(await pocketBackedGrove.getAddress(), DIRECT_BASIN_LIQUIDITY);
+            await usdcMock.mint(stranger.address, POCKET_LIQUIDITY);
+
+            await dsTokenMock.mint(investor.address, ASSET_AMOUNT);
+            await dsTokenMock.connect(investor).approve(await redemption.getAddress(), ASSET_AMOUNT);
+
+            // The best-effort UX view reports only the direct Basin balance (< required output),
+            // which is exactly the state that used to trip the removed InsufficientLiquidity gate.
+            expect(await liquidityProvider.availableLiquidity()).to.equal(DIRECT_BASIN_LIQUIDITY);
+
+            await redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT);
+
+            // Grove Basin executed the swap, pulling the deficit from the pocket source.
+            expect(await pocketBackedGrove.swapCalled()).to.equal(true);
+            expect(await pocketBackedGrove.lastPocketTopUp()).to.equal(ASSET_AMOUNT - DIRECT_BASIN_LIQUIDITY);
+            expect(await usdcMock.balanceOf(investor.address)).to.equal(ASSET_AMOUNT);
+            expect(await dsTokenMock.balanceOf(investor.address)).to.equal(0n);
+        });
+
+        it('should revert with InsufficientFunds when neither Basin nor the pocket can cover the output', async function () {
+            const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
+            const { redemption, dsTokenMock, usdcMock, investor, stranger } = ctx;
+
+            const pocketBackedGrove = await deployPocketBacked(ctx);
+
+            // Basin is short and the pocket source cannot cover the remaining deficit.
+            await usdcMock.mint(await pocketBackedGrove.getAddress(), DIRECT_BASIN_LIQUIDITY);
+            await usdcMock.mint(stranger.address, 1n);
+
+            await dsTokenMock.mint(investor.address, ASSET_AMOUNT);
+            await dsTokenMock.connect(investor).approve(await redemption.getAddress(), ASSET_AMOUNT);
+
+            await expect(
+                redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT),
+            ).revertedWithCustomError(pocketBackedGrove, 'InsufficientFunds');
+
+            // Atomic: no partial settlement.
+            expect(await dsTokenMock.balanceOf(investor.address)).to.equal(ASSET_AMOUNT);
+            expect(await usdcMock.balanceOf(investor.address)).to.equal(0n);
+        });
+    });
+
+    // ─────────────────────────────────────────────────────────────────────────
     // Redeem — accounting binding (BC-2207, Cyfrin: donation-brick / full-balance sweep)
     //
     // supplyExactIn swaps only the asset delivered by the CURRENT redemption, never any
@@ -1005,17 +1092,23 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
             );
         });
 
-        it('should revert with InsufficientLiquidity when Grove Basin lacks funds', async function () {
+        it('should revert atomically when Grove Basin genuinely lacks funds (delegated guarantee)', async function () {
             const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
-            const { redemption, dsTokenMock, investor } = ctx;
-            // Mint asset and approve but do NOT fund Grove Basin.
+            const { redemption, dsTokenMock, usdcMock, investor } = ctx;
+            // Mint asset and approve but do NOT fund Grove Basin. The provider no longer applies a
+            // local balance gate; the swap itself reverts when Grove Basin cannot deliver the output,
+            // and the whole redemption reverts atomically.
             await dsTokenMock.mint(investor.address, ASSET_AMOUNT);
             await dsTokenMock.connect(investor).approve(await redemption.getAddress(), ASSET_AMOUNT);
 
             await expect(redemption.connect(investor).redeem(ASSET_AMOUNT, MIN_OUTPUT_AMOUNT)).revertedWithCustomError(
-                ctx.liquidityProvider,
-                'InsufficientLiquidity',
+                usdcMock,
+                'ERC20InsufficientBalance',
             );
+
+            // Atomic: the investor keeps the asset and receives no liquidity.
+            expect(await dsTokenMock.balanceOf(investor.address)).to.equal(ASSET_AMOUNT);
+            expect(await usdcMock.balanceOf(investor.address)).to.equal(0n);
         });
 
         it('should revert with InsufficientRedeemerBalance when investor lacks assets', async function () {

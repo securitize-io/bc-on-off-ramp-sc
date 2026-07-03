@@ -240,6 +240,12 @@ contract ExternalLiquidityProvider is IExternalLiquidityProvider, BaseExternalPr
      *      Afterwards it compares the Securitize NAV quote with the Grove Basin preview before
      *      spending swap gas. The swap floor is set to the Grove Basin preview so Basin's native
      *      slippage protection is enforced as a second line of defense.
+     *
+     *      Liquidity sufficiency is delegated entirely to Grove Basin: it reverts the swap when the
+     *      pool (including any pocket-backed collateral top-up) cannot deliver the requested output.
+     *      No local balance-based availability gate is applied, because reading only the liquidity
+     *      token held directly by Grove Basin understates the deliverable amount for the
+     *      `collateralToken` wiring used here.
      * @param _receiver Recipient of the liquidity token (the off-ramp contract).
      * @param _assetAmount Asset amount redeemed in this operation, to be swapped through Grove Basin.
      * @param _expectedLiquidityAmount NAV gross (before fee) the off-ramp expects for this redemption.
@@ -293,11 +299,13 @@ contract ExternalLiquidityProvider is IExternalLiquidityProvider, BaseExternalPr
 
         _validateRateBand(navGross, gbPreview);
 
-        uint256 available = _availableLiquidity();
-        if (gbPreview > available) {
-            revert InsufficientLiquidity(gbPreview, available);
-        }
-
+        // No local availability gate: reading only the liquidity-token balance directly held by Grove
+        // Basin ({_availableLiquidity}) is stricter than Grove Basin's actual execution. For the
+        // `collateralToken` output used here, Grove Basin tops up any Basin-side deficit from its
+        // configured pocket (see {GroveBasin._withdrawLiquidityInPocket}), so a balance-based precheck
+        // would wrongly revert redemptions that Grove Basin can satisfy. The hard liquidity guarantee is
+        // Grove Basin itself, which reverts the swap ({InsufficientFunds}) when the pool plus pocket
+        // cannot deliver `gbPreview`. {availableLiquidity} remains as a best-effort off-chain UX read.
         _assetToken.forceApprove(address(_externalProvider), _assetAmount);
 
         amountOut = _externalProvider.swapExactIn(
