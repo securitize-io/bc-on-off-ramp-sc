@@ -138,6 +138,37 @@ contract ExternalLiquidityProvider is IExternalLiquidityProvider, BaseExternalPr
     }
 
     /**
+     * @notice Rotates the off-ramp authorized to request liquidity from this provider.
+     * @dev The provider stores the off-ramp both at init and here so the authorized caller can be
+     *      rotated without a UUPS upgrade. It is asymmetric with the on-ramp side by design: the
+     *      companion {ExternalAssetProvider} is deployed BEFORE its on-ramp (the on-ramp is initialized
+     *      with `custodianWallet == provider`), so it can only wire the on-ramp post-init via a setter;
+     *      here the off-ramp is deployed FIRST (this provider derives {assetToken} from it at init), so
+     *      the off-ramp is available at init and the setter exists purely for later rotation.
+     *
+     *      {assetToken} is frozen at init, so the new off-ramp must redeem that same asset; otherwise
+     *      the swap wiring would reference a stale asset. The mismatch is rejected with {AssetMismatch}.
+     *      Rotation thus supports replacing the off-ramp for the same asset (e.g. an off-ramp redeploy),
+     *      not switching the asset.
+     *
+     *      Only the provider -> off-ramp link is updated here. The new off-ramp must also point back to
+     *      this provider via {IBaseOffRamp.updateLiquidityProvider}; until both directions are wired,
+     *      redemptions revert.
+     * @param _securitizeOffRamp New off-ramp authorized to request liquidity.
+     */
+    function setSecuritizeOffRamp(address _securitizeOffRamp) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (_securitizeOffRamp == address(0)) {
+            revert NonZeroAddressError();
+        }
+        address newOffRampAsset = IBaseOffRamp(_securitizeOffRamp).assetAddress();
+        if (newOffRampAsset != address(assetToken)) {
+            revert AssetMismatch(address(assetToken), newOffRampAsset);
+        }
+        emit SecuritizeOffRampUpdated(address(securitizeOffRamp), _securitizeOffRamp);
+        securitizeOffRamp = IBaseOffRamp(_securitizeOffRamp);
+    }
+
+    /**
      * @notice Returns the wallet that custodies the liquidity token swapable in Grove Basin.
      * @dev Mirrors Grove Basin's own custody model (see {GroveBasin._getAssetCustodian}): the
      *      `pocket` only custodies the `swapToken`, while the `collateralToken` and `creditToken`

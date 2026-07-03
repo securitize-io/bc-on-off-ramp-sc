@@ -28,6 +28,22 @@ import {IExternalProvider} from "../../common/IExternalProvider.sol";
  */
 interface IExternalLiquidityProvider is ILiquidityProvider, IExternalProvider {
     /**
+     * @dev Emitted when the authorized off-ramp is rotated via {setSecuritizeOffRamp}.
+     * @param oldOffRamp Previous off-ramp authorized to request liquidity.
+     * @param newOffRamp New off-ramp authorized to request liquidity.
+     */
+    event SecuritizeOffRampUpdated(address oldOffRamp, address newOffRamp);
+
+    /**
+     * @dev Thrown when the off-ramp passed to {setSecuritizeOffRamp} redeems a different asset than the
+     *      one this provider was initialized with. The provider's {assetToken} is frozen at init, so
+     *      rotating to an off-ramp with a mismatched asset is rejected to avoid a stale-asset state.
+     * @param expectedAsset Asset this provider swaps into Grove Basin (frozen at init).
+     * @param newOffRampAsset Asset the candidate off-ramp redeems.
+     */
+    error AssetMismatch(address expectedAsset, address newOffRampAsset);
+
+    /**
      * @dev Thrown when there is no asset balance available to swap.
      * @dev Selector: 0xa80f0106
      */
@@ -74,6 +90,20 @@ interface IExternalLiquidityProvider is ILiquidityProvider, IExternalProvider {
      * @param _groveBasin Grove Basin (PSM3) contract used to perform the swap.
      */
     function initialize(address _liquidityToken, address _securitizeOffRamp, address _groveBasin) external;
+
+    /**
+     * @notice Rotates the off-ramp authorized to request liquidity from this provider.
+     * @dev Restricted to {DEFAULT_ADMIN_ROLE}. The new off-ramp must redeem the same asset this provider
+     *      was initialized with ({assetToken}), which is frozen at init; a mismatch reverts with
+     *      {AssetMismatch}. Rotation therefore supports swapping the off-ramp implementation for the
+     *      same asset (e.g. an off-ramp redeploy) without a UUPS upgrade, but not changing the asset.
+     *
+     *      This updates only the provider -> off-ramp direction. To complete the wiring the new
+     *      off-ramp must also point back to this provider via {IBaseOffRamp.updateLiquidityProvider};
+     *      until then redemptions on both off-ramps revert.
+     * @param _securitizeOffRamp New off-ramp authorized to request liquidity.
+     */
+    function setSecuritizeOffRamp(address _securitizeOffRamp) external;
 
     /**
      * @notice Swaps exactly `_assetAmount` of the asset held by this contract for the liquidity token
