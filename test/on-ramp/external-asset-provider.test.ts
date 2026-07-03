@@ -174,6 +174,34 @@ describe('On-Ramp External Asset Provider (swapExactIn via Grove Basin quote)', 
                 const { Factory, promise } = await deployProxyWith(await zeroPocket.getAddress(), ctx);
                 await expect(promise).revertedWithCustomError(Factory, 'PocketZeroAddressError');
             });
+
+            it('reverts when the Grove Basin swapToken overlaps the liquidity token', async function () {
+                const ctx = await loadFixture(deployOnRampExternalAssetProvider);
+                const overlapBasin = await hre.ethers.deployContract('MockGroveBasin', [
+                    await ctx.usdcMock.getAddress(),
+                ]);
+                await overlapBasin.setCreditToken(await ctx.dsTokenMock.getAddress());
+                // swapToken == collateralToken (USDC) → misroutes the custodian for the liquidity leg.
+                await overlapBasin.setSwapToken(await ctx.usdcMock.getAddress());
+                const { Factory, promise } = await deployProxyWith(await overlapBasin.getAddress(), ctx);
+                await expect(promise)
+                    .revertedWithCustomError(Factory, 'SwapTokenOverlap')
+                    .withArgs(await ctx.usdcMock.getAddress());
+            });
+
+            it('reverts when the Grove Basin swapToken overlaps the asset', async function () {
+                const ctx = await loadFixture(deployOnRampExternalAssetProvider);
+                const overlapBasin = await hre.ethers.deployContract('MockGroveBasin', [
+                    await ctx.usdcMock.getAddress(),
+                ]);
+                await overlapBasin.setCreditToken(await ctx.dsTokenMock.getAddress());
+                // swapToken == creditToken (asset) → misroutes the custodian for the asset leg.
+                await overlapBasin.setSwapToken(await ctx.dsTokenMock.getAddress());
+                const { Factory, promise } = await deployProxyWith(await overlapBasin.getAddress(), ctx);
+                await expect(promise)
+                    .revertedWithCustomError(Factory, 'SwapTokenOverlap')
+                    .withArgs(await ctx.dsTokenMock.getAddress());
+            });
         });
     });
 

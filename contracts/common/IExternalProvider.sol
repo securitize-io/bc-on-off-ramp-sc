@@ -103,6 +103,16 @@ interface IExternalProvider is Errors {
     error PocketZeroAddressError();
 
     /**
+     * @dev Thrown when a Grove Basin candidate's `swapToken` overlaps with either the configured
+     *      liquidity token (`collateralToken`) or the configured asset (`creditToken`). The custodian
+     *      resolution in {BaseExternalProvider._custodianOf} keys off `swapToken`, so an overlap would
+     *      misroute inventory accounting for one of the two swap legs.
+     * @param swapToken Candidate `swapToken` that collides with the liquidity token or the asset.
+     * @dev Selector: 0x1ac614c6
+     */
+    error SwapTokenOverlap(address swapToken);
+
+    /**
      * @dev Thrown when the Grove Basin preview is below the minimum NAV tolerance band.
      * @param navQuote Securitize NAV quote before fees.
      * @param groveBasinPreview Grove Basin preview quote.

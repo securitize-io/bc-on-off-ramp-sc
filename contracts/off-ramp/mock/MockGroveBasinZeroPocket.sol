@@ -59,4 +59,15 @@ contract MockGroveBasinZeroPocket {
     function creditToken() external view returns (address) {
         return _creditToken;
     }
+
+    /**
+     * @notice Returns the zero address as the swap token so the wiring reaches the pocket check.
+     * @dev    Zero never overlaps the (non-zero) collateral or credit tokens, so
+     *         {BaseExternalProvider._validateExternalProviderConfig} passes the {SwapTokenOverlap}
+     *         guard and this stub still exercises the {PocketZeroAddressError} path.
+     * @return The zero address.
+     */
+    function swapToken() external pure returns (address) {
+        return address(0);
+    }
 }
