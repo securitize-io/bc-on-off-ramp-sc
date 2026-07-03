@@ -192,6 +192,71 @@ The deploy task also forces `assetBurn = false` because the asset must be transf
 npx hardhat deploy-redemption-external-liquidity-provider-protocol --network arbitrum --asset {dsToken} --nav-provider {navProvider} --fee-manager {feeManager} --liquidity-token {liquidityToken} --grove-basin {groveBasinContract}
 ```
 
+### Rotating the On/Off-Ramp (bidirectional wiring)
+
+The Grove Basin providers and their ramps hold **mutual references** that must both be
+updated when you rotate one side (for example, to swap in a redeployed ramp). Updating only
+one direction leaves the pair half-wired and every subscription/redemption reverts.
+
+The two references per pair are:
+
+| Pair | Provider → Ramp | Ramp → Provider |
+| --- | --- | --- |
+| Off-Ramp | `ExternalLiquidityProvider.setSecuritizeOffRamp(offRamp)` | `SecuritizeOffRamp.updateLiquidityProvider(provider)` |
+| On-Ramp | `ExternalAssetProvider.setSecuritizeOnRamp(onRamp)` | `ExternalAssetProviderOnRamp.updateAssetProvider(provider)` |
+
+Notes:
+
+- **Asset invariant (off-ramp):** `ExternalLiquidityProvider.assetToken` is frozen at init,
+  so `setSecuritizeOffRamp` reverts with `AssetMismatch` unless the new off-ramp redeems the
+  same asset. Rotation supports replacing the off-ramp implementation for the **same asset**,
+  not switching the asset (a different asset requires a fresh provider deployment).
+- **Custodian invariant (on-ramp):** the on-ramp settles net liquidity on the provider, so any
+  replacement on-ramp must be deployed with `custodianWallet == provider`.
+- **Two-step mode:** both providers require their ramp to run in two-step mode. Re-enable it on
+  the replacement ramp (`toggleTwoStepTransfer(true)`) as part of the rotation.
+- **Ordering / downtime:** between the two calls the pair is inconsistent and reverts; run both
+  in the same operational step to minimize the window.
+
+#### Executable wiring snippet
+
+The snippet below performs the **off-ramp** rotation from a Hardhat console. It assumes **both
+the provider and the new off-ramp share the same admin** (the deployer holds `DEFAULT_ADMIN_ROLE`
+on both), so the default signer can authorize every call. If the two contracts had different
+admins you would need to run the provider-side and ramp-side calls from their respective admin
+signers.
+
+```sh
+npx hardhat console --network arbitrum
+```
+
+```js
+// --- addresses to fill in ---
+const PROVIDER = '0x...';    // ExternalLiquidityProvider (unchanged)
+const NEW_OFFRAMP = '0x...'; // redeployed SecuritizeOffRamp (same asset)
+
+// The default signer must hold DEFAULT_ADMIN_ROLE on BOTH contracts.
+const [admin] = await ethers.getSigners();
+
+const provider = await ethers.getContractAt('ExternalLiquidityProvider', PROVIDER, admin);
+const offRamp = await ethers.getContractAt('ExternalLiquidityProviderOffRamp', NEW_OFFRAMP, admin);
+
+// 1. provider -> ramp (reverts with AssetMismatch if the asset differs)
+await (await provider.setSecuritizeOffRamp(NEW_OFFRAMP)).wait();
+
+// 2. ramp -> provider (completes the bidirectional wiring)
+await (await offRamp.updateLiquidityProvider(PROVIDER)).wait();
+
+// 3. re-enable two-step transfer, required by ExternalLiquidityProvider
+await (await offRamp.toggleTwoStepTransfer(true)).wait();
+
+console.log('off-ramp rotated ->', await provider.securitizeOffRamp());
+```
+
+For the **on-ramp** side the flow is symmetric: replace the contracts with
+`ExternalAssetProvider` / `ExternalAssetProviderOnRamp` and call `setSecuritizeOnRamp` then
+`updateAssetProvider` (the new on-ramp must have been deployed with `custodianWallet == provider`).
+
 ### EIP-712 Signing Helpers
 
 - Public Stock On Ramp swap
