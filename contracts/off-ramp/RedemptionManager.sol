@@ -8,6 +8,7 @@ pragma solidity ^0.8.22;
 import {IDSToken} from "@securitize/digital_securities/contracts/token/IDSToken.sol";
 import {TokenCalculator} from "./TokenCalculator.sol";
 import {ILiquidityProvider} from "./provider/ILiquidityProvider.sol";
+import {IExternalLiquidityProvider} from "./provider/IExternalLiquidityProvider.sol";
 import {IFeeManager} from "../fee/IFeeManager.sol";
 import {Errors} from "../common/Errors.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -86,6 +87,51 @@ library RedemptionManager {
 
         // Get liquidity from provider to contract
         uint256 suppliedAmount = _params.liquidityProvider.supplyTo(_contractAddress, _params.liquidityTokenAmount);
+
+        // Calculate fee based on supplied amount
+        fee = TokenCalculator.calculateFee(_params.feeManager, suppliedAmount);
+
+        userSuppliedAmount = suppliedAmount - fee;
+        // Check slippage protection - ensure minimum output amount is met
+        if (userSuppliedAmount < _params.minOutputAmount) {
+            revert Errors.SlippageControlError();
+        }
+
+        // Transfer liquidity tokens from contract to redeemer
+        _params.liquidityProvider.liquidityToken().safeTransfer(_params.redeemer, userSuppliedAmount);
+
+        // Transfer fee from contract to fee collector
+        if (fee > 0) {
+            _params.liquidityProvider.liquidityToken().safeTransfer(IFeeManager(_params.feeManager).feeCollector(), fee);
+        }
+    }
+
+    /**
+     * @dev Executes two-step redemption against an {IExternalLiquidityProvider}, swapping EXACTLY the
+     *      redemption's asset amount through Grove Basin. Unlike {executeTwoStepRedemption}, the
+     *      provider is driven through {IExternalLiquidityProvider.supplyExactIn} with the redemption's
+     *      own `assetAmount`, so a stray asset donation on the provider is neither swept into the
+     *      redemption nor able to revert it. Asset burning is unsupported by this provider, so the
+     *      asset is always transferred to the provider (never burned) before the swap.
+     * @param _params Redemption parameters payload.
+     * @param _contractAddress Address holding tokens during the two-step process.
+     * @return fee Fee charged in liquidity tokens.
+     * @return userSuppliedAmount Amount supplied to redeemer after fee.
+     */
+    function executeTwoStepRedemptionExactIn(
+        RedemptionParams memory _params,
+        address _contractAddress
+    ) internal returns (uint256 fee, uint256 userSuppliedAmount) {
+        // Get DS tokens from investor to contract, then forward to the provider (recipient).
+        _params.asset.transferFrom(_params.redeemer, _contractAddress, _params.assetAmount);
+        _params.asset.transfer(_params.liquidityProvider.recipient(), _params.assetAmount);
+
+        // Swap EXACTLY this redemption's asset amount; donations/stray balance are ignored.
+        uint256 suppliedAmount = IExternalLiquidityProvider(address(_params.liquidityProvider)).supplyExactIn(
+            _contractAddress,
+            _params.assetAmount,
+            _params.liquidityTokenAmount
+        );
 
         // Calculate fee based on supplied amount
         fee = TokenCalculator.calculateFee(_params.feeManager, suppliedAmount);

@@ -61,7 +61,7 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, BaseOnRamp {
         address _navProvider,
         address _feeManager,
         address _custodianWallet
-    ) public override initializer onlyProxy {
+    ) public virtual override initializer onlyProxy {
         __BaseOnRamp_init(NAME, VERSION);
 
         dsToken = IDSServiceConsumer(_dsToken);
@@ -135,8 +135,8 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, BaseOnRamp {
             _investorAttributeExpirations
         );
 
-        _executeLiquidityTransfer(_investorWallet, _liquidityAmount);
-        _executeAssetTransfer(_investorWallet, dsTokenAmount);
+        uint256 netLiquidity = _executeLiquidityTransfer(_investorWallet, _liquidityAmount);
+        _executeAssetTransfer(_investorWallet, dsTokenAmount, netLiquidity);
 
         emit DocumentSigned(_investorWallet, _agreementHash);
         emit Swap(_msgSender(), dsTokenAmount, _liquidityAmount, _investorWallet, rate, fee, address(liquidityToken));
@@ -176,7 +176,7 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, BaseOnRamp {
         Address.functionCall(txData.destination, txData.data);
     }
 
-    function calculateDsTokenAmount(uint256 _liquidityAmount) public view returns (uint256 dsTokenAmount, uint256 rate, uint256 fee) {
+    function calculateDsTokenAmount(uint256 _liquidityAmount) public view virtual returns (uint256 dsTokenAmount, uint256 rate, uint256 fee) {
         fee = feeManager.getFee(_liquidityAmount);
         uint256 liquidityAmountExcludingFee = _liquidityAmount - fee;
 

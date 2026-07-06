@@ -29,16 +29,6 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, BaseOffRamp {
 
     ISecuritizeNavProvider public navProvider;
 
-    /**
-     * @dev Throws if the NAV rate is zero or not set
-     */
-    modifier nonZeroNavRate() {
-        if (navProvider.rate() <= 0) {
-            revert NonZeroNavRateError();
-        }
-        _;
-    }
-
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -56,7 +46,7 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, BaseOffRamp {
         address _navProvider,
         address _feeManager,
         bool _assetBurn
-    ) public override initializer onlyProxy {
+    ) public virtual override initializer onlyProxy {
         __BaseOffRamp_init(_asset, _feeManager, _assetBurn, NAME, VERSION);
 
         if (_navProvider == address(0)) {
@@ -84,7 +74,7 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, BaseOffRamp {
      */
     function calculateLiquidityTokenAmount(
         uint256 _assetAmount
-    ) public view override nonZeroLiquidityProvider returns (uint256) {
+    ) public view virtual override nonZeroLiquidityProvider returns (uint256) {
         uint256 rate = navProvider.rate();
         if (rate == 0) {
             revert NonZeroNavRateError();
@@ -125,8 +115,8 @@ contract SecuritizeOffRamp is ISecuritizeOffRamp, BaseOffRamp {
         public
         override
         whenNotPaused
-        nonZeroNavRate
     {
+        // Single NAV read for this redemption path; the zero-rate guard is enforced by {_redeem}.
         uint256 rate = navProvider.rate();
         (uint256 fee, uint256 liquidityValue) = _redeem(_assetAmount, _minOutputAmount, rate, _msgSender());
 
