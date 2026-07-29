@@ -58,6 +58,79 @@ describe('On-Ramp External Asset Provider (swapExactIn via Grove Basin quote)', 
         });
     });
 
+    // BC-2323 upgrade path: the change adds no state variables, so the task is a pure implementation
+    // swap. It validates the storage layout before sending anything and then calls availableAsset()
+    // on the proxy to confirm the new implementation resolves through the wired external provider.
+    describe('Upgrade task — upgrade-external-asset-provider', function () {
+        it('upgrades the proxy and confirms availableAsset() resolves through the adapter', async function () {
+            const ctx = await loadFixture(deployOnRampExternalAssetProviderWithPsmAdapter);
+            const { assetProvider, psmAdapterMock } = ctx;
+            await psmAdapterMock.setAvailableAsset(777_000n);
+            const proxyAddress = await assetProvider.getAddress();
+
+            const result = await hre.run('upgrade-external-asset-provider', {
+                proxyAddress,
+                silenceLogs: true,
+            });
+
+            expect(result.proxyAddress).to.equal(proxyAddress);
+            expect(result.externalProvider).to.equal(await psmAdapterMock.getAddress());
+            expect(result.availableAsset).to.equal(777_000n);
+            // Configuration survives the implementation swap.
+            expect(await assetProvider.availableAsset()).to.equal(777_000n);
+        });
+
+        it('keeps the wiring and stays operational after the upgrade', async function () {
+            const ctx = await loadFixture(deployOnRampExternalAssetProviderWithPsmAdapter);
+            const { onRamp, assetProvider, usdcMock, dsTokenMock, navProviderMock, investor } = ctx;
+            const gross = 1_000_000_000n;
+            const { expected } = await prepareSwapViaAdapter(ctx, gross, 0n);
+
+            await hre.run('upgrade-external-asset-provider', {
+                proxyAddress: await assetProvider.getAddress(),
+                silenceLogs: true,
+            });
+
+            expect(await assetProvider.liquidityToken()).to.equal(await usdcMock.getAddress());
+            expect(await assetProvider.asset()).to.equal(await dsTokenMock.getAddress());
+            expect(await assetProvider.navProvider()).to.equal(await navProviderMock.getAddress());
+            expect(await assetProvider.securitizeOnRamp()).to.equal(await onRamp.getAddress());
+            expect(await assetProvider.rateTolerance()).to.equal(DEFAULT_RATE_TOLERANCE);
+
+            await onRamp.connect(investor).swap(gross, MIN_OUT);
+            expect(await dsTokenMock.balanceOf(investor.address)).to.equal(expected);
+        });
+
+        it('reverts when the proxy address holds no contract', async function () {
+            await loadFixture(deployOnRampExternalAssetProviderWithPsmAdapter);
+            const [, , stranger] = await hre.ethers.getSigners();
+            await expect(
+                hre.run('upgrade-external-asset-provider', { proxyAddress: stranger.address, silenceLogs: true }),
+            ).to.be.rejectedWith('No contract deployed at');
+        });
+
+        it('reverts on a malformed proxy address', async function () {
+            await expect(
+                hre.run('upgrade-external-asset-provider', { proxyAddress: '0xnot-an-address', silenceLogs: true }),
+            ).to.be.rejected;
+        });
+
+        it('fails loudly when the wired external provider cannot answer availableAsset()', async function () {
+            const ctx = await loadFixture(deployOnRampExternalAssetProviderWithPsmAdapter);
+            const { assetProvider, psmAdapterMock } = ctx;
+            // An external provider whose capacity view reverts leaves the provider unable to serve
+            // subscriptions; the task must surface that instead of reporting a clean upgrade.
+            await psmAdapterMock.setAvailableAssetReverts(true);
+
+            await expect(
+                hre.run('upgrade-external-asset-provider', {
+                    proxyAddress: await assetProvider.getAddress(),
+                    silenceLogs: true,
+                }),
+            ).to.be.rejectedWith('availableAsset() reverts');
+        });
+    });
+
     describe('Creation & initialization', function () {
         it('stores the configured wiring', async function () {
             const { onRamp, assetProvider, usdcMock, dsTokenMock, groveBasinMock, navProviderMock } = await loadFixture(
