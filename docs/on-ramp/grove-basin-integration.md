@@ -81,6 +81,18 @@ Validated by the provider at initialize / `setExternalProvider`:
 - `creditToken() == asset` else `CreditTokenMismatch`
 - `pocket() != address(0)` else `PocketZeroAddressError`
 
+> ### The external provider must expose `availableAsset()`  *(BC-2323)*
+> `ExternalAssetProvider.availableAsset()` delegates to `IPSMAdapter.availableAsset()` on the wired
+> `externalProvider`, because the external provider is the authority on its own deliverable capacity:
+> an adapter fronting a PSM holds **no asset inventory of its own** (it pushes the asset from the PSM's
+> send custodian), so reading the raw asset balance at the provider address reported zero and rejected
+> every subscription with `InsufficientAssetLiquidity`.
+>
+> The call is **not guarded**: a wired provider without `availableAsset()` makes the view — and every
+> subscription — revert. A raw Grove Basin (PSM3) pool does **not** implement it, so it must be fronted
+> by an adapter that does. Verify this before rotating `externalProvider` via `setExternalProvider`;
+> the wiring validation above only covers the token layout.
+
 The on-ramp direction is a **collateral → credit** swap (USDC in, asset out), which Grove Basin
 treats as *buying credit tokens* and to which it applies its **`purchaseFee`**.
 
@@ -122,8 +134,22 @@ The global pause (`bytes4(0)`) and the collateral→credit key (`PAUSED_SWAP_COL
 must be off.
 
 ### 5.6 Seed asset liquidity
-Deposit enough `creditToken` (asset) into Grove Basin (`depositInitial` once, then `deposit` by the
-`liquidityProvider`) so `availableAsset()` covers expected purchases.
+Make enough `creditToken` (asset) deliverable so `availableAsset()` covers expected purchases —
+`ExternalAssetProvider` rejects a subscription whose quote exceeds the reported capacity
+(`InsufficientAssetLiquidity`).
+
+- **Adapter fronting a PSM:** fund the PSM's asset **send custodian** and keep its allowance to the
+  adapter topped up, and leave enough room in the PSM rate limits (epoch and period caps: global,
+  per-collateral, per-benefactor). The adapter's `availableAsset()` nets all of those and returns `0`
+  on any blocking condition (swap disabled, unconfigured or inactive collateral, inactive benefactor).
+- **Grove Basin pool as the deliverable venue:** deposit the asset into the pool (`depositInitial`
+  once, then `deposit` by the `liquidityProvider`) and expose it through the adapter's
+  `availableAsset()`.
+
+The reported value is an **optimistic upper bound**: it does not model the DSToken compliance rules
+that may reject the delivery for a specific buyer, and another subscription can consume it in the same
+block. The hard guarantees stay on-chain — the swap reverts when the venue cannot deliver, and the
+DSToken reverts when compliance rejects the buyer.
 
 ---
 

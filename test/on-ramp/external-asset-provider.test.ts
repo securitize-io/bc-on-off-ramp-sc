@@ -7,7 +7,10 @@ import {
     deployOnRampExternalAssetProvider6x18,
     deployOnRampExternalAssetProvider18x6,
     deployOnRampExternalAssetProviderSingleStep,
+    deployOnRampExternalAssetProviderWithPsmAdapter,
+    deployOnRampExternalAssetProviderWithPsmAdapterSingleStep,
     prepareSwap,
+    prepareSwapViaAdapter,
     setGbPreviewFactor,
     calcFee,
     FEE_CASES,
@@ -329,13 +332,164 @@ describe('On-Ramp External Asset Provider (swapExactIn via Grove Basin quote)', 
         });
     });
 
+    // availableAsset() delegates to IPSMAdapter.availableAsset() on the wired external provider: the
+    // external provider is the authority on its own deliverable capacity. A self-custodying Grove Basin
+    // pool reports its own asset balance; a PSM adapter reports its rate-limit/custodian-derived
+    // capacity while holding no inventory at all (see the BC-2323 block below).
     describe('availableAsset', function () {
-        it('reflects the Grove Basin asset balance', async function () {
+        it('reflects the capacity reported by a self-custodying Grove Basin pool', async function () {
             const ctx = await loadFixture(deployOnRampExternalAssetProvider);
             const { assetProvider, dsTokenMock, groveBasinMock } = ctx;
             expect(await assetProvider.availableAsset()).to.equal(0n);
             await dsTokenMock.mint(await groveBasinMock.getAddress(), 123_456n);
             expect(await assetProvider.availableAsset()).to.equal(123_456n);
+        });
+    });
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // BC-2323 — availableAsset() must delegate to IPSMAdapter.availableAsset().
+    //
+    // The production external provider is a PSM adapter: it pushes the asset from the PSM's send
+    // custodian and therefore holds no inventory of its own. Reading the raw asset balance at the
+    // adapter address reported zero, so the liquidity gate in supplyExactIn rejected every
+    // subscription with InsufficientAssetLiquidity. Delegating to the adapter's own capacity view —
+    // which accounts for the PSM rate limits plus the send custodian's inventory and allowance —
+    // restores the flow while keeping the gate meaningful.
+    // ─────────────────────────────────────────────────────────────────────────
+    describe('availableAsset via IPSMAdapter (PSM adapter as external provider)', function () {
+        it('reports the adapter capacity while the adapter holds no asset inventory', async function () {
+            const { assetProvider, psmAdapterMock, dsTokenMock } = await loadFixture(
+                deployOnRampExternalAssetProviderWithPsmAdapter,
+            );
+            await psmAdapterMock.setAvailableAsset(500_000n);
+
+            // The adapter's own balance is zero — the pre-fix balance read would have reported 0.
+            expect(await dsTokenMock.balanceOf(await psmAdapterMock.getAddress())).to.equal(0n);
+            expect(await assetProvider.availableAsset()).to.equal(500_000n);
+        });
+
+        it('tracks the capacity the adapter reports', async function () {
+            const { assetProvider, psmAdapterMock } = await loadFixture(
+                deployOnRampExternalAssetProviderWithPsmAdapter,
+            );
+            expect(await assetProvider.availableAsset()).to.equal(0n);
+            await psmAdapterMock.setAvailableAsset(1n);
+            expect(await assetProvider.availableAsset()).to.equal(1n);
+            await psmAdapterMock.setAvailableAsset(hre.ethers.MaxUint256);
+            expect(await assetProvider.availableAsset()).to.equal(hre.ethers.MaxUint256);
+        });
+
+        it('returns zero when the adapter reports a blocking condition (swap disabled, inactive collateral/benefactor)', async function () {
+            const ctx = await loadFixture(deployOnRampExternalAssetProviderWithPsmAdapter);
+            const { assetProvider, psmAdapterMock, dsTokenMock, assetCustodian } = ctx;
+            // Custodian fully funded, yet the adapter reports zero deliverable capacity.
+            await dsTokenMock.mint(assetCustodian.address, 1_000_000_000n);
+            await psmAdapterMock.setAvailableAsset(0n);
+            expect(await assetProvider.availableAsset()).to.equal(0n);
+        });
+
+        it('propagates a revert from the adapter capacity view', async function () {
+            const ctx = await loadFixture(deployOnRampExternalAssetProviderWithPsmAdapter);
+            const { onRamp, psmAdapterMock, investor } = ctx;
+            const gross = 1_000_000_000n;
+            await prepareSwapViaAdapter(ctx, gross, 0n);
+
+            await psmAdapterMock.setAvailableAssetReverts(true);
+            await expect(ctx.assetProvider.availableAsset()).revertedWithCustomError(
+                psmAdapterMock,
+                'AvailableAssetUnavailable',
+            );
+            // The gate is on the subscription path, so the subscription reverts with it.
+            await expect(onRamp.connect(investor).swap(gross, MIN_OUT)).revertedWithCustomError(
+                psmAdapterMock,
+                'AvailableAssetUnavailable',
+            );
+        });
+
+        it('completes the subscription with an adapter that holds no inventory (BC-2323 regression)', async function () {
+            const ctx = await loadFixture(deployOnRampExternalAssetProviderWithPsmAdapter);
+            const { onRamp, assetProvider, psmAdapterMock, assetCustodian, usdcMock, dsTokenMock, investor } = ctx;
+            const gross = 1_000_000_000n;
+            const { expected, net } = await prepareSwapViaAdapter(ctx, gross, 0n);
+
+            await expect(onRamp.connect(investor).swap(gross, MIN_OUT)).to.emit(onRamp, 'Swap');
+
+            // Asset delivered from the send custodian, routed adapter -> on-ramp -> investor.
+            expect(await dsTokenMock.balanceOf(investor.address)).to.equal(expected);
+            expect(await dsTokenMock.balanceOf(assetCustodian.address)).to.equal(0n);
+            expect(await dsTokenMock.balanceOf(await psmAdapterMock.getAddress())).to.equal(0n);
+            expect(await dsTokenMock.balanceOf(await onRamp.getAddress())).to.equal(0n);
+            expect(await dsTokenMock.balanceOf(await assetProvider.getAddress())).to.equal(0n);
+            // Net liquidity consumed by the adapter; the provider keeps no treasury.
+            expect(await usdcMock.balanceOf(await psmAdapterMock.getAddress())).to.equal(net);
+            expect(await usdcMock.balanceOf(await assetProvider.getAddress())).to.equal(0n);
+        });
+
+        it('single-step delivers the asset straight to the investor through the adapter', async function () {
+            const ctx = await loadFixture(deployOnRampExternalAssetProviderWithPsmAdapterSingleStep);
+            const { onRamp, dsTokenMock, investor } = ctx;
+            expect(await onRamp.twoStepTransfer()).to.equal(false);
+
+            const gross = 1_000_000_000n;
+            const { expected } = await prepareSwapViaAdapter(ctx, gross, 0n);
+
+            await onRamp.connect(investor).swap(gross, MIN_OUT);
+
+            expect(await dsTokenMock.balanceOf(investor.address)).to.equal(expected);
+            expect(await dsTokenMock.balanceOf(await onRamp.getAddress())).to.equal(0n);
+        });
+
+        it('accepts a quote exactly equal to the reported capacity (gate boundary)', async function () {
+            const ctx = await loadFixture(deployOnRampExternalAssetProviderWithPsmAdapter);
+            const { onRamp, assetProvider, dsTokenMock, investor } = ctx;
+            const gross = 1_000_000_000n;
+            // reportedAvailable == expected: the gate rejects on `>`, so the equality case must pass.
+            const { expected } = await prepareSwapViaAdapter(ctx, gross, 0n);
+            expect(await assetProvider.availableAsset()).to.equal(expected);
+
+            await onRamp.connect(investor).swap(gross, MIN_OUT);
+            expect(await dsTokenMock.balanceOf(investor.address)).to.equal(expected);
+        });
+
+        it('reverts InsufficientAssetLiquidity when the adapter is rate-limited below the quote, despite a funded custodian', async function () {
+            const ctx = await loadFixture(deployOnRampExternalAssetProviderWithPsmAdapter);
+            const { onRamp, assetProvider, dsTokenMock, assetCustodian, investor } = ctx;
+            const gross = 1_000_000_000n;
+            // Custodian holds twice the quote, but the adapter reports one unit less than the quote:
+            // capacity is the binding constraint, not inventory.
+            const expected = (await prepareSwapViaAdapter(ctx, gross, 0n, gross * 2n)).expected;
+            await ctx.psmAdapterMock.setAvailableAsset(expected - 1n);
+
+            await expect(onRamp.connect(investor).swap(gross, MIN_OUT))
+                .revertedWithCustomError(assetProvider, 'InsufficientAssetLiquidity')
+                .withArgs(expected, expected - 1n);
+            expect(await dsTokenMock.balanceOf(assetCustodian.address)).to.equal(gross * 2n);
+        });
+
+        it('reverts InsufficientAssetLiquidity when the adapter reports zero capacity', async function () {
+            const ctx = await loadFixture(deployOnRampExternalAssetProviderWithPsmAdapter);
+            const { onRamp, assetProvider, investor } = ctx;
+            const gross = 1_000_000_000n;
+            const { expected } = await prepareSwapViaAdapter(ctx, gross, 0n, gross, 0n);
+
+            await expect(onRamp.connect(investor).swap(gross, MIN_OUT))
+                .revertedWithCustomError(assetProvider, 'InsufficientAssetLiquidity')
+                .withArgs(expected, 0n);
+        });
+
+        it('reverts when the adapter reports capacity it cannot actually deliver (custodian short)', async function () {
+            const ctx = await loadFixture(deployOnRampExternalAssetProviderWithPsmAdapter);
+            const { onRamp, investor } = ctx;
+            const gross = 1_000_000_000n;
+            // availableAsset() is an optimistic upper bound: the hard guarantee is the transfer itself,
+            // which reverts when the send custodian cannot cover the delivery.
+            const { expected } = await prepareSwapViaAdapter(ctx, gross, 0n, gross / 2n, gross);
+            expect(await ctx.assetProvider.availableAsset()).to.be.greaterThan(expected - 1n);
+
+            await expect(onRamp.connect(investor).swap(gross, MIN_OUT)).revertedWithCustomError(
+                ctx.dsTokenMock,
+                'ERC20InsufficientAllowance',
+            );
         });
     });
 
