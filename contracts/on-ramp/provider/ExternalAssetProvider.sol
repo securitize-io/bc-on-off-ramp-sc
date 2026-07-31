@@ -25,6 +25,7 @@ import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IER
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IBaseOnRamp} from "../IBaseOnRamp.sol";
 import {IGroveBasin} from "../../off-ramp/third-party-contracts/IGroveBasin.sol";
+import {IPSMAdapter} from "../../off-ramp/third-party-contracts/IPSMAdapter.sol";
 
 /**
  * @title ExternalAssetProvider
@@ -253,22 +254,34 @@ contract ExternalAssetProvider is IExternalAssetProvider, BaseExternalProvider {
     }
 
     /**
-     * @notice Returns a best-effort upper bound on the asset amount available for purchases in Grove Basin.
-     * @dev Reads the raw asset balance at the Grove Basin asset custodian. In this integration the
-     *      asset is Grove Basin's `creditToken`, held by the Grove Basin contract itself.
+     * @notice Returns a best-effort upper bound on the asset amount the external provider can deliver
+     *         for purchases.
+     * @dev Delegates to {IPSMAdapter.availableAsset} on the wired {externalProvider}. The external
+     *      provider is the authority on its own deliverable capacity: an adapter fronting a PSM holds
+     *      no asset inventory of its own (it pushes the asset from the PSM's send custodian), so
+     *      reading the raw asset balance at the provider address would report zero and reject every
+     *      subscription at the liquidity gate in {supplyExactIn}. The adapter instead accounts for the
+     *      PSM rate limits (epoch and period caps: global, per-collateral and per-benefactor) and the
+     *      send custodian's inventory and allowance, and returns zero on any blocking condition (swap
+     *      disabled, unconfigured or inactive collateral, inactive benefactor).
      *
-     *      This is an UPPER BOUND, not the exact deliverable capacity. It reads the raw ERC-20 balance
-     *      and does NOT net out portions that Grove Basin may treat as non-deliverable (e.g. seed
-     *      deposit, fee-claimer accrual, or collateral reserved against pending redemptions), and it
-     *      does NOT model the {asset} DSToken compliance rules (whitelist, lock-ups, holder caps,
-     *      jurisdiction) that may reject the swap output for a specific buyer. Off-chain integrators
-     *      sizing batches from this view should treat it as an optimistic ceiling. The hard guarantee
-     *      is enforced on-chain: Grove Basin reverts the swap when the pool cannot satisfy the output,
-     *      and the DSToken reverts the delivery when compliance rejects it for the buyer.
-     * @return A best-effort upper bound on the asset amount available at the Grove Basin asset custodian.
+     *      WIRING REQUIREMENT — the {externalProvider} MUST expose {IPSMAdapter.availableAsset}. The
+     *      call is not guarded: a provider without that function makes this view (and therefore every
+     *      subscription) revert. Admins rotating {externalProvider} via
+     *      {BaseExternalProvider.setExternalProvider} MUST verify the candidate implements it; the
+     *      wiring validation only covers the token layout.
+     *
+     *      This is an UPPER BOUND, not the exact deliverable capacity: it does NOT model the {asset}
+     *      DSToken compliance rules (whitelist, lock-ups, holder caps, jurisdiction) that may reject
+     *      the swap output for a specific buyer, and it is a point-in-time read that another
+     *      subscription can consume in the same block. Off-chain integrators sizing batches from this
+     *      view should treat it as an optimistic ceiling. The hard guarantee is enforced on-chain: the
+     *      external provider reverts the swap when it cannot satisfy the output, and the DSToken
+     *      reverts the delivery when compliance rejects it for the buyer.
+     * @return A best-effort upper bound on the asset amount the external provider can deliver.
      */
     function availableAsset() public view returns (uint256) {
-        return asset.balanceOf(_custodianOf(address(asset)));
+        return IPSMAdapter(address(externalProvider)).availableAsset();
     }
 
     /**
