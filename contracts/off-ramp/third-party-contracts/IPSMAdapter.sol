@@ -93,9 +93,6 @@ interface IPSMAdapter {
      *          inactive or unconfigured collateral, or inactive benefactor.
      *          Note: PSM has no `Pausable`; the liveness control is `isSwapEnabled`.
      *
-     *          Securitize must change ExternalAssetProvider.availableAsset() to delegate here
-     *          (Option A in the handoff doc) rather than reading asset.balanceOf(address(this)).
-     *
      *  @return Upper bound on the deliverable BUIDL amount, in BUIDL's native decimals.
      */
     function availableAsset() external view returns (uint256);
