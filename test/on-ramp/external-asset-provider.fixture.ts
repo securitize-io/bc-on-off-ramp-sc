@@ -139,9 +139,16 @@ export const deployOnRampExternalAssetProvider = async (
 ) => {
     const mocks = await deploySharedMocks(assetDecimals, liquidityDecimals, feeNumerator);
 
-    // Grove Basin mock: collateralToken = USDC, creditToken = DSToken, pocket = address(this).
-    // Self-custodies the credit token, so its `availableAsset()` is its own DSToken balance.
-    const groveBasinMock = await hre.ethers.deployContract('MockGroveBasin', [await mocks.usdcMock.getAddress()]);
+    // External provider: a PSM adapter, the production counterparty shape for the on-ramp. A plain
+    // MockGroveBasin cannot be wired here — like the real Grove Basin (PSM3) pool it models, it does
+    // not expose IPSMAdapter.availableAsset() and the provider rejects it at wiring time.
+    //
+    // Token wiring: collateralToken = USDC, creditToken = DSToken, pocket = address(this). The send
+    // custodian is left at its default (`address(this)`), so the adapter self-custodies the asset and
+    // {prepareSwap} funds it directly; capacity is still reported through `availableAsset()` and is
+    // therefore decoupled from that balance. The external-custodian topology (adapter with zero
+    // inventory) is covered by {deployOnRampExternalAssetProviderWithPsmAdapter}.
+    const groveBasinMock = await hre.ethers.deployContract('MockPSMAdapter', [await mocks.usdcMock.getAddress()]);
     await groveBasinMock.setCreditToken(await mocks.dsTokenMock.getAddress());
 
     const { onRamp, assetProvider } = await runDeployOnRampTask(
@@ -212,7 +219,9 @@ export const deployOnRampExternalAssetProviderWithPsmAdapterSingleStep = () =>
 /**
  * Prepares state for a swap call:
  *   - mints `liquidityAmount` USDC to the investor and approves the on-ramp
- *   - mints `assetToFund` (defaults to the gross 1:1 asset output) DSToken into Grove Basin
+ *   - mints `assetToFund` (defaults to the gross 1:1 asset output) DSToken into the external provider
+ *   - reports the same amount as the provider's `availableAsset()` capacity, so the liquidity gate in
+ *     supplyExactIn sees exactly what was funded
  *
  * Returns the gross/fee/net/expected asset breakdown for assertions.
  */
@@ -231,9 +240,12 @@ export const prepareSwap = async (
     const net = liquidityAmount - fee;
     const expected = expectedAsset(net, assetDecimals, liquidityDecimals);
 
+    const funded = assetToFund ?? expected;
+
     await usdcMock.mint(investor.address, liquidityAmount);
     await usdcMock.connect(investor).approve(await onRamp.getAddress(), liquidityAmount);
-    await dsTokenMock.mint(await groveBasinMock.getAddress(), assetToFund ?? expected);
+    await dsTokenMock.mint(await groveBasinMock.getAddress(), funded);
+    await groveBasinMock.setAvailableAsset(funded);
 
     return { fee, net, expected };
 };

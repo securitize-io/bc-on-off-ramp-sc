@@ -84,10 +84,14 @@ contract MockPSMAdapter is MockGroveBasin {
     }
 
     /**
-     * @inheritdoc MockGroveBasin
-     * @dev Reports {reportedAvailableAsset} regardless of the adapter's own credit-token balance.
+     * @notice Best-effort upper bound on the credit-token amount deliverable for buy-direction swaps.
+     * @dev Declared only here, never on {MockGroveBasin}: a plain Grove Basin (PSM3) pool has no such
+     *      view in production, and the on-ramp {ExternalAssetProvider} must keep rejecting one at
+     *      wiring time. Reports {reportedAvailableAsset} regardless of the adapter's own credit-token
+     *      balance, standing in for the PSM rate limits plus the send custodian's inventory.
+     * @return Upper bound on the deliverable credit-token amount.
      */
-    function availableAsset() external view override returns (uint256) {
+    function availableAsset() external view returns (uint256) {
         if (availableAssetReverts) {
             revert AvailableAssetUnavailable();
         }

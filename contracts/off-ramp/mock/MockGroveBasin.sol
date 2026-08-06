@@ -34,6 +34,12 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
  *
  *         Custody mirrors the real Grove Basin: the `pocket` only custodies the `swapToken`,
  *         while the `collateralToken` and `creditToken` are held by this contract.
+ *
+ *         This double models a PLAIN Grove Basin (PSM3) pool and therefore deliberately does NOT
+ *         expose {IPSMAdapter.availableAsset}: a real pool has no such view, and the on-ramp
+ *         {ExternalAssetProvider} must reject it at wiring time
+ *         ({ExternalAssetProvider._validateProviderCapabilities}). Only {MockPSMAdapter} declares
+ *         that capacity view, mirroring the production split between a pool and an adapter.
  */
 contract MockGroveBasin {
     using SafeERC20 for IERC20;
@@ -237,18 +243,7 @@ contract MockGroveBasin {
         amountIn = Math.mulDiv(amountIn, previewDenominator, previewNumerator);
     }
 
-    /**
-     * @notice Best-effort upper bound on the credit-token amount deliverable for buy-direction swaps.
-     * @dev Mirrors the plain Grove Basin custody model: the credit token is held by this contract, so
-     *      the raw balance at its custodian is the deliverable ceiling. {MockPSMAdapter} overrides this
-     *      to report a configurable capacity while holding no inventory of its own, as a PSM adapter does.
-     * @return Upper bound on the deliverable credit-token amount.
-     */
-    function availableAsset() external view virtual returns (uint256) {
-        return IERC20(creditToken).balanceOf(_getAssetCustodian(creditToken));
-    }
-
-    function _getAssetCustodian(address asset) internal view virtual returns (address custodian) {
+    function _getAssetCustodian(address asset) internal view returns (address custodian) {
         custodian = asset == swapToken && _hasPocket() ? pocket : address(this);
     }
 
