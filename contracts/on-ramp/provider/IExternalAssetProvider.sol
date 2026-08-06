@@ -86,6 +86,17 @@ interface IExternalAssetProvider is IAssetProvider, IExternalProvider {
     error InsufficientLiquidityToSwap(uint256 required, uint256 available);
 
     /**
+     * @dev Thrown when an external provider candidate does not answer {IPSMAdapter.availableAsset}
+     *      with a decodable `uint256`. {availableAsset} delegates to it unguarded, so wiring a
+     *      candidate that cannot answer it would make the capacity view — and therefore every
+     *      subscription, which gates on it in {supplyExactIn} — revert. Enforced on both the
+     *      initialization and the {setExternalProvider} rotation paths.
+     * @param provider Candidate external provider that failed the capability probe.
+     * @dev Selector: 0x1feddf48
+     */
+    error ExternalProviderMissingAvailableAsset(address provider);
+
+    /**
      * @notice Proxy initializer.
      * @param _liquidityToken Liquidity token (stablecoin) supplied by the investor.
      * @param _asset Asset (DSToken) delivered to the investor.

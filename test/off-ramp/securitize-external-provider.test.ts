@@ -829,6 +829,26 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
                 .revertedWithCustomError(liquidityProvider, 'CreditTokenMismatch')
                 .withArgs(await ctx.dsTokenMock.getAddress(), stranger.address);
         });
+
+        // BC-2323 regression: the on-ramp ExternalAssetProvider requires the adapter-specific
+        // IPSMAdapter.availableAsset() and enforces it through the shared
+        // BaseExternalProvider._validateProviderCapabilities hook. That hook must stay a no-op here:
+        // this provider's capacity read (availableLiquidity) is balance-based, so a plain Grove Basin
+        // (PSM3) — which has no availableAsset() — must remain wirable.
+        it('should accept a Grove Basin that does not expose availableAsset()', async function () {
+            const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
+            const { liquidityProvider, usdcMock, dsTokenMock, groveBasinMock } = ctx;
+            const plainBasin = await hre.ethers.deployContract('MockGroveBasinNoCapacity', [
+                await usdcMock.getAddress(),
+                await dsTokenMock.getAddress(),
+                false,
+            ]);
+
+            await expect(liquidityProvider.setExternalProvider(await plainBasin.getAddress()))
+                .to.emit(liquidityProvider, 'ExternalProviderUpdated')
+                .withArgs(await groveBasinMock.getAddress(), await plainBasin.getAddress());
+            expect(await liquidityProvider.externalProvider()).to.equal(await plainBasin.getAddress());
+        });
     });
 
     // ─────────────────────────────────────────────────────────────────────────

@@ -160,7 +160,9 @@ abstract contract BaseExternalProvider is IExternalProvider, BaseContract {
     function _expectedCreditToken() internal view virtual returns (address);
 
     /**
-     * @dev Validates and stores a Grove Basin candidate against this integration's token wiring.
+     * @dev Validates and stores a Grove Basin candidate against this integration's token wiring and
+     *      against the capabilities the concrete provider requires from it
+     *      ({_validateProviderCapabilities}).
      * @param _groveBasin New Grove Basin (PSM3) address.
      */
     function _setExternalProvider(address _groveBasin) private {
@@ -168,8 +170,24 @@ abstract contract BaseExternalProvider is IExternalProvider, BaseContract {
             revert NonZeroAddressError();
         }
         _validateExternalProviderConfig(IGroveBasin(_groveBasin));
+        _validateProviderCapabilities(_groveBasin);
         externalProvider = IGroveBasin(_groveBasin);
     }
+
+    /**
+     * @dev Hook for concrete providers to reject a candidate that does not expose the optional
+     *      functions they depend on beyond the {IGroveBasin} surface. Runs on both the initialization
+     *      and the rotation paths, before the candidate is stored.
+     *
+     *      No-op by default: the base surface is {IGroveBasin} and the off-ramp
+     *      {ExternalLiquidityProvider} needs nothing beyond it (its capacity read,
+     *      {ExternalLiquidityProvider.availableLiquidity}, is balance-based), so a plain Grove Basin
+     *      (PSM3) must stay wirable there. The on-ramp {ExternalAssetProvider} overrides this to
+     *      require {IPSMAdapter.availableAsset}, which its own capacity read delegates to.
+     *
+     *      Takes the Grove Basin (PSM3) candidate address, already validated for token wiring.
+     */
+    function _validateProviderCapabilities(address) internal view virtual {}
 
     /**
      * @dev Reverts when a Grove Basin candidate does not match this integration's token wiring.

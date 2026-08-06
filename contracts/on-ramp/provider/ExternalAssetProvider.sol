@@ -266,10 +266,14 @@ contract ExternalAssetProvider is IExternalAssetProvider, BaseExternalProvider {
      *      disabled, unconfigured or inactive collateral, inactive benefactor).
      *
      *      WIRING REQUIREMENT — the {externalProvider} MUST expose {IPSMAdapter.availableAsset}. The
-     *      call is not guarded: a provider without that function makes this view (and therefore every
-     *      subscription) revert. Admins rotating {externalProvider} via
-     *      {BaseExternalProvider.setExternalProvider} MUST verify the candidate implements it; the
-     *      wiring validation only covers the token layout.
+     *      call is not guarded: a provider without that function would make this view (and therefore
+     *      every subscription) revert. That requirement is enforced on-chain by
+     *      {_validateProviderCapabilities}, which probes the candidate on both the initialization and
+     *      the {BaseExternalProvider.setExternalProvider} rotation paths and reverts with
+     *      {ExternalProviderMissingAvailableAsset}. The probe is a point-in-time check of the
+     *      candidate's code: it cannot bind a provider that stops answering later (e.g. an upgradeable
+     *      adapter whose implementation is swapped), so it narrows the failure window rather than
+     *      closing it.
      *
      *      This is an UPPER BOUND, not the exact deliverable capacity: it does NOT model the {asset}
      *      DSToken compliance rules (whitelist, lock-ups, holder caps, jurisdiction) that may reject
@@ -299,6 +303,26 @@ contract ExternalAssetProvider is IExternalAssetProvider, BaseExternalProvider {
         uint8 liquidityTokenDecimals = liquidityToken.decimals();
         uint8 assetDecimals = IERC20Metadata(address(asset)).decimals();
         assetAmount = (_liquidityAmount * (10 ** (2 * assetDecimals))) / (rate * (10 ** liquidityTokenDecimals));
+    }
+
+    /**
+     * @dev Rejects an external provider candidate that cannot answer {IPSMAdapter.availableAsset}.
+     *      {availableAsset} delegates to it unguarded and {supplyExactIn} gates every subscription on
+     *      the result, so a candidate without it would take the on-ramp down with an unnamed revert
+     *      until an admin rotated the wiring back. The token-layout validation in
+     *      {BaseExternalProvider._validateExternalProviderConfig} does not cover this.
+     *
+     *      Probed with a low-level `staticcall` rather than `try`/`catch` on purpose: a candidate with
+     *      a permissive fallback returns success with empty return data, which passes a `try` and then
+     *      reverts on the ABI decode *outside* the `catch`. Requiring at least a word of return data
+     *      rejects that case here, where it is still recoverable.
+     * @param candidate External provider candidate, already validated for token wiring.
+     */
+    function _validateProviderCapabilities(address candidate) internal view override {
+        (bool ok, bytes memory data) = candidate.staticcall(abi.encodeCall(IPSMAdapter.availableAsset, ()));
+        if (!ok || data.length < 32) { // word size = 32 bytes
+            revert ExternalProviderMissingAvailableAsset(candidate);
+        }
     }
 
     /**
