@@ -6,9 +6,7 @@ import {
     deployOnRampExternalAssetProviderWithAdmin,
     deployOnRampExternalAssetProvider6x18,
     deployOnRampExternalAssetProvider18x6,
-    deployOnRampExternalAssetProviderSingleStep,
     deployOnRampExternalAssetProviderWithPsmAdapter,
-    deployOnRampExternalAssetProviderWithPsmAdapterSingleStep,
     prepareSwap,
     prepareSwapViaAdapter,
     setGbPreviewFactor,
@@ -17,11 +15,123 @@ import {
     TOLERANCE_DENOMINATOR,
     DEFAULT_RATE_TOLERANCE,
     FEE_COLLECTOR,
+    SEEDED_CAPACITY,
 } from './external-asset-provider.fixture';
 
 const MIN_OUT = 0n;
 
 describe('On-Ramp External Asset Provider (swapExactIn via Grove Basin quote)', function () {
+    // Cyfrin issue 019. The runbook documented three things the code does not do: a --redeem-tolerance
+    // flag that crashes the task, a --single-step mode the PSM adapter cannot serve, and a funding
+    // step whose only observable failure is a silent zero capacity. These tests exercise the
+    // documented command with its documented flags, so runbook drift surfaces here instead of during
+    // a deployment.
+    describe('Documented deploy command', function () {
+        const deployWith = async (overrides: Record<string, unknown>) => {
+            const [deployer] = await hre.ethers.getSigners();
+            const reg = await hre.ethers.deployContract('MockRegistryService', []);
+            await reg.updateInvestor('id', '0x', 'AR', [deployer.address], [], [], []);
+            const trust = await hre.ethers.deployContract('MockTrustService', []);
+            const ds = await hre.ethers.deployContract('MockDSToken', [
+                'DSToken',
+                'DSToken',
+                6,
+                await reg.getAddress(),
+                await trust.getAddress(),
+            ]);
+            const usdc = await hre.ethers.deployContract('MockERC20', ['USDC', 'USDC', 6]);
+            const nav = await hre.ethers.deployContract('MockSecuritizeInternalNavProvider', [10n ** 6n]);
+            const fee = await hre.ethers.deployContract('MockConfigurableFeeManager', [0n, deployer.address]);
+            const adapter = await hre.ethers.deployContract('MockPSMAdapter', [await usdc.getAddress()]);
+            await adapter.setCreditToken(await ds.getAddress());
+            await adapter.setAvailableAsset(SEEDED_CAPACITY);
+
+            return {
+                adapter,
+                run: async () =>
+                    hre.run('deploy-on-ramp-external-asset-provider', {
+                        asset: await ds.getAddress(),
+                        liquidityToken: await usdc.getAddress(),
+                        navProvider: await nav.getAddress(),
+                        feeManager: await fee.getAddress(),
+                        groveBasin: await adapter.getAddress(),
+                        silenceLogs: true,
+                        ...overrides,
+                    }),
+            };
+        };
+
+        it('applies --rate-tolerance to the deployed provider', async function () {
+            const { run } = await deployWith({ rateTolerance: '2000' });
+            const { assetProvider } = await run();
+            expect(await assetProvider.rateTolerance()).to.equal(2000n);
+        });
+
+        it('applies --referral-code to the deployed provider', async function () {
+            const { run } = await deployWith({ referralCode: '7' });
+            const { assetProvider } = await run();
+            expect(await assetProvider.referralCode()).to.equal(7n);
+        });
+
+        it('rejects --single-step before deploying anything', async function () {
+            const { run } = await deployWith({ singleStep: true });
+            await expect(run()).to.be.rejectedWith(/two-step only/);
+        });
+
+        it('refuses to finish when the wired provider reports zero deliverable capacity', async function () {
+            const { adapter, run } = await deployWith({});
+            await adapter.setAvailableAsset(0n);
+            await expect(run()).to.be.rejectedWith(/availableAsset\(\) = 0/);
+        });
+
+        it('refuses to finish when capacity is below an explicit --min-available-asset', async function () {
+            const { adapter, run } = await deployWith({ minAvailableAsset: '1000' });
+            await adapter.setAvailableAsset(999n);
+            await expect(run()).to.be.rejectedWith(/below the required 1000/);
+        });
+
+        it('accepts capacity exactly at --min-available-asset', async function () {
+            const { adapter, run } = await deployWith({ minAvailableAsset: '1000' });
+            await adapter.setAvailableAsset(1000n);
+            const { assetProvider } = await run();
+            expect(await assetProvider.availableAsset()).to.equal(1000n);
+        });
+    });
+
+    // Single-step passes the investor — an arbitrary address — as the swap receiver, which the PSM
+    // adapter rejects (IPSMAdapter.ReceiverNotApproved). The on-ramp refuses that configuration at
+    // every entry point rather than leaving it as a valid-looking way to brick the ramp.
+    describe('Single-step delivery is rejected', function () {
+        it('enables two-step at initialization instead of inheriting the single-step default', async function () {
+            const { onRamp } = await loadFixture(deployOnRampExternalAssetProvider);
+            expect(await onRamp.twoStepTransfer()).to.equal(true);
+        });
+
+        it('reverts SingleStepNotSupported when an admin toggles two-step off', async function () {
+            const { onRamp } = await loadFixture(deployOnRampExternalAssetProvider);
+            await expect(onRamp.toggleTwoStepTransfer(false)).revertedWithCustomError(
+                onRamp,
+                'SingleStepNotSupported',
+            );
+            expect(await onRamp.twoStepTransfer()).to.equal(true);
+        });
+
+        it('rejects a non-admin caller too, unconditionally and before any role check', async function () {
+            // Same shape as updateBridgeParams: the mode is refused for everyone, so the revert names
+            // the unsupported configuration rather than the caller's missing role.
+            const { onRamp, stranger } = await loadFixture(deployOnRampExternalAssetProvider);
+            await expect(onRamp.connect(stranger).toggleTwoStepTransfer(false)).revertedWithCustomError(
+                onRamp,
+                'SingleStepNotSupported',
+            );
+        });
+
+        it('reverts SameValueError when two-step is re-enabled while already on', async function () {
+            const { onRamp } = await loadFixture(deployOnRampExternalAssetProvider);
+            await expect(onRamp.toggleTwoStepTransfer(true)).revertedWithCustomError(onRamp, 'SameValueError');
+        });
+    });
+
     describe('Deploy task — admin handover', function () {
         it('keeps the deployer as DEFAULT_ADMIN_ROLE when no admin is provided', async function () {
             const { onRamp, assetProvider } = await loadFixture(deployOnRampExternalAssetProvider);
@@ -575,9 +685,11 @@ describe('On-Ramp External Asset Provider (swapExactIn via Grove Basin quote)', 
         it('reports verbatim what the wired external provider answers', async function () {
             const ctx = await loadFixture(deployOnRampExternalAssetProvider);
             const { assetProvider, groveBasinMock } = ctx;
-            expect(await assetProvider.availableAsset()).to.equal(0n);
+            expect(await assetProvider.availableAsset()).to.equal(SEEDED_CAPACITY);
             await groveBasinMock.setAvailableAsset(123_456n);
             expect(await assetProvider.availableAsset()).to.equal(123_456n);
+            await groveBasinMock.setAvailableAsset(0n);
+            expect(await assetProvider.availableAsset()).to.equal(0n);
         });
 
         it('is decoupled from the asset balance held at the external provider address', async function () {
@@ -586,7 +698,7 @@ describe('On-Ramp External Asset Provider (swapExactIn via Grove Basin quote)', 
             // A donation to the provider address does not raise the reported capacity: the gate reads
             // the provider's own view, not its inventory.
             await dsTokenMock.mint(await groveBasinMock.getAddress(), 123_456n);
-            expect(await assetProvider.availableAsset()).to.equal(0n);
+            expect(await assetProvider.availableAsset()).to.equal(SEEDED_CAPACITY);
         });
     });
 
@@ -616,9 +728,9 @@ describe('On-Ramp External Asset Provider (swapExactIn via Grove Basin quote)', 
             const { assetProvider, psmAdapterMock } = await loadFixture(
                 deployOnRampExternalAssetProviderWithPsmAdapter,
             );
+            expect(await assetProvider.availableAsset()).to.equal(SEEDED_CAPACITY);
+            await psmAdapterMock.setAvailableAsset(0n);
             expect(await assetProvider.availableAsset()).to.equal(0n);
-            await psmAdapterMock.setAvailableAsset(1n);
-            expect(await assetProvider.availableAsset()).to.equal(1n);
             await psmAdapterMock.setAvailableAsset(hre.ethers.MaxUint256);
             expect(await assetProvider.availableAsset()).to.equal(hre.ethers.MaxUint256);
         });
@@ -667,20 +779,6 @@ describe('On-Ramp External Asset Provider (swapExactIn via Grove Basin quote)', 
             // Net liquidity consumed by the adapter; the provider keeps no treasury.
             expect(await usdcMock.balanceOf(await psmAdapterMock.getAddress())).to.equal(net);
             expect(await usdcMock.balanceOf(await assetProvider.getAddress())).to.equal(0n);
-        });
-
-        it('single-step delivers the asset straight to the investor through the adapter', async function () {
-            const ctx = await loadFixture(deployOnRampExternalAssetProviderWithPsmAdapterSingleStep);
-            const { onRamp, dsTokenMock, investor } = ctx;
-            expect(await onRamp.twoStepTransfer()).to.equal(false);
-
-            const gross = 1_000_000_000n;
-            const { expected } = await prepareSwapViaAdapter(ctx, gross, 0n);
-
-            await onRamp.connect(investor).swap(gross, MIN_OUT);
-
-            expect(await dsTokenMock.balanceOf(investor.address)).to.equal(expected);
-            expect(await dsTokenMock.balanceOf(await onRamp.getAddress())).to.equal(0n);
         });
 
         it('accepts a quote exactly equal to the reported capacity (gate boundary)', async function () {
@@ -755,19 +853,6 @@ describe('On-Ramp External Asset Provider (swapExactIn via Grove Basin quote)', 
             expect(await usdcMock.balanceOf(await assetProvider.getAddress())).to.equal(0n);
         });
 
-        it('single-step delivers exactly the NAV amount straight to the investor', async function () {
-            const ctx = await loadFixture(deployOnRampExternalAssetProviderSingleStep);
-            const { onRamp, dsTokenMock, investor } = ctx;
-            expect(await onRamp.twoStepTransfer()).to.equal(false);
-
-            const gross = 1_000_000_000n;
-            const { expected } = await prepareSwap(ctx, gross, 0n);
-
-            await onRamp.connect(investor).swap(gross, MIN_OUT);
-
-            expect(await dsTokenMock.balanceOf(investor.address)).to.equal(expected);
-            expect(await dsTokenMock.balanceOf(await onRamp.getAddress())).to.equal(0n);
-        });
     });
 
     describe('Swap (happy path, 1:1 peg)', function () {
@@ -915,19 +1000,6 @@ describe('On-Ramp External Asset Provider (swapExactIn via Grove Basin quote)', 
             expect(await usdcMock.balanceOf(await assetProvider.getAddress())).to.equal(0n);
         });
 
-        it('single-step delivers the Grove Basin amount straight to the investor', async function () {
-            const ctx = await loadFixture(deployOnRampExternalAssetProviderSingleStep);
-            const { onRamp, dsTokenMock, groveBasinMock, investor } = ctx;
-            const gross = 1_000_000_000n;
-            const { expected } = await prepareSwap(ctx, gross, 0n);
-            await groveBasinMock.setRedemptionFeeBps(GB_FEE_BPS);
-            const delivered = withGbFee(expected);
-
-            await onRamp.connect(investor).swap(gross, MIN_OUT);
-
-            expect(await dsTokenMock.balanceOf(investor.address)).to.equal(delivered);
-            expect(await dsTokenMock.balanceOf(await onRamp.getAddress())).to.equal(0n);
-        });
 
         // Mode B analog: in the old swapExactOut design a Grove Basin quote *better* than the NAV
         // (Grove needing less input than the settled balance) reverted with LiquidityNotFullyConsumed,

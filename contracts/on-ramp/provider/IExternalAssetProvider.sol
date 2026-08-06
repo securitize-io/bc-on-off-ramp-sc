@@ -51,15 +51,20 @@ interface IExternalAssetProvider is IAssetProvider, IExternalProvider {
     event NavProviderUpdated(address indexed oldProvider, address indexed newProvider);
 
     /**
-     * @dev Thrown when there is no liquidity-token balance available to swap.
+     * @dev Thrown when the subscription has nothing to swap: either the on-ramp passed a zero net
+     *      liquidity, or the Grove Basin quote for that net floors to zero (which would silently
+     *      remove the swap's price floor, since the quote is forwarded as `minAmountOut`).
+     *      A net liquidity that simply exceeds the balance on hand throws
+     *      {InsufficientLiquidityToSwap} instead.
      * @dev Selector: 0xa80f0106
      */
     error ZeroAmountToSwap();
 
     /**
-     * @dev Thrown when Grove Basin cannot satisfy the requested asset output.
-     * @param requested Asset amount requested from Grove Basin.
-     * @param available Asset amount available at the Grove Basin asset custodian.
+     * @dev Thrown when the external provider cannot satisfy the requested asset output.
+     * @param requested Asset amount requested from the external provider.
+     * @param available Capacity the external provider reports through {IPSMAdapter.availableAsset} —
+     *                  its own netted deliverable ceiling, not a balance read at any address.
      * @dev Selector: 0x48b12e37
      */
     error InsufficientAssetLiquidity(uint256 requested, uint256 available);
@@ -154,7 +159,7 @@ interface IExternalAssetProvider is IAssetProvider, IExternalProvider {
     /**
      * @notice Grove Basin quote: asset amount delivered for swapping `_netLiquidity` of the liquidity
      *         token in. The on-ramp uses this to size the expected asset amount so the amount it
-     *         forwards in two-step equals what the swap in {supplyTo} delivers.
+     *         forwards in two-step equals what the swap in {supplyExactIn} delivers.
      * @param _netLiquidity Net liquidity amount (after the on-ramp fee) to be swapped.
      * @return The asset amount Grove Basin would deliver for `_netLiquidity`.
      */

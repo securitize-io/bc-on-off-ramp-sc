@@ -102,13 +102,20 @@ const deploySharedMocks = async (assetDecimals: number, liquidityDecimals: numbe
 };
 
 /**
+ * Nominal capacity seeded on the external provider before the deploy task runs. The task reads
+ * `availableAsset()` back and refuses to finish on zero, so a provider reporting nothing is not a
+ * valid starting state for a fixture any more than it is for a real deployment. Tests that exercise
+ * the capacity gate overwrite this with their own value.
+ */
+export const SEEDED_CAPACITY = 1n;
+
+/**
  * Runs the deploy-on-ramp-external-asset-provider task against an already-deployed external provider.
  * The task also enables investor subscription, so callers must not toggle it again (SameValueError).
  */
 const runDeployOnRampTask = async (
     mocks: Awaited<ReturnType<typeof deploySharedMocks>>,
     externalProviderAddress: string,
-    singleStep: boolean,
     adminAddress?: string,
 ) =>
     hre.run('deploy-on-ramp-external-asset-provider', {
@@ -117,7 +124,6 @@ const runDeployOnRampTask = async (
         navProvider: await mocks.navProviderMock.getAddress(),
         feeManager: await mocks.feeManagerMock.getAddress(),
         groveBasin: externalProviderAddress,
-        singleStep,
         ...(adminAddress !== undefined ? { admin: adminAddress } : {}),
         silenceLogs: true,
     });
@@ -127,14 +133,13 @@ const runDeployOnRampTask = async (
  * deploy-on-ramp-external-asset-provider task with a DSToken-compliant MockDSToken.
  *
  * The on-ramp is wired with custodianWallet == ExternalAssetProvider, investor subscription
- * enabled and a configurable (default 0%) fee manager. Transfer mode defaults to two-step (the
- * task default for RWA compliance); pass `singleStep = true` to exercise the single-step flow.
+ * enabled and a configurable (default 0%) fee manager. Delivery is two-step, enforced by the
+ * on-ramp itself — single-step is not a supported configuration.
  */
 export const deployOnRampExternalAssetProvider = async (
     assetDecimals = 6,
     liquidityDecimals = 6,
     feeNumerator = 0n,
-    singleStep = false,
     adminAddress?: string,
 ) => {
     const mocks = await deploySharedMocks(assetDecimals, liquidityDecimals, feeNumerator);
@@ -150,11 +155,11 @@ export const deployOnRampExternalAssetProvider = async (
     // inventory) is covered by {deployOnRampExternalAssetProviderWithPsmAdapter}.
     const groveBasinMock = await hre.ethers.deployContract('MockPSMAdapter', [await mocks.usdcMock.getAddress()]);
     await groveBasinMock.setCreditToken(await mocks.dsTokenMock.getAddress());
+    await groveBasinMock.setAvailableAsset(SEEDED_CAPACITY);
 
     const { onRamp, assetProvider } = await runDeployOnRampTask(
         mocks,
         await groveBasinMock.getAddress(),
-        singleStep,
         adminAddress,
     );
 
@@ -170,13 +175,12 @@ export const deployOnRampExternalAssetProviderWithAdmin = async () => {
     const signers = await hre.ethers.getSigners();
     const admin = signers[3];
     const deployer = signers[0];
-    const ctx = await deployOnRampExternalAssetProvider(6, 6, 0n, false, admin.address);
+    const ctx = await deployOnRampExternalAssetProvider(6, 6, 0n, admin.address);
     return { ...ctx, admin, deployer };
 };
 
 export const deployOnRampExternalAssetProvider6x18 = () => deployOnRampExternalAssetProvider(6, 18);
 export const deployOnRampExternalAssetProvider18x6 = () => deployOnRampExternalAssetProvider(18, 6);
-export const deployOnRampExternalAssetProviderSingleStep = () => deployOnRampExternalAssetProvider(6, 6, 0n, true);
 
 /**
  * Deploys the on-ramp protocol wired to a MockPSMAdapter as the external provider, reproducing the
@@ -184,14 +188,14 @@ export const deployOnRampExternalAssetProviderSingleStep = () => deployOnRampExt
  * (the asset is pulled from `assetCustodian` on delivery) and reports its deliverable capacity
  * through `availableAsset()`.
  *
- * Capacity starts at zero — use {prepareSwapViaAdapter} (or `psmAdapterMock.setAvailableAsset`) to
- * configure what the adapter reports.
+ * Capacity starts at {SEEDED_CAPACITY} (the deploy task refuses to finish on zero) — use
+ * {prepareSwapViaAdapter} (or `psmAdapterMock.setAvailableAsset`) to configure what the adapter
+ * reports.
  */
 export const deployOnRampExternalAssetProviderWithPsmAdapter = async (
     assetDecimals = 6,
     liquidityDecimals = 6,
     feeNumerator = 0n,
-    singleStep = false,
 ) => {
     const mocks = await deploySharedMocks(assetDecimals, liquidityDecimals, feeNumerator);
     const assetCustodian = (await hre.ethers.getSigners())[4];
@@ -202,19 +206,12 @@ export const deployOnRampExternalAssetProviderWithPsmAdapter = async (
     const psmAdapterMock = await hre.ethers.deployContract('MockPSMAdapter', [await mocks.usdcMock.getAddress()]);
     await psmAdapterMock.setCreditToken(await mocks.dsTokenMock.getAddress());
     await psmAdapterMock.setAssetSendCustodian(assetCustodian.address);
+    await psmAdapterMock.setAvailableAsset(SEEDED_CAPACITY);
 
-    const { onRamp, assetProvider } = await runDeployOnRampTask(
-        mocks,
-        await psmAdapterMock.getAddress(),
-        singleStep,
-        undefined,
-    );
+    const { onRamp, assetProvider } = await runDeployOnRampTask(mocks, await psmAdapterMock.getAddress(), undefined);
 
     return { onRamp, assetProvider, psmAdapterMock, assetCustodian, ...mocks };
 };
-
-export const deployOnRampExternalAssetProviderWithPsmAdapterSingleStep = () =>
-    deployOnRampExternalAssetProviderWithPsmAdapter(6, 6, 0n, true);
 
 /**
  * Prepares state for a swap call:
