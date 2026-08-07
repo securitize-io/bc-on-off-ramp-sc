@@ -18,9 +18,10 @@
 pragma solidity ^0.8.22;
 
 import {BaseContract} from "./BaseContract.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IExternalProvider} from "./IExternalProvider.sol";
 import {IGroveBasin} from "../off-ramp/third-party-contracts/IGroveBasin.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ITwoStepRamp} from "./ITwoStepRamp.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /**
@@ -94,6 +95,27 @@ abstract contract BaseExternalProvider is IExternalProvider, BaseContract {
     uint256[47] private __gap;
 
     /**
+     * @dev Requires the ramp linked to this provider ({_ramp}) to operate in two-step transfer mode.
+     *      Both directions bind the Grove Basin swap counterparty to the ramp itself — the off-ramp
+     *      must transfer the redeemed asset here before the swap, and the on-ramp must be the swap
+     *      receiver a PSM adapter accepts — and neither holds in single-step.
+     *
+     *      The ramp is resolved through the {_ramp} hook rather than taken as a modifier argument, so
+     *      a concrete provider cannot accidentally gate on a contract other than its own ramp.
+     *
+     *      Read through the single-getter {ITwoStepRamp} rather than the concrete {BaseOnOffRamp}:
+     *      this base is shared by the on-ramp and off-ramp providers and has no business depending on
+     *      a ramp implementation. See {ITwoStepRamp} for why the getter is not declared on the shared
+     *      {IOnOffRamp} instead.
+     */
+    modifier onlyTwoStepTransfer() {
+        if (!ITwoStepRamp(_ramp()).twoStepTransfer()) {
+            revert TwoStepTransferRequired();
+        }
+        _;
+    }
+
+    /**
      * @dev Initializes the shared Grove Basin configuration. Concrete providers MUST set their
      *      liquidity and asset token references before calling this, because the candidate
      *      validation reads them through {_expectedCollateralToken}/{_expectedCreditToken}.
@@ -158,6 +180,16 @@ abstract contract BaseExternalProvider is IExternalProvider, BaseContract {
      * @return The asset token address.
      */
     function _expectedCreditToken() internal view virtual returns (address);
+
+    /**
+     * @dev Ramp authorized to drive this provider, whose transfer mode {onlyTwoStepTransfer} gates on.
+     *      Concrete providers return their own stored ramp — the on-ramp
+     *      {ExternalAssetProvider.securitizeOnRamp}, the off-ramp
+     *      {ExternalLiquidityProvider.securitizeOffRamp} — so the gate can never read a contract other
+     *      than the one authorized to call in.
+     * @return Address of the ramp linked to this provider.
+     */
+    function _ramp() internal view virtual returns (address);
 
     /**
      * @dev Validates and stores a Grove Basin candidate against this integration's token wiring and

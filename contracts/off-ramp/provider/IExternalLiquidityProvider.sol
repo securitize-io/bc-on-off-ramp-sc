@@ -70,13 +70,6 @@ interface IExternalLiquidityProvider is ILiquidityProvider, IExternalProvider {
     error InsufficientAssetToSwap(uint256 required, uint256 available);
 
     /**
-     * @dev Thrown when the linked off-ramp does not have two-step transfer enabled.
-     *      {ExternalLiquidityProvider} is incompatible with the single-step redemption flow.
-     * @dev Selector: 0x55ab5ab8
-     */
-    error TwoStepTransferRequired();
-
-    /**
      * @dev Thrown when the linked off-ramp has asset burning enabled.
      *      {ExternalLiquidityProvider} requires the asset to be transferred here for the Grove Basin swap.
      * @dev Selector: 0x2e4ffb57
