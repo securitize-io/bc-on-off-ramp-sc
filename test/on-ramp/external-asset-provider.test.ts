@@ -442,7 +442,10 @@ describe('On-Ramp External Asset Provider (swapExactIn via Grove Basin quote)', 
                 'CreditTokenMismatch',
             );
 
-            const newBasin = await hre.ethers.deployContract('MockGroveBasin', [await usdcMock.getAddress()]);
+            // Valid rotation target: an adapter, the only shape that answers availableAsset(). The
+            // plain MockGroveBasin used above for the token-wiring cases is rejected by the
+            // capability probe, which is covered in its own describe block below.
+            const newBasin = await hre.ethers.deployContract('MockPSMAdapter', [await usdcMock.getAddress()]);
             await newBasin.setCreditToken(await dsTokenMock.getAddress());
             await expect(assetProvider.setExternalProvider(await newBasin.getAddress()))
                 .to.emit(assetProvider, 'ExternalProviderUpdated')
@@ -566,16 +569,24 @@ describe('On-Ramp External Asset Provider (swapExactIn via Grove Basin quote)', 
     });
 
     // availableAsset() delegates to IPSMAdapter.availableAsset() on the wired external provider: the
-    // external provider is the authority on its own deliverable capacity. A self-custodying Grove Basin
-    // pool reports its own asset balance; a PSM adapter reports its rate-limit/custodian-derived
-    // capacity while holding no inventory at all (see the BC-2323 block below).
+    // external provider is the authority on its own deliverable capacity, which the provider reports
+    // verbatim and never derives from a balance of its own (see the BC-2323 block below).
     describe('availableAsset', function () {
-        it('reflects the capacity reported by a self-custodying Grove Basin pool', async function () {
+        it('reports verbatim what the wired external provider answers', async function () {
+            const ctx = await loadFixture(deployOnRampExternalAssetProvider);
+            const { assetProvider, groveBasinMock } = ctx;
+            expect(await assetProvider.availableAsset()).to.equal(0n);
+            await groveBasinMock.setAvailableAsset(123_456n);
+            expect(await assetProvider.availableAsset()).to.equal(123_456n);
+        });
+
+        it('is decoupled from the asset balance held at the external provider address', async function () {
             const ctx = await loadFixture(deployOnRampExternalAssetProvider);
             const { assetProvider, dsTokenMock, groveBasinMock } = ctx;
-            expect(await assetProvider.availableAsset()).to.equal(0n);
+            // A donation to the provider address does not raise the reported capacity: the gate reads
+            // the provider's own view, not its inventory.
             await dsTokenMock.mint(await groveBasinMock.getAddress(), 123_456n);
-            expect(await assetProvider.availableAsset()).to.equal(123_456n);
+            expect(await assetProvider.availableAsset()).to.equal(0n);
         });
     });
 
@@ -834,8 +845,10 @@ describe('On-Ramp External Asset Provider (swapExactIn via Grove Basin quote)', 
             const gross = 1_000_000_000n;
             const { expected } = await prepareSwap(ctx, gross, 0n);
 
-            // Fund a second subscription: extra asset in Grove Basin + extra USDC and a 2x approval.
+            // Fund a second subscription: extra asset in Grove Basin (with the matching capacity)
+            // + extra USDC and a 2x approval.
             await dsTokenMock.mint(await groveBasinMock.getAddress(), expected);
+            await groveBasinMock.setAvailableAsset(expected * 2n);
             await usdcMock.mint(investor.address, gross);
             await usdcMock.connect(investor).approve(await onRamp.getAddress(), gross * 2n);
 
