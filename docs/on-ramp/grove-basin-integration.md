@@ -80,6 +80,7 @@ Validated by the provider at initialize / `setExternalProvider`:
 - `collateralToken() == liquidityToken` else `CollateralTokenMismatch`
 - `creditToken() == asset` else `CreditTokenMismatch`
 - `pocket() != address(0)` else `PocketZeroAddressError`
+- **on-ramp only:** the candidate answers `availableAsset()` else `ExternalProviderMissingAvailableAsset`
 
 > ### The external provider must expose `availableAsset()`  *(BC-2323)*
 > `ExternalAssetProvider.availableAsset()` delegates to `IPSMAdapter.availableAsset()` on the wired
@@ -88,10 +89,19 @@ Validated by the provider at initialize / `setExternalProvider`:
 > send custodian), so reading the raw asset balance at the provider address reported zero and rejected
 > every subscription with `InsufficientAssetLiquidity`.
 >
-> The call is **not guarded**: a wired provider without `availableAsset()` makes the view — and every
-> subscription — revert. A raw Grove Basin (PSM3) pool does **not** implement it, so it must be fronted
-> by an adapter that does. Verify this before rotating `externalProvider` via `setExternalProvider`;
-> the wiring validation above only covers the token layout.
+> The call is **not guarded**: a wired provider without `availableAsset()` would make the view — and
+> every subscription — revert. A raw Grove Basin (PSM3) pool does **not** implement it, so it must be
+> fronted by an adapter that does.
+>
+> This is enforced on-chain. `ExternalAssetProvider._validateProviderCapabilities` probes the candidate
+> with a `staticcall` on both the initialize and the `setExternalProvider` paths, and reverts with
+> `ExternalProviderMissingAvailableAsset` before storing it — so a rotation can no longer take the
+> on-ramp down this way. The probe is a point-in-time check of the candidate's code: it cannot bind a
+> provider that stops answering later (e.g. an upgradeable adapter whose implementation is swapped).
+>
+> The probe lives on the on-ramp provider, not on the shared `BaseExternalProvider`: the off-ramp
+> `ExternalLiquidityProvider` computes capacity from balances (`availableLiquidity`) and must stay
+> wirable to a plain Grove Basin pool. The shared base exposes it as an opt-in `virtual` hook.
 
 The on-ramp direction is a **collateral → credit** swap (USDC in, asset out), which Grove Basin
 treats as *buying credit tokens* and to which it applies its **`purchaseFee`**.

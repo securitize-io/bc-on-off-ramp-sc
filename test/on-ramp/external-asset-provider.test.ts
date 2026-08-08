@@ -59,8 +59,10 @@ describe('On-Ramp External Asset Provider (swapExactIn via Grove Basin quote)', 
     });
 
     // BC-2323 upgrade path: the change adds no state variables, so the task is a pure implementation
-    // swap. It validates the storage layout before sending anything and then calls availableAsset()
-    // on the proxy to confirm the new implementation resolves through the wired external provider.
+    // swap. Every precondition — code at the proxy, storage layout, and the wired external provider
+    // answering IPSMAdapter.availableAsset() — is checked BEFORE any transaction is sent, because
+    // none of them can be undone afterwards. The post-upgrade reads are migration evidence and an
+    // operational readiness report (pause flag), not preconditions.
     describe('Upgrade task — upgrade-external-asset-provider', function () {
         it('upgrades the proxy and confirms availableAsset() resolves through the adapter', async function () {
             const ctx = await loadFixture(deployOnRampExternalAssetProviderWithPsmAdapter);
@@ -76,8 +78,52 @@ describe('On-Ramp External Asset Provider (swapExactIn via Grove Basin quote)', 
             expect(result.proxyAddress).to.equal(proxyAddress);
             expect(result.externalProvider).to.equal(await psmAdapterMock.getAddress());
             expect(result.availableAsset).to.equal(777_000n);
+            expect(result.adapterAvailableAsset).to.equal(777_000n);
+            // Non-zero capacity: the proxy read matching the adapter read is conclusive evidence that
+            // the proxy delegates, so the migration is reported as confirmed.
+            expect(result.migrationConfirmed).to.equal(true);
+            expect(result.paused).to.equal(false);
             // Configuration survives the implementation swap.
             expect(await assetProvider.availableAsset()).to.equal(777_000n);
+        });
+
+        it('reports the migration as unconfirmed when the adapter reports zero capacity', async function () {
+            const ctx = await loadFixture(deployOnRampExternalAssetProviderWithPsmAdapter);
+            const { assetProvider, psmAdapterMock } = ctx;
+            // Both the old (balance at an adapter that holds no inventory) and the new (delegated)
+            // implementation return zero here, so this read cannot tell a migrated proxy from an
+            // unmigrated one. The task must not claim success on it.
+            await psmAdapterMock.setAvailableAsset(0n);
+
+            const result = await hre.run('upgrade-external-asset-provider', {
+                proxyAddress: await assetProvider.getAddress(),
+                silenceLogs: true,
+            });
+
+            expect(result.availableAsset).to.equal(0n);
+            expect(result.adapterAvailableAsset).to.equal(0n);
+            expect(result.migrationConfirmed).to.equal(false);
+        });
+
+        it('reports a paused provider instead of certifying it as ready', async function () {
+            const ctx = await loadFixture(deployOnRampExternalAssetProviderWithPsmAdapter);
+            const { assetProvider, psmAdapterMock } = ctx;
+            await psmAdapterMock.setAvailableAsset(500_000n);
+            // supplyExactIn is `whenNotPaused` while availableAsset() is not, and _authorizeUpgrade
+            // carries no pause gate: the upgrade applies cleanly while every subscription still
+            // reverts. The healthy capacity reading must not be read as readiness.
+            await assetProvider.pause();
+
+            const result = await hre.run('upgrade-external-asset-provider', {
+                proxyAddress: await assetProvider.getAddress(),
+                silenceLogs: true,
+            });
+
+            expect(result.paused).to.equal(true);
+            expect(result.migrationConfirmed).to.equal(true);
+            expect(result.availableAsset).to.equal(500_000n);
+            // The task reports the pause; it must never clear it as a side effect of an upgrade.
+            expect(await assetProvider.paused()).to.equal(true);
         });
 
         it('keeps the wiring and stays operational after the upgrade', async function () {
@@ -115,19 +161,46 @@ describe('On-Ramp External Asset Provider (swapExactIn via Grove Basin quote)', 
             ).to.be.rejected;
         });
 
-        it('fails loudly when the wired external provider cannot answer availableAsset()', async function () {
+        it('aborts before sending any transaction when the wired provider cannot answer availableAsset()', async function () {
             const ctx = await loadFixture(deployOnRampExternalAssetProviderWithPsmAdapter);
             const { assetProvider, psmAdapterMock } = ctx;
-            // An external provider whose capacity view reverts leaves the provider unable to serve
-            // subscriptions; the task must surface that instead of reporting a clean upgrade.
+            const proxyAddress = await assetProvider.getAddress();
+            const implementationBefore = await hre.upgrades.erc1967.getImplementationAddress(proxyAddress);
+            // An external provider whose capacity view is unavailable leaves the upgraded provider
+            // unable to serve subscriptions. The check has to run before upgradeProxy: its failure
+            // branch cannot undo an upgrade that already applied.
             await psmAdapterMock.setAvailableAssetReverts(true);
 
             await expect(
-                hre.run('upgrade-external-asset-provider', {
+                hre.run('upgrade-external-asset-provider', { proxyAddress, silenceLogs: true }),
+            ).to.be.rejectedWith('Aborting before the upgrade');
+
+            // The decisive assertion: nothing was sent, so the proxy still runs the old code.
+            expect(await hre.upgrades.erc1967.getImplementationAddress(proxyAddress)).to.equal(implementationBefore);
+        });
+
+        it('surfaces the underlying revert instead of asserting a single cause under --silence-logs', async function () {
+            const ctx = await loadFixture(deployOnRampExternalAssetProviderWithPsmAdapter);
+            const { assetProvider, psmAdapterMock } = ctx;
+            await psmAdapterMock.setAvailableAssetReverts(true);
+
+            const error = await hre
+                .run('upgrade-external-asset-provider', {
                     proxyAddress: await assetProvider.getAddress(),
                     silenceLogs: true,
-                }),
-            ).to.be.rejectedWith('availableAsset() reverts');
+                })
+                .then(
+                    () => undefined,
+                    (e: Error) => e,
+                );
+
+            expect(error, 'the task should have rejected').to.not.equal(undefined);
+            // The observed revert reaches the operator instead of a confident diagnosis of one cause,
+            // and it does so on the thrown message, which is the only channel left under
+            // --silence-logs. The original error is chained for programmatic callers.
+            expect((error as Error).message).to.contain('Underlying error:');
+            expect((error as Error).message).to.contain('AvailableAssetUnavailable');
+            expect((error as Error).cause).to.not.equal(undefined);
         });
     });
 
@@ -375,6 +448,93 @@ describe('On-Ramp External Asset Provider (swapExactIn via Grove Basin quote)', 
                 .to.emit(assetProvider, 'ExternalProviderUpdated')
                 .withArgs(await groveBasinMock.getAddress(), await newBasin.getAddress());
             expect(await assetProvider.externalProvider()).to.equal(await newBasin.getAddress());
+        });
+
+        // BC-2323: availableAsset() delegates to IPSMAdapter.availableAsset() unguarded and
+        // supplyExactIn gates every subscription on it, so a candidate that cannot answer it would
+        // take the on-ramp down until an admin rotated the wiring back. The token-layout validation
+        // does not cover this, so the provider probes the candidate before storing it.
+        describe('External provider capability probe', function () {
+            const deployNoCapacityBasin = async (
+                ctx: Awaited<ReturnType<typeof deployOnRampExternalAssetProvider>>,
+                permissiveFallback: boolean,
+            ) =>
+                hre.ethers.deployContract('MockGroveBasinNoCapacity', [
+                    await ctx.usdcMock.getAddress(),
+                    await ctx.dsTokenMock.getAddress(),
+                    permissiveFallback,
+                ]);
+
+            it('rejects a rotation to a provider that does not implement availableAsset()', async function () {
+                const ctx = await loadFixture(deployOnRampExternalAssetProvider);
+                const { assetProvider, groveBasinMock } = ctx;
+                const noCapacity = await deployNoCapacityBasin(ctx, false);
+
+                await expect(assetProvider.setExternalProvider(await noCapacity.getAddress()))
+                    .revertedWithCustomError(assetProvider, 'ExternalProviderMissingAvailableAsset')
+                    .withArgs(await noCapacity.getAddress());
+                // The rejected candidate must not have displaced the working wiring.
+                expect(await assetProvider.externalProvider()).to.equal(await groveBasinMock.getAddress());
+            });
+
+            it('rejects a provider whose fallback answers availableAsset() with empty return data', async function () {
+                const ctx = await loadFixture(deployOnRampExternalAssetProvider);
+                const { assetProvider } = ctx;
+                // A permissive fallback returns success with no data: a try/catch probe would pass it
+                // and then revert on the ABI decode outside the catch. The return-data length check
+                // rejects it here, while it is still recoverable.
+                const permissive = await deployNoCapacityBasin(ctx, true);
+
+                await expect(assetProvider.setExternalProvider(await permissive.getAddress()))
+                    .revertedWithCustomError(assetProvider, 'ExternalProviderMissingAvailableAsset')
+                    .withArgs(await permissive.getAddress());
+            });
+
+            it('rejects a provider whose availableAsset() reverts', async function () {
+                const ctx = await loadFixture(deployOnRampExternalAssetProviderWithPsmAdapter);
+                const { assetProvider, psmAdapterMock, usdcMock, dsTokenMock } = ctx;
+                const candidate = await hre.ethers.deployContract('MockPSMAdapter', [await usdcMock.getAddress()]);
+                await candidate.setCreditToken(await dsTokenMock.getAddress());
+                await candidate.setAvailableAssetReverts(true);
+
+                await expect(assetProvider.setExternalProvider(await candidate.getAddress()))
+                    .revertedWithCustomError(assetProvider, 'ExternalProviderMissingAvailableAsset')
+                    .withArgs(await candidate.getAddress());
+                expect(await assetProvider.externalProvider()).to.equal(await psmAdapterMock.getAddress());
+            });
+
+            it('accepts a rotation to a provider that answers availableAsset()', async function () {
+                const ctx = await loadFixture(deployOnRampExternalAssetProvider);
+                const { assetProvider, usdcMock, dsTokenMock, groveBasinMock } = ctx;
+                const adapter = await hre.ethers.deployContract('MockPSMAdapter', [await usdcMock.getAddress()]);
+                await adapter.setCreditToken(await dsTokenMock.getAddress());
+                await adapter.setAvailableAsset(123_456n);
+
+                await expect(assetProvider.setExternalProvider(await adapter.getAddress()))
+                    .to.emit(assetProvider, 'ExternalProviderUpdated')
+                    .withArgs(await groveBasinMock.getAddress(), await adapter.getAddress());
+                expect(await assetProvider.availableAsset()).to.equal(123_456n);
+            });
+
+            it('rejects the same provider on the initialization path', async function () {
+                const ctx = await loadFixture(deployOnRampExternalAssetProvider);
+                const { assetProvider, usdcMock, dsTokenMock, navProviderMock } = ctx;
+                const noCapacity = await deployNoCapacityBasin(ctx, false);
+                const Factory = await hre.ethers.getContractFactory('ExternalAssetProvider');
+
+                await expect(
+                    hre.upgrades.deployProxy(
+                        Factory,
+                        [
+                            await usdcMock.getAddress(),
+                            await dsTokenMock.getAddress(),
+                            await navProviderMock.getAddress(),
+                            await noCapacity.getAddress(),
+                        ],
+                        { kind: 'uups' },
+                    ),
+                ).revertedWithCustomError(assetProvider, 'ExternalProviderMissingAvailableAsset');
+            });
         });
 
         it('setReferralCode and setRateTolerance validations and events', async function () {
