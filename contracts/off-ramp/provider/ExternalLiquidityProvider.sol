@@ -180,23 +180,43 @@ contract ExternalLiquidityProvider is IExternalLiquidityProvider, BaseExternalPr
      *      configured for `swapToken` yield deployment. The `pocket` branch is kept for the case
      *      where the liquidity token is instead configured as Grove Basin's `swapToken`.
      *
-     *      To query available liquidity, read the ERC-20 balance of the liquidity token at the
-     *      address returned by this function: `liquidityToken.balanceOf(getLiquidityCustodian())`.
-     * @return custodian Wallet whose liquidity-token balance reflects swapable liquidity in Grove Basin.
+     *      This resolves the address whose balance is read by {availableLiquidity}. That balance
+     *      reflects swapable liquidity only when the external provider custodies its own inventory (a
+     *      Grove Basin pool); an adapter fronting a PSM holds none, so see {availableLiquidity} before
+     *      treating the result as capacity.
+     * @return custodian Wallet whose liquidity-token balance {availableLiquidity} reports.
      */
     function getLiquidityCustodian() public view returns (address custodian) {
         return _custodianOf(address(liquidityToken));
     }
 
     /**
-     * @notice Returns a best-effort upper bound on the currently available liquidity.
-     * @dev Reads the raw liquidity-token balance at {getLiquidityCustodian} (see {_availableLiquidity}).
-     *      This is an UPPER BOUND, not exact deliverable capacity: it does NOT net out portions Grove
-     *      Basin may treat as non-deliverable (e.g. seed deposit, fee-claimer accrual, or collateral
-     *      reserved against pending redemptions). Off-chain integrators sizing batches from this view
-     *      should treat it as an optimistic ceiling; the hard guarantee is enforced on-chain by Grove
-     *      Basin reverting the swap when the pool cannot satisfy the requested output.
-     * @return A best-effort upper bound on the available liquidity amount.
+     * @notice Reports the liquidity-token balance held at the external provider's liquidity custodian.
+     * @dev NOT a capacity signal, and NOT gated on. Unlike the sibling providers
+     *      ({CollateralLiquidityProvider}, {AllowanceLiquidityProvider}), which reject a redemption
+     *      exceeding their own {ILiquidityProvider.availableLiquidity}, this provider deliberately
+     *      applies no local availability gate — see {supplyExactIn}. The hard guarantee is the external
+     *      provider reverting the swap when it cannot deliver the requested output.
+     *
+     *      What the number means depends entirely on the wired external provider's custody model:
+     *
+     *      - **Grove Basin (PSM3) pool:** the pool holds its own collateral inventory, so the balance is
+     *        an optimistic ceiling. It does not net out portions the pool treats as non-deliverable
+     *        (seed deposit, fee-claimer accrual, collateral reserved against pending redemptions), and
+     *        it understates capacity when the pool tops up from a configured pocket.
+     *      - **Adapter fronting a PSM:** the adapter holds NO liquidity-token inventory. On the sell
+     *        direction it pulls the asset in, routes through the PSM and forwards the liquidity token to
+     *        the off-ramp within the same call, so nothing accumulates from swapping. Any balance read
+     *        here is unrelated to deliverable capacity — it is whatever ramp fees happen to have accrued
+     *        since the last sweep. Treating it as capacity reads a near-zero (or arbitrary) number as an
+     *        exhausted venue.
+     *
+     *      Off-chain integrators MUST NOT size redemption batches from this view when the wired
+     *      provider is an adapter. Deliverable capacity there lives in the PSM (rate-limit headroom plus
+     *      the collateral custodian's inventory and allowance) and must be queried from the PSM
+     *      directly; this contract intentionally does not proxy it, so that a plain Grove Basin pool
+     *      stays wirable without a new required capability.
+     * @return The liquidity-token balance at the external provider's liquidity custodian.
      */
     function availableLiquidity() external view returns (uint256) {
         return _availableLiquidity();
@@ -305,13 +325,17 @@ contract ExternalLiquidityProvider is IExternalLiquidityProvider, BaseExternalPr
 
         _validateRateBand(navGross, gbPreview);
 
-        // No local availability gate: reading only the liquidity-token balance directly held by Grove
-        // Basin ({_availableLiquidity}) is stricter than Grove Basin's actual execution. For the
-        // `collateralToken` output used here, Grove Basin tops up any Basin-side deficit from its
-        // configured pocket (see {GroveBasin._withdrawLiquidityInPocket}), so a balance-based precheck
-        // would wrongly revert redemptions that Grove Basin can satisfy. The hard liquidity guarantee is
-        // Grove Basin itself, which reverts the swap ({InsufficientFunds}) when the pool plus pocket
-        // cannot deliver `gbPreview`. {availableLiquidity} remains as a best-effort off-chain UX read.
+        // No local availability gate: a balance read at the external provider ({_availableLiquidity})
+        // is not a capacity signal for either supported custody model, and gating on it would reject
+        // redemptions the provider can satisfy.
+        //   - Grove Basin (PSM3) pool: tops up any Basin-side deficit from its configured pocket (see
+        //     {GroveBasin._withdrawLiquidityInPocket}), so the direct balance understates capacity.
+        //   - Adapter fronting a PSM: holds no liquidity-token inventory at all — it forwards the PSM's
+        //     output within the same call — so the balance is near zero while swaps are fully
+        //     serviceable. This is the sell-side mirror of the buy-side condition BC-2323 fixed, and the
+        //     reason no gate was added here in the first place.
+        // The hard liquidity guarantee is the external provider reverting the swap when it cannot
+        // deliver `gbPreview`. {availableLiquidity} is a reporting view only, not a precheck.
         _assetToken.forceApprove(address(_externalProvider), _assetAmount);
 
         amountOut = _externalProvider.swapExactIn(
@@ -339,12 +363,11 @@ contract ExternalLiquidityProvider is IExternalLiquidityProvider, BaseExternalPr
     }
 
     /**
-     * @dev Best-effort available liquidity held by Grove Basin for the liquidity token.
-     *      Reads the liquidity-token balance at {getLiquidityCustodian} (the Grove Basin contract
-     *      for the `collateralToken` wiring used by this integration). The hard guarantee is
-     *      enforced by Grove Basin reverting the swap when the pool cannot satisfy the requested
-     *      output.
-     * @return Liquidity token balance available at the Grove Basin liquidity custodian.
+     * @dev Raw liquidity-token balance at {getLiquidityCustodian} (the external provider itself for the
+     *      `collateralToken` wiring used by this integration). Whether that balance means anything
+     *      about deliverable capacity depends on the provider's custody model — see
+     *      {availableLiquidity}. Nothing on-chain gates on it.
+     * @return Liquidity token balance at the external provider's liquidity custodian.
      */
     function _availableLiquidity() private view returns (uint256) {
         return liquidityToken.balanceOf(getLiquidityCustodian());

@@ -28,6 +28,30 @@ import {
 } from './securitize-external-provider.fixture';
 
 describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
+    // Cyfrin issue 019: the task called a setter that does not exist on the provider
+    // (setRedeemTolerance; the contract exposes setRateTolerance), so passing the optional flag
+    // crashed the deploy after both contracts were already deployed and partially wired. The fixture
+    // never passed the flag, so nothing caught it. This exercises the documented optional flag.
+    describe('Deploy task — optional flags', function () {
+        it('applies --rate-tolerance to the deployed liquidity provider', async function () {
+            const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
+            const groveBasin = await hre.ethers.deployContract('MockGroveBasin', [await ctx.usdcMock.getAddress()]);
+            await groveBasin.setCreditToken(await ctx.dsTokenMock.getAddress());
+
+            const { liquidityProvider } = await hre.run('deploy-redemption-external-liquidity-provider-protocol', {
+                asset: await ctx.dsTokenMock.getAddress(),
+                navProvider: await ctx.navProviderMock.getAddress(),
+                feeManager: await ctx.mockFeeManager.getAddress(),
+                liquidityToken: await ctx.usdcMock.getAddress(),
+                groveBasin: await groveBasin.getAddress(),
+                rateTolerance: '2500',
+                silenceLogs: true,
+            });
+
+            expect(await liquidityProvider.rateTolerance()).to.equal(2500n);
+        });
+    });
+
     // ─────────────────────────────────────────────────────────────────────────
     // Deploy task — optional admin handover
     // ─────────────────────────────────────────────────────────────────────────

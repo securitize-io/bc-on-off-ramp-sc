@@ -21,10 +21,14 @@ Flow & wiring notes:
     custodianWallet == ExternalAssetProvider. To avoid a deploy-time circular dependency (and any
     new setter on the on-ramp) the provider is deployed FIRST, then the on-ramp is initialized with
     custodianWallet = provider, then provider.setSecuritizeOnRamp wires the authorized caller.
-  - Transfer mode: defaults to two-step (twoStepTransfer = true) so the DSToken is delivered to the
-    investor from the whitelisted on-ramp address — required by RWA tokens with compliance rules.
-    Pass --single-step to deliver the asset straight from Grove Basin to the investor instead.
+  - Transfer mode: two-step ONLY. ExternalAssetProviderOnRamp.initialize enables it, so the task no
+    longer toggles it. Single-step passes the investor as the swap receiver, which the PSM adapter
+    rejects; the on-ramp refuses that configuration with SingleStepNotSupported. --single-step is
+    kept only to fail loudly for anyone running the previously documented command.
   - The provider prices the swap with the SAME NAV provider as the on-ramp; the task verifies it.
+  - Deliverable capacity is read back at the end: a provider reporting zero means the on-ramp is
+    wired but cannot serve a single subscription (custodian unfunded or approving the wrong spender,
+    PSM rate limit exhausted, benefactor inactive, swap disabled).
   - investorSubscriptionEnabled stays false by default; enable it before the first headless swap.
 */
 task('deploy-on-ramp-external-asset-provider', 'Deploy Securitize On-Ramp + Grove Basin Asset Provider')
@@ -37,8 +41,12 @@ task('deploy-on-ramp-external-asset-provider', 'Deploy Securitize On-Ramp + Grov
     // ExternalAssetProvider arguments
     .addParam('groveBasin', 'Grove Basin (PSM3) contract address')
     .addOptionalParam(
-        'redeemTolerance',
+        'rateTolerance',
         'Rate divergence tolerance in units of 100_000 (1000 = 1%). Overrides the 1% contract default when set',
+    )
+    .addOptionalParam(
+        'minAvailableAsset',
+        'Minimum capacity the wired provider must report through availableAsset() for the deploy to be considered complete. Defaults to 1 (any non-zero capacity)',
     )
     .addOptionalParam('referralCode', 'Referral code forwarded to Grove Basin on each swap')
 
@@ -49,13 +57,23 @@ task('deploy-on-ramp-external-asset-provider', 'Deploy Securitize On-Ramp + Grov
         '0x0000000000000000000000000000000000000000',
     )
 
-    // Transfer mode (two-step is the default for RWA compliance)
-    .addFlag('singleStep', 'Deliver the asset straight from Grove Basin to the investor (skips two-step)')
+    // Rejected: kept so the previously documented command fails with a named cause rather than an
+    // "unrecognized parameter" error.
+    .addFlag('singleStep', 'REJECTED — this on-ramp delivers two-step only (the adapter binds the swap receiver)')
 
     // Verification flag
     .addFlag('verify', 'Verify contracts on Etherscan')
     .addFlag('silenceLogs', 'Suppress console output')
     .setAction(async (args, hre) => {
+        // Checked before anything is deployed: the on-ramp would reject the configuration anyway
+        // (SingleStepNotSupported), and failing here leaves nothing half-wired behind.
+        if (args.singleStep) {
+            throw new Error(
+                'This on-ramp delivers two-step only. Single-step passes the investor as the swap receiver, ' +
+                    'which the PSM adapter rejects, so every subscription would revert. Re-run without --single-step.',
+            );
+        }
+
         if (!args.silenceLogs) {
             consoleCyan('\n task: deploy-on-ramp-external-asset-provider');
             consoleCyan('Arguments:');
@@ -64,9 +82,10 @@ task('deploy-on-ramp-external-asset-provider', 'Deploy Securitize On-Ramp + Grov
             console.log(`- NAV Provider: ${args.navProvider}`);
             console.log(`- Fee Manager: ${args.feeManager}`);
             console.log(`- Grove Basin: ${args.groveBasin}`);
-            console.log(`- Redeem Tolerance: ${args.redeemTolerance ?? '(contract default 1000 = 1%)'}`);
+            console.log(`- Rate Tolerance: ${args.rateTolerance ?? '(contract default 1000 = 1%)'}`);
             console.log(`- Referral Code: ${args.referralCode ?? '0'}`);
-            console.log(`- Transfer mode: ${args.singleStep ? 'single-step' : 'two-step (default)'}`);
+            console.log(`- Min available asset: ${args.minAvailableAsset ?? '1 (any non-zero capacity)'}`);
+            console.log('- Transfer mode: two-step (enforced)');
             console.log(`- Admin: ${args.admin} ${args.admin === hre.ethers.ZeroAddress ? '(no handover)' : ''}`);
             console.log(`- Verify: ${args.verify}`);
         }
@@ -106,15 +125,8 @@ task('deploy-on-ramp-external-asset-provider', 'Deploy Securitize On-Ramp + Grov
         const linkTx = await onRamp.updateAssetProvider(assetProviderAddress);
         await linkTx.wait(1);
 
-        // Two-step is the default: the DSToken is delivered to the investor from the whitelisted
-        // on-ramp address, satisfying RWA compliance transfer rules.
-        if (!args.singleStep) {
-            if (!args.silenceLogs) {
-                consoleYellow('Enabling two-step transfer (asset delivered from the on-ramp for RWA compliance)...');
-            }
-            const twoStepTx = await onRamp.toggleTwoStepTransfer(true);
-            await twoStepTx.wait(1);
-        }
+        // Two-step needs no toggle here: ExternalAssetProviderOnRamp.initialize enables it, because
+        // the inherited default (false) is the single-step mode this on-ramp cannot serve.
 
         if (args.referralCode !== undefined) {
             if (!args.silenceLogs) {
@@ -124,11 +136,11 @@ task('deploy-on-ramp-external-asset-provider', 'Deploy Securitize On-Ramp + Grov
             await referralTx.wait(1);
         }
 
-        if (args.redeemTolerance !== undefined) {
+        if (args.rateTolerance !== undefined) {
             if (!args.silenceLogs) {
-                consoleYellow(`Setting redeem tolerance to ${args.redeemTolerance}...`);
+                consoleYellow(`Setting rate tolerance to ${args.rateTolerance}...`);
             }
-            const toleranceTx = await assetProvider.setRedeemTolerance(args.redeemTolerance);
+            const toleranceTx = await assetProvider.setRateTolerance(args.rateTolerance);
             await toleranceTx.wait(1);
         }
 
@@ -142,14 +154,32 @@ task('deploy-on-ramp-external-asset-provider', 'Deploy Securitize On-Ramp + Grov
             );
         }
 
+        // Deliverable-capacity read-back. availableAsset() nets the PSM rate limits and the send
+        // custodian's inventory AND its allowance to the spender the PSM actually uses, so a zero
+        // here is the single observable symptom of every way the funding can be wrong — including an
+        // allowance granted to the wrong spender, which leaves the custodian's balance looking
+        // correct. Reporting it at deploy time turns a silent zero into a named failure, instead of
+        // an on-ramp that looks wired and rejects every subscription.
+        const minAvailableAsset = args.minAvailableAsset !== undefined ? BigInt(args.minAvailableAsset) : 1n;
+        const availableAsset = await assetProvider.availableAsset();
+        if (availableAsset < minAvailableAsset) {
+            throw new Error(
+                `Provider reports availableAsset() = ${availableAsset}, below the required ${minAvailableAsset}. ` +
+                    `The contracts are deployed and wired but cannot serve a subscription. Check: the asset send ` +
+                    `custodian is funded AND has approved the correct spender, the PSM rate limits have headroom, ` +
+                    `the benefactor is active, the collateral is registered and swaps are enabled.`,
+            );
+        }
+
         if (!args.silenceLogs) {
             consoleGreen('Securitize + Grove Basin On-Ramp Protocol deployed and configured successfully');
             consoleMagenta(`- On-Ramp Address: ${onRampAddress}`);
             consoleMagenta(`- Asset Provider Address: ${assetProviderAddress}`);
+            consoleMagenta(`- Reported deliverable capacity (availableAsset): ${availableAsset}`);
             consoleYellow('Reminders:');
-            console.log(`- transfer mode: ${args.singleStep ? 'single-step' : 'two-step (default, RWA compliance)'}`);
+            console.log('- transfer mode: two-step (enforced by the on-ramp; single-step is rejected)');
             console.log('- enable investorSubscriptionEnabled before the first headless swap');
-            console.log('- Grove Basin must hold enough asset (creditToken) to satisfy purchases');
+            console.log('- keep the asset send custodian funded and approving the correct spender');
         }
 
         await onRamp.toggleInvestorSubscription(true);
