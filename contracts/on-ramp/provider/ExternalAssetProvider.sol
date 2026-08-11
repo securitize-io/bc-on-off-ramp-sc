@@ -48,6 +48,10 @@ import {IPSMAdapter} from "../../off-ramp/third-party-contracts/IPSMAdapter.sol"
  *         and reverts with {UnexpectedSwapOutputError} on an inconsistent NAV/Grove Basin state. The
  *         balance-based {supplyTo} entrypoint is disabled ({DirectSupplyNotSupported}).
  *
+ *         {supplyExactIn} reverts with {TwoStepTransferRequired} unless the linked on-ramp has
+ *         two-step transfer enabled. Single-step subscriptions are unsupported because they pass the
+ *         investor as the swap receiver, and a PSM adapter only accepts the on-ramp.
+ *
  *         Because Grove Basin sets the price the investor pays, {supplyExactIn} additionally
  *         cross-checks that quote against the Securitize NAV with the inherited tolerance band
  *         ({_validateRateBand}/{rateTolerance}); a Grove Basin quote diverging beyond the band
@@ -184,7 +188,14 @@ contract ExternalAssetProvider is IExternalAssetProvider, BaseExternalProvider {
      *      band ({_validateRateBand}) so a diverged Grove Basin oracle cannot set an arbitrary price,
      *      and executes {swapExactIn} for `_netLiquidity` with `minAmountOut == _expectedAssetAmount`
      *      as Grove Basin's native floor.
-     * @param _buyer Recipient of the asset (the investor in single-step, the on-ramp in two-step).
+     *      Reverts with {TwoStepTransferRequired} unless the linked on-ramp has two-step transfer
+     *      enabled. Single-step passes the investor as the swap receiver, which a PSM adapter rejects
+     *      ({IPSMAdapter.ReceiverNotApproved}) because it never sends funds to a user directly. The
+     *      companion {ExternalAssetProviderOnRamp} already refuses that mode at every entry point, so
+     *      this guard is the provider's own backstop for a differently-wired or upgraded on-ramp; it
+     *      names the unsupported configuration here instead of letting it surface as an opaque
+     *      counterparty revert.
+     * @param _buyer Recipient of the asset — always the on-ramp, since delivery is two-step only.
      * @param _netLiquidity Net liquidity (after the on-ramp fee) to swap for this subscription.
      * @param _expectedAssetAmount Asset amount (before fee) the on-ramp expects for this subscription.
      */
@@ -192,7 +203,7 @@ contract ExternalAssetProvider is IExternalAssetProvider, BaseExternalProvider {
         address _buyer,
         uint256 _netLiquidity,
         uint256 _expectedAssetAmount
-    ) external whenNotPaused onlySecuritizeOnRamp {
+    ) external whenNotPaused onlySecuritizeOnRamp onlyTwoStepTransfer {
         if (_netLiquidity == 0) {
             revert ZeroAmountToSwap();
         }
@@ -323,6 +334,13 @@ contract ExternalAssetProvider is IExternalAssetProvider, BaseExternalProvider {
         if (!ok || data.length < 32) { // word size = 32 bytes
             revert ExternalProviderMissingAvailableAsset(candidate);
         }
+    }
+
+    /**
+     * @inheritdoc BaseExternalProvider
+     */
+    function _ramp() internal view override returns (address) {
+        return address(securitizeOnRamp);
     }
 
     /**

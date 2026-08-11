@@ -22,7 +22,6 @@ import {IExternalLiquidityProvider} from "./IExternalLiquidityProvider.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IBaseOffRamp} from "../IBaseOffRamp.sol";
-import {BaseOnOffRamp} from "../../common/BaseOnOffRamp.sol";
 import {ISecuritizeOffRamp} from "../ISecuritizeOffRamp.sol";
 import {IGroveBasin} from "../third-party-contracts/IGroveBasin.sol";
 
@@ -93,15 +92,6 @@ contract ExternalLiquidityProvider is IExternalLiquidityProvider, BaseExternalPr
         _;
     }
 
-    /**
-     * @dev Requires the linked off-ramp to operate in two-step transfer mode.
-     */
-    modifier onlyTwoStepTransfer() {
-        if (!BaseOnOffRamp(address(securitizeOffRamp)).twoStepTransfer()) {
-            revert TwoStepTransferRequired();
-        }
-        _;
-    }
 
     /**
      * @dev Requires the linked off-ramp to keep redeemed assets instead of burning them.
@@ -371,6 +361,13 @@ contract ExternalLiquidityProvider is IExternalLiquidityProvider, BaseExternalPr
      */
     function _availableLiquidity() private view returns (uint256) {
         return liquidityToken.balanceOf(getLiquidityCustodian());
+    }
+
+    /**
+     * @inheritdoc BaseExternalProvider
+     */
+    function _ramp() internal view override returns (address) {
+        return address(securitizeOffRamp);
     }
 
     /**

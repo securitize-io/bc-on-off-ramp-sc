@@ -130,6 +130,108 @@ describe('On-Ramp External Asset Provider (swapExactIn via Grove Basin quote)', 
             const { onRamp } = await loadFixture(deployOnRampExternalAssetProvider);
             await expect(onRamp.toggleTwoStepTransfer(true)).revertedWithCustomError(onRamp, 'SameValueError');
         });
+
+        it('answers twoStepTransfer through ITwoStepRamp without implementing it', async function () {
+            // BaseExternalProvider.onlyTwoStepTransfer casts the ramp to the single-getter ITwoStepRamp
+            // rather than to the concrete BaseOnOffRamp. No ramp inherits that interface — the cast
+            // relies on the automatic accessor of the inherited `twoStepTransfer` public variable — so
+            // this asserts the getter really is reachable that way, since nothing in the type system
+            // links the two.
+            const { onRamp } = await loadFixture(deployOnRampExternalAssetProvider);
+            const asInterface = await hre.ethers.getContractAt('ITwoStepRamp', await onRamp.getAddress());
+            expect(await asInterface.twoStepTransfer()).to.equal(true);
+        });
+
+        it('leaves IOnOffRamp free of the twoStepTransfer getter', async function () {
+            // The getter is intentionally kept off the shared ramp interface: adding it there would
+            // change the published ABI of every ramp, including those unrelated to the external
+            // providers. Guards against a future refactor quietly widening IOnOffRamp.
+            const iface = (await hre.artifacts.readArtifact('IOnOffRamp')).abi;
+            expect(iface.some((e: { name?: string }) => e.name === 'twoStepTransfer')).to.equal(false);
+        });
+    });
+
+    // The provider carries its own two-step gate (BaseExternalProvider.onlyTwoStepTransfer) as a
+    // backstop. The production ExternalAssetProviderOnRamp can never reach it — it enables two-step at
+    // initialization, rejects toggleTwoStepTransfer(false) and re-checks the flag in
+    // _executeAssetTransfer before calling in — so reaching it takes a differently-wired on-ramp, the
+    // scenario the backstop exists for. MockExternalAssetProviderOnRamp stands in for that.
+    describe('Provider-side two-step backstop', function () {
+        const wireMockOnRamp = async (twoStep: boolean) => {
+            const ctx = await loadFixture(deployOnRampExternalAssetProvider);
+            const mockOnRamp = await hre.ethers.deployContract('MockExternalAssetProviderOnRamp', [twoStep]);
+            await ctx.assetProvider.setSecuritizeOnRamp(await mockOnRamp.getAddress());
+            return { ...ctx, mockOnRamp, providerAddress: await ctx.assetProvider.getAddress() };
+        };
+
+        it('reverts TwoStepTransferRequired when the wired on-ramp reports single-step', async function () {
+            const { assetProvider, mockOnRamp, providerAddress, investor } = await wireMockOnRamp(false);
+            await expect(
+                mockOnRamp.supplyExactIn(providerAddress, investor.address, 1_000n, 1_000n),
+            ).revertedWithCustomError(assetProvider, 'TwoStepTransferRequired');
+        });
+
+        it('runs the gate ahead of the body, so the revert names the mode and not a symptom', async function () {
+            // A zero net liquidity would hit ZeroAmountToSwap inside the body. Getting
+            // TwoStepTransferRequired instead proves the modifier short-circuits first, which is what
+            // keeps the misconfiguration diagnosable rather than surfacing as an unrelated failure.
+            const { assetProvider, mockOnRamp, providerAddress, investor } = await wireMockOnRamp(false);
+            await expect(
+                mockOnRamp.supplyExactIn(providerAddress, investor.address, 0n, 0n),
+            ).revertedWithCustomError(assetProvider, 'TwoStepTransferRequired');
+        });
+
+        it('lets the call through into the body when the wired on-ramp reports two-step', async function () {
+            // Reaching ZeroAmountToSwap proves the gate is not a blanket block on supplyExactIn.
+            const { assetProvider, mockOnRamp, providerAddress, investor } = await wireMockOnRamp(true);
+            await expect(
+                mockOnRamp.supplyExactIn(providerAddress, investor.address, 0n, 0n),
+            ).revertedWithCustomError(assetProvider, 'ZeroAmountToSwap');
+        });
+
+        it('keeps onlySecuritizeOnRamp ahead of the mode gate', async function () {
+            // A stranger must be told it is not the on-ramp, not that the mode is wrong — the mode of a
+            // caller that has no standing is not the reason its call is refused.
+            const { assetProvider, stranger, investor } = await wireMockOnRamp(false);
+            await expect(
+                assetProvider.connect(stranger).supplyExactIn(investor.address, 1_000n, 1_000n),
+            ).revertedWithCustomError(assetProvider, 'UnauthorizedAccount');
+        });
+
+        it('reads the mode off the currently wired ramp after a rotation', async function () {
+            // This is what the _ramp() hook buys over passing the ramp as a modifier argument: the gate
+            // resolves the ramp from the same storage onlySecuritizeOnRamp authorizes against, so the
+            // two can never drift apart.
+            const { assetProvider, mockOnRamp, providerAddress, investor } = await wireMockOnRamp(true);
+            const rotated = await hre.ethers.deployContract('MockExternalAssetProviderOnRamp', [false]);
+            await assetProvider.setSecuritizeOnRamp(await rotated.getAddress());
+
+            await expect(
+                mockOnRamp.supplyExactIn(providerAddress, investor.address, 0n, 0n),
+            ).revertedWithCustomError(assetProvider, 'UnauthorizedAccount');
+            await expect(
+                rotated.supplyExactIn(providerAddress, investor.address, 0n, 0n),
+            ).revertedWithCustomError(assetProvider, 'TwoStepTransferRequired');
+        });
+
+        it('reflects a mode flip on the wired ramp without re-wiring the provider', async function () {
+            const { assetProvider, mockOnRamp, providerAddress, investor } = await wireMockOnRamp(true);
+            await expect(
+                mockOnRamp.supplyExactIn(providerAddress, investor.address, 0n, 0n),
+            ).revertedWithCustomError(assetProvider, 'ZeroAmountToSwap');
+
+            await mockOnRamp.setTwoStepTransfer(false);
+            await expect(
+                mockOnRamp.supplyExactIn(providerAddress, investor.address, 0n, 0n),
+            ).revertedWithCustomError(assetProvider, 'TwoStepTransferRequired');
+        });
+
+        it('keeps the TwoStepTransferRequired selector stable across the interface move', async function () {
+            // The error moved from IExternalLiquidityProvider up to the shared IExternalProvider so the
+            // on-ramp provider could raise it too. Same name and signature, so the selector must not
+            // move: off-ramp integrators decode this revert by selector.
+            expect(hre.ethers.id('TwoStepTransferRequired()').slice(0, 10)).to.equal('0x55ab5ab8');
+        });
     });
 
     describe('Deploy task — admin handover', function () {
