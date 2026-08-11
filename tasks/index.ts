@@ -5,6 +5,7 @@ export * from './on-ramp/deploy-on-ramp-external-asset-provider';
 export * from './on-ramp/upgrade-external-asset-provider';
 export * from './on-ramp/deploy-public-stock-on-ramp';
 export * from './on-ramp/deploy-mbps-fee-manager';
+export * from './on-ramp/set-fee-mbps';
 export * from './on-ramp/sign-public-stock-on-ramp';
 export * from './off-ramp/deploy-redemption-collateral-protocol';
 export * from './off-ramp/deploy-redemption-allowance-protocol';
