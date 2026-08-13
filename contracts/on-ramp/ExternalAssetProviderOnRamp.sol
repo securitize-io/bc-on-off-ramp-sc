@@ -20,6 +20,8 @@ pragma solidity ^0.8.22;
 import {SecuritizeOnRamp} from "./SecuritizeOnRamp.sol";
 import {BaseOnRamp} from "./BaseOnRamp.sol";
 import {IBaseOnRamp} from "./IBaseOnRamp.sol";
+import {BaseOnOffRamp} from "../common/BaseOnOffRamp.sol";
+import {IOnOffRamp} from "../common/IOnOffRamp.sol";
 import {IExternalAssetProvider} from "./provider/IExternalAssetProvider.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
@@ -31,12 +33,15 @@ import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IER
  *         on-ramp derives `dsTokenAmount` from the Securitize NAV; this on-ramp derives it from the
  *         Grove Basin exact-in quote ({IExternalAssetProvider.quoteAsset}) over the net liquidity.
  *
- *         Because the provider's {ExternalAssetProvider.supplyTo} executes the same exact-in swap,
- *         the asset amount this on-ramp forwards in the two-step flow
- *         ({BaseOnRamp._executeAssetTransfer}) equals what Grove Basin delivers — so two-step leaves
- *         no dust and never reverts on a benign NAV/Grove Basin divergence, while single-step
- *         delivers the same amount straight to the investor. The provider still cross-checks the
+ *         Because the provider's {ExternalAssetProvider.supplyExactIn} executes the same exact-in
+ *         swap, the asset amount this on-ramp forwards in the two-step flow
+ *         ({_executeAssetTransfer}) equals what Grove Basin delivers — so two-step leaves no dust and
+ *         never reverts on a benign NAV/Grove Basin divergence. The provider still cross-checks the
  *         Grove Basin quote against the Securitize NAV tolerance band.
+ *
+ *         Delivery is two-step only: single-step passes the investor as the swap receiver, which the
+ *         PSM adapter rejects. It is refused at initialization, at the setter and at execution — see
+ *         {SingleStepNotSupported}.
  *
  *         The Securitize fee is unchanged: it is charged on the gross liquidity (sent to the fee
  *         collector in {BaseOnRamp._executeLiquidityTransfer}) before any Grove Basin interaction,
@@ -51,6 +56,18 @@ contract ExternalAssetProviderOnRamp is SecuritizeOnRamp {
      */
     error BridgeModeNotSupported();
 
+    /**
+     * @notice Thrown when single-step delivery is configured or reached on this on-ramp.
+     * @dev The external provider is a PSM adapter that binds the swap receiver per direction
+     *      ({IPSMAdapter.ReceiverNotApproved}). Single-step passes the investor — an arbitrary,
+     *      unbounded address — as the receiver, so the adapter rejects it and every subscription
+     *      reverts. Two-step passes this on-ramp, a fixed address the adapter can be wired to, and is
+     *      also the mode RWA compliance requires (the DSToken is delivered from the whitelisted
+     *      on-ramp address). Single-step is therefore rejected outright rather than documented as a
+     *      configuration to avoid.
+     */
+    error SingleStepNotSupported();
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -61,6 +78,11 @@ contract ExternalAssetProviderOnRamp is SecuritizeOnRamp {
      * @dev Forwards to the parent initializer (which carries the `initializer`/`onlyProxy` guards),
      *      so it is declared on this leaf contract for the upgrades tooling without re-applying the
      *      one-shot `initializer` modifier (which would revert on the nested parent call).
+     *
+     *      Two-step is enabled here rather than left to a post-deploy toggle: `twoStepTransfer`
+     *      defaults to `false`, which is single-step — the mode this on-ramp cannot serve. Leaving the
+     *      default in place would ship an on-ramp that reverts every subscription until an admin
+     *      remembered to flip it. See {SingleStepNotSupported}.
      * @param _dsToken DSToken (asset) address.
      * @param _liquidity Liquidity token (stablecoin) address.
      * @param _navProvider Securitize NAV provider address.
@@ -75,6 +97,22 @@ contract ExternalAssetProviderOnRamp is SecuritizeOnRamp {
         address _custodianWallet
     ) public override {
         super.initialize(_dsToken, _liquidity, _navProvider, _feeManager, _custodianWallet);
+        twoStepTransfer = true;
+        emit TwoStepTransferUpdated(true);
+    }
+
+    /**
+     * @notice Enables two-step transfer; single-step is rejected on this on-ramp.
+     * @dev Mirrors {updateBridgeParams}: a mode the wired counterparty cannot serve is refused at the
+     *      setter instead of being left as a valid-looking configuration that bricks the ramp. See
+     *      {SingleStepNotSupported} for why the adapter rejects an investor as the swap receiver.
+     * @param _twoStepTransfer Desired two-step transfer flag; must be `true`.
+     */
+    function toggleTwoStepTransfer(bool _twoStepTransfer) public override(BaseOnOffRamp, IOnOffRamp) {
+        if (!_twoStepTransfer) {
+            revert SingleStepNotSupported();
+        }
+        super.toggleTwoStepTransfer(_twoStepTransfer);
     }
 
     /**
@@ -96,7 +134,7 @@ contract ExternalAssetProviderOnRamp is SecuritizeOnRamp {
      * @inheritdoc SecuritizeOnRamp
      * @dev Sizes the asset amount from the Grove Basin exact-in quote over the net liquidity (after
      *      the Securitize fee), instead of the NAV conversion used by the base on-ramp, so the
-     *      forwarded amount matches the swap output in {ExternalAssetProvider.supplyTo}. `rate` is
+     *      forwarded amount matches the swap output in {ExternalAssetProvider.supplyExactIn}. `rate` is
      *      still reported from the NAV provider for the `Swap` event and off-chain reference.
      */
     function calculateDsTokenAmount(
@@ -115,14 +153,19 @@ contract ExternalAssetProviderOnRamp is SecuritizeOnRamp {
      *      the Grove Basin swap to `netLiquidity` (the net just settled on the provider) instead of
      *      the provider's on-hand balance. This makes a stray liquidity-token donation to the provider
      *      irrelevant to the swap: it is neither swept nor able to revert the subscription.
+     *
+     *      Delivery is always two-step. The flag is still checked rather than assumed: a proxy
+     *      upgraded into this implementation may carry `twoStepTransfer == false` from before the
+     *      setter guard existed, and a silent single-step attempt there would surface as an
+     *      unattributable revert from inside the adapter. Failing with {SingleStepNotSupported} names
+     *      the cause at the boundary that owns it.
      */
     function _executeAssetTransfer(address to, uint256 amount, uint256 netLiquidity) internal override {
-        IExternalAssetProvider provider = IExternalAssetProvider(address(assetProvider));
-        if (twoStepTransfer) {
-            provider.supplyExactIn(address(this), netLiquidity, amount);
-            IERC20Metadata(address(dsToken)).transfer(to, amount);
-        } else {
-            provider.supplyExactIn(to, netLiquidity, amount);
+        if (!twoStepTransfer) {
+            revert SingleStepNotSupported();
         }
+        IExternalAssetProvider provider = IExternalAssetProvider(address(assetProvider));
+        provider.supplyExactIn(address(this), netLiquidity, amount);
+        IERC20Metadata(address(dsToken)).transfer(to, amount);
     }
 }

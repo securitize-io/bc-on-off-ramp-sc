@@ -1,5 +1,6 @@
 import { task } from 'hardhat/config';
 import { consoleCyan, consoleGreen, consoleRed, consoleYellow, delay } from '../utils';
+import { assertNotTestDouble } from './guards';
 import { Wallet } from 'ethers';
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
 
@@ -22,11 +23,14 @@ task('deploy-proxy', 'Deploy a UUPS proxy contract')
     .addFlag('verify', 'Should we attempt to verify the contracts')
     .addFlag('silenceLogs', 'Verbose output')
     .addFlag('compile', 'Should we compile the contracts')
+    .addFlag('allowTestDouble', 'Allow deploying a test-only mock contract to a live network')
     .addVariadicPositionalParam('args', 'The initializer arguments', [])
     .setAction(async (taskArgs, hre) => {
         if (taskArgs.compile) {
             await hre.run('compile');
         }
+
+        await assertNotTestDouble(hre, taskArgs.contractName, taskArgs.allowTestDouble);
 
         if (!taskArgs.silenceLogs) {
             consoleCyan('\n task: deploy-proxy');
@@ -68,10 +72,12 @@ task('deploy-proxy', 'Deploy a UUPS proxy contract')
 task('deploy-contract', 'General purpose contract deployer')
     .addParam('contractName', 'The contract to use')
     .addFlag('verify', 'Should we attempt to verify the contracts')
+    .addFlag('allowTestDouble', 'Allow deploying a test-only mock contract to a live network')
     .addVariadicPositionalParam('args', 'The constructor arguments', [])
     .setAction(async (taskArgs, hre) => {
         await hre.run('compile');
         consoleCyan('\n task: deploy-contract');
+        await assertNotTestDouble(hre, taskArgs.contractName, taskArgs.allowTestDouble);
         const contractFactory = await hre.ethers.getContractFactory(taskArgs.contractName);
         const contract = await contractFactory.deploy(...taskArgs.args);
         await contract.waitForDeployment();
@@ -220,11 +226,14 @@ task('upgrade-proxy', 'Upgrade a UUPS proxy to a new implementation')
     .addParam('proxyAddress', 'The address of the proxy contract')
     .addParam('contractName', 'The new contract implementation name')
     .addFlag('verify', 'Should we attempt to verify the new implementation')
+    .addFlag('allowTestDouble', 'Allow upgrading to a test-only mock implementation on a live network')
     .addVariadicPositionalParam('args', 'The initializer arguments (if needed)', [])
     .setAction(async (taskArgs, hre) => {
         await hre.run('compile');
         consoleCyan('\n task: upgrade-proxy');
         consoleGreen(`Upgrading proxy at ${taskArgs.proxyAddress} to ${taskArgs.contractName}...`);
+
+        await assertNotTestDouble(hre, taskArgs.contractName, taskArgs.allowTestDouble);
 
         const Contract = await hre.ethers.getContractFactory(taskArgs.contractName);
         const argsTypes = taskArgs.args.map((arg: string) => {

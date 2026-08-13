@@ -41,8 +41,10 @@ cache/
 typechain-types/
 ignition/deployments/
 
-# openzeppeling
-.openzeppelin/
+# openzeppelin upgrades: network manifests are the storage-layout baseline validateUpgrade and
+# upgradeProxy resolve against, so the persistent networks MUST be committed (they contain no
+# secrets). Only the ephemeral local/dev chain ids are ignored.
+.openzeppelin/unknown-*.json
 
 # lol macs
 .DS_Store/

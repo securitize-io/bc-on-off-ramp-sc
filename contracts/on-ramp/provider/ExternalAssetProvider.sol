@@ -25,6 +25,7 @@ import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IER
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IBaseOnRamp} from "../IBaseOnRamp.sol";
 import {IGroveBasin} from "../../off-ramp/third-party-contracts/IGroveBasin.sol";
+import {IPSMAdapter} from "../../off-ramp/third-party-contracts/IPSMAdapter.sol";
 
 /**
  * @title ExternalAssetProvider
@@ -46,6 +47,10 @@ import {IGroveBasin} from "../../off-ramp/third-party-contracts/IGroveBasin.sol"
  *         with no dust and no shortfall. {supplyExactIn} re-derives the quote for the net liquidity
  *         and reverts with {UnexpectedSwapOutputError} on an inconsistent NAV/Grove Basin state. The
  *         balance-based {supplyTo} entrypoint is disabled ({DirectSupplyNotSupported}).
+ *
+ *         {supplyExactIn} reverts with {TwoStepTransferRequired} unless the linked on-ramp has
+ *         two-step transfer enabled. Single-step subscriptions are unsupported because they pass the
+ *         investor as the swap receiver, and a PSM adapter only accepts the on-ramp.
  *
  *         Because Grove Basin sets the price the investor pays, {supplyExactIn} additionally
  *         cross-checks that quote against the Securitize NAV with the inherited tolerance band
@@ -183,7 +188,14 @@ contract ExternalAssetProvider is IExternalAssetProvider, BaseExternalProvider {
      *      band ({_validateRateBand}) so a diverged Grove Basin oracle cannot set an arbitrary price,
      *      and executes {swapExactIn} for `_netLiquidity` with `minAmountOut == _expectedAssetAmount`
      *      as Grove Basin's native floor.
-     * @param _buyer Recipient of the asset (the investor in single-step, the on-ramp in two-step).
+     *      Reverts with {TwoStepTransferRequired} unless the linked on-ramp has two-step transfer
+     *      enabled. Single-step passes the investor as the swap receiver, which a PSM adapter rejects
+     *      ({IPSMAdapter.ReceiverNotApproved}) because it never sends funds to a user directly. The
+     *      companion {ExternalAssetProviderOnRamp} already refuses that mode at every entry point, so
+     *      this guard is the provider's own backstop for a differently-wired or upgraded on-ramp; it
+     *      names the unsupported configuration here instead of letting it surface as an opaque
+     *      counterparty revert.
+     * @param _buyer Recipient of the asset — always the on-ramp, since delivery is two-step only.
      * @param _netLiquidity Net liquidity (after the on-ramp fee) to swap for this subscription.
      * @param _expectedAssetAmount Asset amount (before fee) the on-ramp expects for this subscription.
      */
@@ -191,7 +203,7 @@ contract ExternalAssetProvider is IExternalAssetProvider, BaseExternalProvider {
         address _buyer,
         uint256 _netLiquidity,
         uint256 _expectedAssetAmount
-    ) external whenNotPaused onlySecuritizeOnRamp {
+    ) external whenNotPaused onlySecuritizeOnRamp onlyTwoStepTransfer {
         if (_netLiquidity == 0) {
             revert ZeroAmountToSwap();
         }
@@ -253,22 +265,38 @@ contract ExternalAssetProvider is IExternalAssetProvider, BaseExternalProvider {
     }
 
     /**
-     * @notice Returns a best-effort upper bound on the asset amount available for purchases in Grove Basin.
-     * @dev Reads the raw asset balance at the Grove Basin asset custodian. In this integration the
-     *      asset is Grove Basin's `creditToken`, held by the Grove Basin contract itself.
+     * @notice Returns a best-effort upper bound on the asset amount the external provider can deliver
+     *         for purchases.
+     * @dev Delegates to {IPSMAdapter.availableAsset} on the wired {externalProvider}. The external
+     *      provider is the authority on its own deliverable capacity: an adapter fronting a PSM holds
+     *      no asset inventory of its own (it pushes the asset from the PSM's send custodian), so
+     *      reading the raw asset balance at the provider address would report zero and reject every
+     *      subscription at the liquidity gate in {supplyExactIn}. The adapter instead accounts for the
+     *      PSM rate limits (epoch and period caps: global, per-collateral and per-benefactor) and the
+     *      send custodian's inventory and allowance, and returns zero on any blocking condition (swap
+     *      disabled, unconfigured or inactive collateral, inactive benefactor).
      *
-     *      This is an UPPER BOUND, not the exact deliverable capacity. It reads the raw ERC-20 balance
-     *      and does NOT net out portions that Grove Basin may treat as non-deliverable (e.g. seed
-     *      deposit, fee-claimer accrual, or collateral reserved against pending redemptions), and it
-     *      does NOT model the {asset} DSToken compliance rules (whitelist, lock-ups, holder caps,
-     *      jurisdiction) that may reject the swap output for a specific buyer. Off-chain integrators
-     *      sizing batches from this view should treat it as an optimistic ceiling. The hard guarantee
-     *      is enforced on-chain: Grove Basin reverts the swap when the pool cannot satisfy the output,
-     *      and the DSToken reverts the delivery when compliance rejects it for the buyer.
-     * @return A best-effort upper bound on the asset amount available at the Grove Basin asset custodian.
+     *      WIRING REQUIREMENT — the {externalProvider} MUST expose {IPSMAdapter.availableAsset}. The
+     *      call is not guarded: a provider without that function would make this view (and therefore
+     *      every subscription) revert. That requirement is enforced on-chain by
+     *      {_validateProviderCapabilities}, which probes the candidate on both the initialization and
+     *      the {BaseExternalProvider.setExternalProvider} rotation paths and reverts with
+     *      {ExternalProviderMissingAvailableAsset}. The probe is a point-in-time check of the
+     *      candidate's code: it cannot bind a provider that stops answering later (e.g. an upgradeable
+     *      adapter whose implementation is swapped), so it narrows the failure window rather than
+     *      closing it.
+     *
+     *      This is an UPPER BOUND, not the exact deliverable capacity: it does NOT model the {asset}
+     *      DSToken compliance rules (whitelist, lock-ups, holder caps, jurisdiction) that may reject
+     *      the swap output for a specific buyer, and it is a point-in-time read that another
+     *      subscription can consume in the same block. Off-chain integrators sizing batches from this
+     *      view should treat it as an optimistic ceiling. The hard guarantee is enforced on-chain: the
+     *      external provider reverts the swap when it cannot satisfy the output, and the DSToken
+     *      reverts the delivery when compliance rejects it for the buyer.
+     * @return A best-effort upper bound on the asset amount the external provider can deliver.
      */
     function availableAsset() public view returns (uint256) {
-        return asset.balanceOf(_custodianOf(address(asset)));
+        return IPSMAdapter(address(externalProvider)).availableAsset();
     }
 
     /**
@@ -286,6 +314,33 @@ contract ExternalAssetProvider is IExternalAssetProvider, BaseExternalProvider {
         uint8 liquidityTokenDecimals = liquidityToken.decimals();
         uint8 assetDecimals = IERC20Metadata(address(asset)).decimals();
         assetAmount = (_liquidityAmount * (10 ** (2 * assetDecimals))) / (rate * (10 ** liquidityTokenDecimals));
+    }
+
+    /**
+     * @dev Rejects an external provider candidate that cannot answer {IPSMAdapter.availableAsset}.
+     *      {availableAsset} delegates to it unguarded and {supplyExactIn} gates every subscription on
+     *      the result, so a candidate without it would take the on-ramp down with an unnamed revert
+     *      until an admin rotated the wiring back. The token-layout validation in
+     *      {BaseExternalProvider._validateExternalProviderConfig} does not cover this.
+     *
+     *      Probed with a low-level `staticcall` rather than `try`/`catch` on purpose: a candidate with
+     *      a permissive fallback returns success with empty return data, which passes a `try` and then
+     *      reverts on the ABI decode *outside* the `catch`. Requiring at least a word of return data
+     *      rejects that case here, where it is still recoverable.
+     * @param candidate External provider candidate, already validated for token wiring.
+     */
+    function _validateProviderCapabilities(address candidate) internal view override {
+        (bool ok, bytes memory data) = candidate.staticcall(abi.encodeCall(IPSMAdapter.availableAsset, ()));
+        if (!ok || data.length < 32) { // word size = 32 bytes
+            revert ExternalProviderMissingAvailableAsset(candidate);
+        }
+    }
+
+    /**
+     * @inheritdoc BaseExternalProvider
+     */
+    function _ramp() internal view override returns (address) {
+        return address(securitizeOnRamp);
     }
 
     /**

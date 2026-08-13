@@ -28,6 +28,30 @@ import {
 } from './securitize-external-provider.fixture';
 
 describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
+    // Cyfrin issue 019: the task called a setter that does not exist on the provider
+    // (setRedeemTolerance; the contract exposes setRateTolerance), so passing the optional flag
+    // crashed the deploy after both contracts were already deployed and partially wired. The fixture
+    // never passed the flag, so nothing caught it. This exercises the documented optional flag.
+    describe('Deploy task — optional flags', function () {
+        it('applies --rate-tolerance to the deployed liquidity provider', async function () {
+            const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
+            const groveBasin = await hre.ethers.deployContract('MockGroveBasin', [await ctx.usdcMock.getAddress()]);
+            await groveBasin.setCreditToken(await ctx.dsTokenMock.getAddress());
+
+            const { liquidityProvider } = await hre.run('deploy-redemption-external-liquidity-provider-protocol', {
+                asset: await ctx.dsTokenMock.getAddress(),
+                navProvider: await ctx.navProviderMock.getAddress(),
+                feeManager: await ctx.mockFeeManager.getAddress(),
+                liquidityToken: await ctx.usdcMock.getAddress(),
+                groveBasin: await groveBasin.getAddress(),
+                rateTolerance: '2500',
+                silenceLogs: true,
+            });
+
+            expect(await liquidityProvider.rateTolerance()).to.equal(2500n);
+        });
+    });
+
     // ─────────────────────────────────────────────────────────────────────────
     // Deploy task — optional admin handover
     // ─────────────────────────────────────────────────────────────────────────
@@ -828,6 +852,26 @@ describe('Securitize Off-Ramp + Grove Basin Protocol', function () {
             await expect(liquidityProvider.setExternalProvider(await wrongCreditBasin.getAddress()))
                 .revertedWithCustomError(liquidityProvider, 'CreditTokenMismatch')
                 .withArgs(await ctx.dsTokenMock.getAddress(), stranger.address);
+        });
+
+        // BC-2323 regression: the on-ramp ExternalAssetProvider requires the adapter-specific
+        // IPSMAdapter.availableAsset() and enforces it through the shared
+        // BaseExternalProvider._validateProviderCapabilities hook. That hook must stay a no-op here:
+        // this provider's capacity read (availableLiquidity) is balance-based, so a plain Grove Basin
+        // (PSM3) — which has no availableAsset() — must remain wirable.
+        it('should accept a Grove Basin that does not expose availableAsset()', async function () {
+            const ctx = await loadFixture(deploySecuritizeGroveBasinProtocol);
+            const { liquidityProvider, usdcMock, dsTokenMock, groveBasinMock } = ctx;
+            const plainBasin = await hre.ethers.deployContract('MockGroveBasinNoCapacity', [
+                await usdcMock.getAddress(),
+                await dsTokenMock.getAddress(),
+                false,
+            ]);
+
+            await expect(liquidityProvider.setExternalProvider(await plainBasin.getAddress()))
+                .to.emit(liquidityProvider, 'ExternalProviderUpdated')
+                .withArgs(await groveBasinMock.getAddress(), await plainBasin.getAddress());
+            expect(await liquidityProvider.externalProvider()).to.equal(await plainBasin.getAddress());
         });
     });
 

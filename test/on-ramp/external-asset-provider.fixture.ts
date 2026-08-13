@@ -58,20 +58,11 @@ export const setGbPreviewFactor = async (
 };
 
 /**
- * Deploys SecuritizeOnRamp + ExternalAssetProvider via the
- * deploy-on-ramp-external-asset-provider task with a DSToken-compliant MockDSToken.
- *
- * The on-ramp is wired with custodianWallet == ExternalAssetProvider, investor subscription
- * enabled and a configurable (default 0%) fee manager. Transfer mode defaults to two-step (the
- * task default for RWA compliance); pass `singleStep = true` to exercise the single-step flow.
+ * Deploys the token/NAV/fee mocks shared by every on-ramp external-asset-provider fixture.
+ * The external provider (Grove Basin pool or PSM adapter) is deployed by the caller, which then
+ * wires the protocol through {runDeployOnRampTask}.
  */
-export const deployOnRampExternalAssetProvider = async (
-    assetDecimals = 6,
-    liquidityDecimals = 6,
-    feeNumerator = 0n,
-    singleStep = false,
-    adminAddress?: string,
-) => {
+const deploySharedMocks = async (assetDecimals: number, liquidityDecimals: number, feeNumerator: bigint) => {
     const [securitizeWallet, investor, stranger] = await hre.ethers.getSigners();
 
     const mockRegistryService = await hre.ethers.deployContract('MockRegistryService', []);
@@ -97,31 +88,9 @@ export const deployOnRampExternalAssetProvider = async (
 
     const feeManagerMock = await hre.ethers.deployContract('MockConfigurableFeeManager', [feeNumerator, FEE_COLLECTOR]);
 
-    // Grove Basin mock: collateralToken = USDC, creditToken = DSToken, pocket = address(this).
-    const groveBasinMock = await hre.ethers.deployContract('MockGroveBasin', [await usdcMock.getAddress()]);
-    await groveBasinMock.setCreditToken(await dsTokenMock.getAddress());
-
-    const { onRamp, assetProvider } = await hre.run('deploy-on-ramp-external-asset-provider', {
-        asset: await dsTokenMock.getAddress(),
-        liquidityToken: await usdcMock.getAddress(),
-        navProvider: await navProviderMock.getAddress(),
-        feeManager: await feeManagerMock.getAddress(),
-        groveBasin: await groveBasinMock.getAddress(),
-        singleStep,
-        ...(adminAddress !== undefined ? { admin: adminAddress } : {}),
-        silenceLogs: true,
-    });
-
-    // The deploy task already enables investor subscription; toggling again would revert
-    // (SameValueError), so it is intentionally not repeated here.
-
     return {
-        onRamp,
-        assetProvider,
-        adminAddress,
         dsTokenMock,
         usdcMock,
-        groveBasinMock,
         navProviderMock,
         zeroRateNavProviderMock,
         feeManagerMock,
@@ -133,6 +102,71 @@ export const deployOnRampExternalAssetProvider = async (
 };
 
 /**
+ * Nominal capacity seeded on the external provider before the deploy task runs. The task reads
+ * `availableAsset()` back and refuses to finish on zero, so a provider reporting nothing is not a
+ * valid starting state for a fixture any more than it is for a real deployment. Tests that exercise
+ * the capacity gate overwrite this with their own value.
+ */
+export const SEEDED_CAPACITY = 1n;
+
+/**
+ * Runs the deploy-on-ramp-external-asset-provider task against an already-deployed external provider.
+ * The task also enables investor subscription, so callers must not toggle it again (SameValueError).
+ */
+const runDeployOnRampTask = async (
+    mocks: Awaited<ReturnType<typeof deploySharedMocks>>,
+    externalProviderAddress: string,
+    adminAddress?: string,
+) =>
+    hre.run('deploy-on-ramp-external-asset-provider', {
+        asset: await mocks.dsTokenMock.getAddress(),
+        liquidityToken: await mocks.usdcMock.getAddress(),
+        navProvider: await mocks.navProviderMock.getAddress(),
+        feeManager: await mocks.feeManagerMock.getAddress(),
+        groveBasin: externalProviderAddress,
+        ...(adminAddress !== undefined ? { admin: adminAddress } : {}),
+        silenceLogs: true,
+    });
+
+/**
+ * Deploys SecuritizeOnRamp + ExternalAssetProvider via the
+ * deploy-on-ramp-external-asset-provider task with a DSToken-compliant MockDSToken.
+ *
+ * The on-ramp is wired with custodianWallet == ExternalAssetProvider, investor subscription
+ * enabled and a configurable (default 0%) fee manager. Delivery is two-step, enforced by the
+ * on-ramp itself — single-step is not a supported configuration.
+ */
+export const deployOnRampExternalAssetProvider = async (
+    assetDecimals = 6,
+    liquidityDecimals = 6,
+    feeNumerator = 0n,
+    adminAddress?: string,
+) => {
+    const mocks = await deploySharedMocks(assetDecimals, liquidityDecimals, feeNumerator);
+
+    // External provider: a PSM adapter, the production counterparty shape for the on-ramp. A plain
+    // MockGroveBasin cannot be wired here — like the real Grove Basin (PSM3) pool it models, it does
+    // not expose IPSMAdapter.availableAsset() and the provider rejects it at wiring time.
+    //
+    // Token wiring: collateralToken = USDC, creditToken = DSToken, pocket = address(this). The send
+    // custodian is left at its default (`address(this)`), so the adapter self-custodies the asset and
+    // {prepareSwap} funds it directly; capacity is still reported through `availableAsset()` and is
+    // therefore decoupled from that balance. The external-custodian topology (adapter with zero
+    // inventory) is covered by {deployOnRampExternalAssetProviderWithPsmAdapter}.
+    const groveBasinMock = await hre.ethers.deployContract('MockPSMAdapter', [await mocks.usdcMock.getAddress()]);
+    await groveBasinMock.setCreditToken(await mocks.dsTokenMock.getAddress());
+    await groveBasinMock.setAvailableAsset(SEEDED_CAPACITY);
+
+    const { onRamp, assetProvider } = await runDeployOnRampTask(
+        mocks,
+        await groveBasinMock.getAddress(),
+        adminAddress,
+    );
+
+    return { onRamp, assetProvider, adminAddress, groveBasinMock, ...mocks };
+};
+
+/**
  * Deploys the on-ramp protocol handing DEFAULT_ADMIN_ROLE to a dedicated admin signer.
  * The deployer (signer[0]) grants the role to `admin` and then renounces its own, so after
  * deployment `admin` must be the sole holder of DEFAULT_ADMIN_ROLE on both contracts.
@@ -141,18 +175,50 @@ export const deployOnRampExternalAssetProviderWithAdmin = async () => {
     const signers = await hre.ethers.getSigners();
     const admin = signers[3];
     const deployer = signers[0];
-    const ctx = await deployOnRampExternalAssetProvider(6, 6, 0n, false, admin.address);
+    const ctx = await deployOnRampExternalAssetProvider(6, 6, 0n, admin.address);
     return { ...ctx, admin, deployer };
 };
 
 export const deployOnRampExternalAssetProvider6x18 = () => deployOnRampExternalAssetProvider(6, 18);
 export const deployOnRampExternalAssetProvider18x6 = () => deployOnRampExternalAssetProvider(18, 6);
-export const deployOnRampExternalAssetProviderSingleStep = () => deployOnRampExternalAssetProvider(6, 6, 0n, true);
+
+/**
+ * Deploys the on-ramp protocol wired to a MockPSMAdapter as the external provider, reproducing the
+ * production topology behind BC-2323: the adapter fronts a PSM, holds NO asset inventory of its own
+ * (the asset is pulled from `assetCustodian` on delivery) and reports its deliverable capacity
+ * through `availableAsset()`.
+ *
+ * Capacity starts at {SEEDED_CAPACITY} (the deploy task refuses to finish on zero) — use
+ * {prepareSwapViaAdapter} (or `psmAdapterMock.setAvailableAsset`) to configure what the adapter
+ * reports.
+ */
+export const deployOnRampExternalAssetProviderWithPsmAdapter = async (
+    assetDecimals = 6,
+    liquidityDecimals = 6,
+    feeNumerator = 0n,
+) => {
+    const mocks = await deploySharedMocks(assetDecimals, liquidityDecimals, feeNumerator);
+    const assetCustodian = (await hre.ethers.getSigners())[4];
+
+    // Adapter mock: same token wiring as the Grove Basin mock (collateralToken = USDC,
+    // creditToken = DSToken, pocket = address(this)) so the provider's wiring validation passes,
+    // but the asset is delivered from an external send custodian instead of the adapter's balance.
+    const psmAdapterMock = await hre.ethers.deployContract('MockPSMAdapter', [await mocks.usdcMock.getAddress()]);
+    await psmAdapterMock.setCreditToken(await mocks.dsTokenMock.getAddress());
+    await psmAdapterMock.setAssetSendCustodian(assetCustodian.address);
+    await psmAdapterMock.setAvailableAsset(SEEDED_CAPACITY);
+
+    const { onRamp, assetProvider } = await runDeployOnRampTask(mocks, await psmAdapterMock.getAddress(), undefined);
+
+    return { onRamp, assetProvider, psmAdapterMock, assetCustodian, ...mocks };
+};
 
 /**
  * Prepares state for a swap call:
  *   - mints `liquidityAmount` USDC to the investor and approves the on-ramp
- *   - mints `assetToFund` (defaults to the gross 1:1 asset output) DSToken into Grove Basin
+ *   - mints `assetToFund` (defaults to the gross 1:1 asset output) DSToken into the external provider
+ *   - reports the same amount as the provider's `availableAsset()` capacity, so the liquidity gate in
+ *     supplyExactIn sees exactly what was funded
  *
  * Returns the gross/fee/net/expected asset breakdown for assertions.
  */
@@ -171,9 +237,48 @@ export const prepareSwap = async (
     const net = liquidityAmount - fee;
     const expected = expectedAsset(net, assetDecimals, liquidityDecimals);
 
+    const funded = assetToFund ?? expected;
+
     await usdcMock.mint(investor.address, liquidityAmount);
     await usdcMock.connect(investor).approve(await onRamp.getAddress(), liquidityAmount);
-    await dsTokenMock.mint(await groveBasinMock.getAddress(), assetToFund ?? expected);
+    await dsTokenMock.mint(await groveBasinMock.getAddress(), funded);
+    await groveBasinMock.setAvailableAsset(funded);
+
+    return { fee, net, expected };
+};
+
+/**
+ * PSM-adapter analog of {prepareSwap}:
+ *   - mints `liquidityAmount` USDC to the investor and approves the on-ramp
+ *   - funds the adapter's send custodian with `assetToFund` (defaults to the 1:1 asset output) and
+ *     approves the adapter to pull it — the adapter itself is left with zero inventory
+ *   - sets the capacity the adapter reports through `availableAsset()` (defaults to `assetToFund`)
+ *
+ * Returns the gross/fee/net/expected asset breakdown for assertions.
+ */
+export const prepareSwapViaAdapter = async (
+    ctx: Awaited<ReturnType<typeof deployOnRampExternalAssetProviderWithPsmAdapter>>,
+    liquidityAmount: bigint,
+    feeNumerator: bigint,
+    assetToFund?: bigint,
+    reportedAvailable?: bigint,
+) => {
+    const { onRamp, dsTokenMock, usdcMock, psmAdapterMock, assetCustodian, investor } = ctx;
+
+    const assetDecimals = Number(await dsTokenMock.decimals());
+    const liquidityDecimals = Number(await usdcMock.decimals());
+
+    const fee = calcFee(liquidityAmount, feeNumerator);
+    const net = liquidityAmount - fee;
+    const expected = expectedAsset(net, assetDecimals, liquidityDecimals);
+    const funded = assetToFund ?? expected;
+
+    await usdcMock.mint(investor.address, liquidityAmount);
+    await usdcMock.connect(investor).approve(await onRamp.getAddress(), liquidityAmount);
+
+    await dsTokenMock.mint(assetCustodian.address, funded);
+    await dsTokenMock.connect(assetCustodian).approve(await psmAdapterMock.getAddress(), funded);
+    await psmAdapterMock.setAvailableAsset(reportedAvailable ?? funded);
 
     return { fee, net, expected };
 };

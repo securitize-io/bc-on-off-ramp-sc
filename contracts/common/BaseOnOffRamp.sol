@@ -41,9 +41,14 @@ abstract contract BaseOnOffRamp is IOnOffRamp, EIP712Upgradeable, NoncesUpgradea
 
     /**
      * @notice Enables or disables the two-step transfer flow.
+     * @dev `public virtual` (rather than `external`) so a concrete ramp whose counterparty cannot
+     *      deliver in one of the two modes can override it, reject that mode outright and still
+     *      delegate the accepted case here through `super` — instead of letting an admin brick the
+     *      ramp through a valid-looking configuration (see
+     *      {ExternalAssetProviderOnRamp.toggleTwoStepTransfer}).
      * @param _twoStepTransfer Desired two-step transfer flag.
      */
-    function toggleTwoStepTransfer(bool _twoStepTransfer) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function toggleTwoStepTransfer(bool _twoStepTransfer) public virtual onlyRole(DEFAULT_ADMIN_ROLE) {
         if (_twoStepTransfer == twoStepTransfer) {
             revert SameValueError();
         }

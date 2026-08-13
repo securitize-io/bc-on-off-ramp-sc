@@ -51,15 +51,20 @@ interface IExternalAssetProvider is IAssetProvider, IExternalProvider {
     event NavProviderUpdated(address indexed oldProvider, address indexed newProvider);
 
     /**
-     * @dev Thrown when there is no liquidity-token balance available to swap.
+     * @dev Thrown when the subscription has nothing to swap: either the on-ramp passed a zero net
+     *      liquidity, or the Grove Basin quote for that net floors to zero (which would silently
+     *      remove the swap's price floor, since the quote is forwarded as `minAmountOut`).
+     *      A net liquidity that simply exceeds the balance on hand throws
+     *      {InsufficientLiquidityToSwap} instead.
      * @dev Selector: 0xa80f0106
      */
     error ZeroAmountToSwap();
 
     /**
-     * @dev Thrown when Grove Basin cannot satisfy the requested asset output.
-     * @param requested Asset amount requested from Grove Basin.
-     * @param available Asset amount available at the Grove Basin asset custodian.
+     * @dev Thrown when the external provider cannot satisfy the requested asset output.
+     * @param requested Asset amount requested from the external provider.
+     * @param available Capacity the external provider reports through {IPSMAdapter.availableAsset} —
+     *                  its own netted deliverable ceiling, not a balance read at any address.
      * @dev Selector: 0x48b12e37
      */
     error InsufficientAssetLiquidity(uint256 requested, uint256 available);
@@ -84,6 +89,17 @@ interface IExternalAssetProvider is IAssetProvider, IExternalProvider {
      * @dev Selector: 0x9a0f5d2e
      */
     error InsufficientLiquidityToSwap(uint256 required, uint256 available);
+
+    /**
+     * @dev Thrown when an external provider candidate does not answer {IPSMAdapter.availableAsset}
+     *      with a decodable `uint256`. {availableAsset} delegates to it unguarded, so wiring a
+     *      candidate that cannot answer it would make the capacity view — and therefore every
+     *      subscription, which gates on it in {supplyExactIn} — revert. Enforced on both the
+     *      initialization and the {setExternalProvider} rotation paths.
+     * @param provider Candidate external provider that failed the capability probe.
+     * @dev Selector: 0x1feddf48
+     */
+    error ExternalProviderMissingAvailableAsset(address provider);
 
     /**
      * @notice Proxy initializer.
@@ -143,19 +159,23 @@ interface IExternalAssetProvider is IAssetProvider, IExternalProvider {
     /**
      * @notice Grove Basin quote: asset amount delivered for swapping `_netLiquidity` of the liquidity
      *         token in. The on-ramp uses this to size the expected asset amount so the amount it
-     *         forwards in two-step equals what the swap in {supplyTo} delivers.
+     *         forwards in two-step equals what the swap in {supplyExactIn} delivers.
      * @param _netLiquidity Net liquidity amount (after the on-ramp fee) to be swapped.
      * @return The asset amount Grove Basin would deliver for `_netLiquidity`.
      */
     function quoteAsset(uint256 _netLiquidity) external view returns (uint256);
 
     /**
-     * @notice Returns a best-effort upper bound on the asset amount available for purchases in Grove Basin.
-     * @dev Upper bound, not exact deliverable capacity: it does NOT net out non-deliverable portions
-     *      (seed deposit, fee-claimer accrual, collateral reserved against pending redemptions) and does
-     *      NOT model the asset DSToken compliance rules that may reject the swap output for a specific
-     *      buyer. See {ExternalAssetProvider.availableAsset} for the full semantics.
-     * @return A best-effort upper bound on the asset amount available at the Grove Basin asset custodian.
+     * @notice Returns a best-effort upper bound on the asset amount the external provider can deliver
+     *         for purchases.
+     * @dev Reported by the external provider itself through {IPSMAdapter.availableAsset}, which nets
+     *      out the PSM rate limits and the send custodian's inventory and allowance, and returns zero
+     *      on any blocking condition. Upper bound, not exact deliverable capacity: it does NOT model
+     *      the asset DSToken compliance rules that may reject the swap output for a specific buyer, and
+     *      another subscription can consume it in the same block. The wired external provider MUST
+     *      expose {IPSMAdapter.availableAsset}. See {ExternalAssetProvider.availableAsset} for the full
+     *      semantics.
+     * @return A best-effort upper bound on the asset amount the external provider can deliver.
      */
     function availableAsset() external view returns (uint256);
 }

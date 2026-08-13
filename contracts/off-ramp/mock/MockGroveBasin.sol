@@ -34,6 +34,12 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
  *
  *         Custody mirrors the real Grove Basin: the `pocket` only custodies the `swapToken`,
  *         while the `collateralToken` and `creditToken` are held by this contract.
+ *
+ *         This double models a PLAIN Grove Basin (PSM3) pool and therefore deliberately does NOT
+ *         expose {IPSMAdapter.availableAsset}: a real pool has no such view, and the on-ramp
+ *         {ExternalAssetProvider} must reject it at wiring time
+ *         ({ExternalAssetProvider._validateProviderCapabilities}). Only {MockPSMAdapter} declares
+ *         that capacity view, mirroring the production split between a pool and an adapter.
  */
 contract MockGroveBasin {
     using SafeERC20 for IERC20;
@@ -249,7 +255,7 @@ contract MockGroveBasin {
         IERC20(asset).safeTransferFrom(msg.sender, _getAssetCustodian(asset), amount);
     }
 
-    function _pushAsset(address asset, address receiver, uint256 amount) internal {
+    function _pushAsset(address asset, address receiver, uint256 amount) internal virtual {
         if (asset == swapToken && _hasPocket()) {
             IERC20(asset).safeTransferFrom(pocket, receiver, amount);
         } else {

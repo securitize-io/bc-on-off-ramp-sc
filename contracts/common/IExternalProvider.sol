@@ -131,6 +131,16 @@ interface IExternalProvider is Errors {
     error MaxRateDivergenceError(uint256 navQuote, uint256 groveBasinPreview, uint256 tolerance);
 
     /**
+     * @dev Thrown when the ramp linked to the provider does not have two-step transfer enabled.
+     *      Both external providers are incompatible with the single-step flow: the off-ramp
+     *      {ExternalLiquidityProvider} needs the redeemed asset transferred to it before the swap, and
+     *      the on-ramp {ExternalAssetProvider} needs the on-ramp — not the investor — as the swap
+     *      receiver, which is the only receiver a PSM adapter accepts.
+     * @dev Selector: 0x55ab5ab8
+     */
+    error TwoStepTransferRequired();
+
+    /**
      * @notice Rescues tokens stuck on the provider (e.g. a token donation) to a recipient.
      * @dev The external providers bind each swap to the exact input amount of the current operation,
      *      so any stray balance is ignored by the swap and can be swept out here without affecting
