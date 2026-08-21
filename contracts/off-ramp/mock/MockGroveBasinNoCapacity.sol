@@ -70,6 +70,18 @@ contract MockGroveBasinNoCapacity {
     }
 
     /**
+     * @notice Handles plain ether transfers (empty calldata), mirroring the {fallback} mode.
+     * @dev Present only to pair with the `payable` fallback so the compiler does not warn about a
+     *      contract that can receive value through unknown selectors but not through a bare send.
+     *      No test sends value to this stub; the capability probe uses a `staticcall`.
+     */
+    receive() external payable {
+        if (!_permissiveFallback) {
+            revert UnknownSelector();
+        }
+    }
+
+    /**
      * @notice Returns the configured collateral token address.
      * @return The collateral token address.
      */

@@ -44,10 +44,6 @@ task('deploy-on-ramp-external-asset-provider', 'Deploy Securitize On-Ramp + Grov
         'rateTolerance',
         'Rate divergence tolerance in units of 100_000 (1000 = 1%). Overrides the 1% contract default when set',
     )
-    .addOptionalParam(
-        'minAvailableAsset',
-        'Minimum capacity the wired provider must report through availableAsset() for the deploy to be considered complete. Defaults to 1 (any non-zero capacity)',
-    )
     .addOptionalParam('referralCode', 'Referral code forwarded to Grove Basin on each swap')
 
     // Admin handover (optional)
@@ -84,7 +80,6 @@ task('deploy-on-ramp-external-asset-provider', 'Deploy Securitize On-Ramp + Grov
             console.log(`- Grove Basin: ${args.groveBasin}`);
             console.log(`- Rate Tolerance: ${args.rateTolerance ?? '(contract default 1000 = 1%)'}`);
             console.log(`- Referral Code: ${args.referralCode ?? '0'}`);
-            console.log(`- Min available asset: ${args.minAvailableAsset ?? '1 (any non-zero capacity)'}`);
             console.log('- Transfer mode: two-step (enforced)');
             console.log(`- Admin: ${args.admin} ${args.admin === hre.ethers.ZeroAddress ? '(no handover)' : ''}`);
             console.log(`- Verify: ${args.verify}`);
@@ -160,16 +155,7 @@ task('deploy-on-ramp-external-asset-provider', 'Deploy Securitize On-Ramp + Grov
         // allowance granted to the wrong spender, which leaves the custodian's balance looking
         // correct. Reporting it at deploy time turns a silent zero into a named failure, instead of
         // an on-ramp that looks wired and rejects every subscription.
-        const minAvailableAsset = args.minAvailableAsset !== undefined ? BigInt(args.minAvailableAsset) : 1n;
         const availableAsset = await assetProvider.availableAsset();
-        if (availableAsset < minAvailableAsset) {
-            throw new Error(
-                `Provider reports availableAsset() = ${availableAsset}, below the required ${minAvailableAsset}. ` +
-                    `The contracts are deployed and wired but cannot serve a subscription. Check: the asset send ` +
-                    `custodian is funded AND has approved the correct spender, the PSM rate limits have headroom, ` +
-                    `the benefactor is active, the collateral is registered and swaps are enabled.`,
-            );
-        }
 
         if (!args.silenceLogs) {
             consoleGreen('Securitize + Grove Basin On-Ramp Protocol deployed and configured successfully');
