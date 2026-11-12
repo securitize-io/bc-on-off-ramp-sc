@@ -41,6 +41,18 @@ interface ISecuritizeOnRamp is IBaseOnRamp {
     error OnlySecuritizeOnRampError();
 
     /**
+     * @dev Thrown when the destination of a pre-approved transaction is not the on-ramp itself
+     * @custom:selector 0x368b72f9
+     */
+    error InvalidDestinationError();
+
+    /**
+     * @dev Thrown when the encoded data of a pre-approved transaction does not target subscribe
+     * @custom:selector 0x85116c33
+     */
+    error InvalidFunctionSelectorError();
+
+    /**
      * @dev Tx type - EIP712
      */
     struct ExecutePreApprovedTransaction {
