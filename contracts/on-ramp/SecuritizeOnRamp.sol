@@ -189,6 +189,12 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
         bytes memory signature,
         ExecutePreApprovedTransaction calldata txData
     ) public whenNotPaused {
+        if (txData.destination != address(this)) {
+            revert InvalidDestinationError();
+        }
+        if (txData.data.length < 4 || bytes4(txData.data[:4]) != this.subscribe.selector) {
+            revert InvalidFunctionSelectorError();
+        }
         bytes32 digest = hashTx(txData);
         address signer = ECDSA.recover(digest, signature);
 
@@ -199,7 +205,7 @@ contract SecuritizeOnRamp is ISecuritizeOnRamp, EIP712Upgradeable, BaseContract 
             revert InvalidEIP712SignatureError();
         }
         noncePerInvestor[txData.senderInvestor] = noncePerInvestor[txData.senderInvestor] + 1;
-        Address.functionCall(txData.destination, txData.data);
+        Address.functionCall(address(this), txData.data);
     }
 
     /// @dev Computes the digest to sign (EIP-712)

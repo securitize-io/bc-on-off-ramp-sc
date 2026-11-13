@@ -239,6 +239,85 @@ describe('On-Ramp Unit Tests', function () {
                     );
                 });
 
+                it('Should fail - destination is the asset provider', async function () {
+                    await dsTokenMock.issueTokens(assetProviderWallet, 1e6);
+                    const dsTokenFromAssetProviderWallet = dsTokenMock.connect(assetProviderWallet) as Contract;
+                    await dsTokenFromAssetProviderWallet.approve(assetProvider, 1e6);
+                    const txData = {
+                        senderInvestor: '1',
+                        destination: await assetProvider.getAddress(),
+                        data: assetProvider.interface.encodeFunctionData('supplyTo', [
+                            await unknownWallet.getAddress(),
+                            1e6,
+                        ]),
+                        nonce: await onRamp.nonceByInvestor('1'),
+                    };
+                    const signature = await eip712OnRamp(eip712Signer, await onRamp.getAddress(), txData);
+                    await expect(onRamp.executePreApprovedTransaction(signature, txData)).revertedWithCustomError(
+                        onRamp,
+                        'InvalidDestinationError',
+                    );
+                    expect(await dsTokenMock.balanceOf(unknownWallet)).to.equal(0);
+                    expect(await dsTokenMock.balanceOf(assetProviderWallet)).to.equal(1e6);
+                    expect(await onRamp.nonceByInvestor('1')).to.equal(0);
+                });
+
+                it('Should fail - destination is the liquidity token', async function () {
+                    await usdcMock.mint(unknownWallet, 1e6);
+                    const liquidityFromInvestor = usdcMock.connect(unknownWallet) as Contract;
+                    await liquidityFromInvestor.approve(onRamp, 1e6);
+                    const txData = {
+                        senderInvestor: '1',
+                        destination: await usdcMock.getAddress(),
+                        data: usdcMock.interface.encodeFunctionData('transferFrom', [
+                            await unknownWallet.getAddress(),
+                            await eip712Signer.getAddress(),
+                            1e6,
+                        ]),
+                        nonce: await onRamp.nonceByInvestor('1'),
+                    };
+                    const signature = await eip712OnRamp(eip712Signer, await onRamp.getAddress(), txData);
+                    await expect(onRamp.executePreApprovedTransaction(signature, txData)).revertedWithCustomError(
+                        onRamp,
+                        'InvalidDestinationError',
+                    );
+                    expect(await usdcMock.balanceOf(unknownWallet)).to.equal(1e6);
+                    expect(await usdcMock.balanceOf(eip712Signer)).to.equal(0);
+                    expect(await onRamp.nonceByInvestor('1')).to.equal(0);
+                });
+
+                it('Should fail - data does not target subscribe', async function () {
+                    const txData = {
+                        senderInvestor: '1',
+                        destination: await onRamp.getAddress(),
+                        data: onRamp.interface.encodeFunctionData('updateMinSubscriptionAmount', [1e6]),
+                        nonce: await onRamp.nonceByInvestor('1'),
+                    };
+                    const signature = await eip712OnRamp(eip712Signer, await onRamp.getAddress(), txData);
+                    await expect(onRamp.executePreApprovedTransaction(signature, txData)).revertedWithCustomError(
+                        onRamp,
+                        'InvalidFunctionSelectorError',
+                    );
+                    expect(await onRamp.minSubscriptionAmount()).to.equal(0);
+                    expect(await onRamp.nonceByInvestor('1')).to.equal(0);
+                });
+
+                it('Should fail - data is shorter than a function selector', async function () {
+                    for (const data of ['0x', '0x123456']) {
+                        const txData = {
+                            senderInvestor: '1',
+                            destination: await onRamp.getAddress(),
+                            data,
+                            nonce: await onRamp.nonceByInvestor('1'),
+                        };
+                        const signature = await eip712OnRamp(eip712Signer, await onRamp.getAddress(), txData);
+                        await expect(onRamp.executePreApprovedTransaction(signature, txData)).revertedWithCustomError(
+                            onRamp,
+                            'InvalidFunctionSelectorError',
+                        );
+                    }
+                });
+
                 it('Should fail - tx data corrupted', async function () {
                     await mockTrustService.setRole(await eip712Signer.getAddress(), 0);
                     const subscribeParams = ['1', await unknownWallet.getAddress(), 'US', [], [], [], 0, 1e6, 0, HASH];
